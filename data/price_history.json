@@ -6,6 +6,13 @@
     "last_alert_at": null,
     "last_alert_price": null
   },
+  "CGH-BOS-business": {
+    "prices": [
+      2158.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null
+  },
   "CGH-CDG-business": {
     "prices": [
       2641.0
@@ -23,6 +30,13 @@
   "CGH-FRA-business": {
     "prices": [
       3322.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null
+  },
+  "CGH-IAD-business": {
+    "prices": [
+      2992.0
     ],
     "last_alert_at": null,
     "last_alert_price": null
@@ -69,6 +83,20 @@
     "last_alert_at": null,
     "last_alert_price": null
   },
+  "CGH-ORD-business": {
+    "prices": [
+      1619.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null
+  },
+  "CGH-SFO-business": {
+    "prices": [
+      2551.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null
+  },
   "CGH-ZRH-business": {
     "prices": [
       4720.0
@@ -111,6 +139,13 @@
     "last_alert_at": null,
     "last_alert_price": null
   },
+  "GRU-HKG-business": {
+    "prices": [
+      4403.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null
+  },
   "GRU-IAD-business": {
     "prices": [
       2470.0
@@ -118,8 +153,16 @@
     "last_alert_at": null,
     "last_alert_price": null
   },
+  "GRU-ICN-business": {
+    "prices": [
+      4738.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null
+  },
   "GRU-JFK-business": {
     "prices": [
+      1933.0,
       1933.0,
       1933.0,
       1933.0
@@ -162,6 +205,13 @@
     "last_alert_at": null,
     "last_alert_price": null
   },
+  "GRU-NRT-business": {
+    "prices": [
+      4000.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null
+  },
   "GRU-ORD-business": {
     "prices": [
       1631.0
@@ -173,7 +223,15 @@
     "prices": [
       1998.0,
       1998.0,
-      1997.0
+      1997.0,
+      1998.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null
+  },
+  "GRU-SIN-business": {
+    "prices": [
+      4731.0
     ],
     "last_alert_at": null,
     "last_alert_price": null
