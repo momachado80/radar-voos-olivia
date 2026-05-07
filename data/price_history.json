@@ -27,6 +27,20 @@
     "last_alert_at": null,
     "last_alert_price": null
   },
+  "CGH-JFK-business": {
+    "prices": [
+      2062.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null
+  },
+  "CGH-LAX-business": {
+    "prices": [
+      2015.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null
+  },
   "CGH-LHR-business": {
     "prices": [
       3071.0
@@ -48,6 +62,13 @@
     "last_alert_at": null,
     "last_alert_price": null
   },
+  "CGH-MIA-business": {
+    "prices": [
+      1965.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null
+  },
   "CGH-ZRH-business": {
     "prices": [
       4720.0
@@ -58,6 +79,13 @@
   "GRU-AMS-business": {
     "prices": [
       2353.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null
+  },
+  "GRU-BOS-business": {
+    "prices": [
+      2164.0
     ],
     "last_alert_at": null,
     "last_alert_price": null
@@ -83,10 +111,25 @@
     "last_alert_at": null,
     "last_alert_price": null
   },
+  "GRU-IAD-business": {
+    "prices": [
+      2470.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null
+  },
   "GRU-JFK-business": {
     "prices": [
       1933.0,
+      1933.0,
       1933.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null
+  },
+  "GRU-LAX-business": {
+    "prices": [
+      1822.0
     ],
     "last_alert_at": null,
     "last_alert_price": null
@@ -112,10 +155,25 @@
     "last_alert_at": null,
     "last_alert_price": null
   },
+  "GRU-MIA-business": {
+    "prices": [
+      1207.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null
+  },
+  "GRU-ORD-business": {
+    "prices": [
+      1631.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null
+  },
   "GRU-SFO-business": {
     "prices": [
       1998.0,
-      1998.0
+      1998.0,
+      1997.0
     ],
     "last_alert_at": null,
     "last_alert_price": null
