@@ -10,7 +10,7 @@ from .cycle_state import CycleState
 from .detector import evaluate
 from .notifier import TelegramNotifier
 from .providers import FlightProvider
-from .regions import Route, all_routes
+from .regions import Route, all_routes, is_priority
 from .state import PriceStore
 
 
@@ -44,17 +44,18 @@ class Monitor:
         alerts_sent = 0
 
         for route in routes:
+            priority = is_priority(route)
             quote = self.provider.quote(route)
             if quote is None:
                 notes.append(f"{route.origin}→{route.destination}: sem cotação")
                 continue
             quotes_received += 1
             history = self.store.get(route.key)
-            decision = evaluate(history, quote.price_brl)
+            decision = evaluate(history, quote.price_brl, priority=priority)
             history.push(quote.price_brl)
 
             if decision.alert and self.notifier and decision.average is not None and decision.drop_pct is not None:
-                ok = self.notifier.send_alert(quote, decision.average, decision.drop_pct)
+                ok = self.notifier.send_alert(quote, decision.average, decision.drop_pct, priority=priority)
                 if ok:
                     history.last_alert_at = datetime.now(timezone.utc).isoformat()
                     history.last_alert_price = quote.price_brl
@@ -77,9 +78,11 @@ class Monitor:
         if self.cycle is None:
             return self.run_once()
         all_ = all_routes()
-        start, end = self.cycle.next_chunk(len(all_), self.chunk_size)
-        chunk = all_[start:end]
-        result = self.run_once(chunk)
-        self.cycle.advance(len(all_), self.chunk_size)
+        priority = [r for r in all_ if is_priority(r)]
+        rest = [r for r in all_ if not is_priority(r)]
+        start, end = self.cycle.next_chunk(len(rest), self.chunk_size)
+        chunk = rest[start:end]
+        result = self.run_once(priority + chunk)
+        self.cycle.advance(len(rest), self.chunk_size)
         self.cycle.save()
         return result

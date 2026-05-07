@@ -36,10 +36,11 @@ class TelegramNotifier:
         except (HTTPError, URLError, json.JSONDecodeError):
             return False
 
-    def send_alert(self, quote: Quote, average: float, drop_pct: float) -> bool:
+    def send_alert(self, quote: Quote, average: float, drop_pct: float, priority: bool = False) -> bool:
+        flag = "🔥 " if priority else ""
         link_line = f'\n<a href="{quote.deep_link}">Abrir oferta</a>' if quote.deep_link else ""
         text = (
-            f"✈️ <b>Business em promoção</b>\n"
+            f"✈️ <b>{flag}Business em promoção</b>\n"
             f"{quote.route.origin} → {quote.route.destination} ({quote.route.region})\n"
             f"💰 R$ {quote.price_brl:,.0f} (média R$ {average:,.0f}, queda {drop_pct:.0%})\n"
             f"📅 {quote.departure_date}"

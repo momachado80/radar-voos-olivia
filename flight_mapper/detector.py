@@ -9,8 +9,10 @@ from .state import RouteHistory
 
 
 MIN_SAMPLES = 5
-DROP_THRESHOLD = 0.25  # 25% abaixo da média
+DROP_THRESHOLD = 0.25
 DEDUPE_WINDOW_HOURS = 24
+PRIORITY_DROP_THRESHOLD = 0.15
+PRIORITY_DEDUPE_HOURS = 12
 
 
 @dataclass
@@ -21,9 +23,17 @@ class Decision:
     drop_pct: float | None
 
 
-def evaluate(history: RouteHistory, current_price: float, now: datetime | None = None) -> Decision:
+def evaluate(
+    history: RouteHistory,
+    current_price: float,
+    now: datetime | None = None,
+    *,
+    priority: bool = False,
+) -> Decision:
     now = now or datetime.now(timezone.utc)
     samples = len(history.prices)
+    threshold = PRIORITY_DROP_THRESHOLD if priority else DROP_THRESHOLD
+    dedupe_hours = PRIORITY_DEDUPE_HOURS if priority else DEDUPE_WINDOW_HOURS
 
     if samples < MIN_SAMPLES:
         return Decision(
@@ -37,10 +47,10 @@ def evaluate(history: RouteHistory, current_price: float, now: datetime | None =
     assert average is not None
     drop_pct = (average - current_price) / average
 
-    if drop_pct < DROP_THRESHOLD:
+    if drop_pct < threshold:
         return Decision(
             alert=False,
-            reason=f"queda {drop_pct:.1%} < limite {DROP_THRESHOLD:.0%}",
+            reason=f"queda {drop_pct:.1%} < limite {threshold:.0%}",
             average=average,
             drop_pct=drop_pct,
         )
@@ -49,11 +59,11 @@ def evaluate(history: RouteHistory, current_price: float, now: datetime | None =
         last = datetime.fromisoformat(history.last_alert_at)
         if last.tzinfo is None:
             last = last.replace(tzinfo=timezone.utc)
-        within_dedupe = now - last < timedelta(hours=DEDUPE_WINDOW_HOURS)
+        within_dedupe = now - last < timedelta(hours=dedupe_hours)
         if within_dedupe and current_price >= history.last_alert_price:
             return Decision(
                 alert=False,
-                reason="alerta repetido dentro de 24h sem nova queda",
+                reason=f"alerta repetido dentro de {dedupe_hours}h sem nova queda",
                 average=average,
                 drop_pct=drop_pct,
             )

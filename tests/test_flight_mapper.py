@@ -9,7 +9,7 @@ from flight_mapper.cycle_state import CycleState
 from flight_mapper.detector import DROP_THRESHOLD, MIN_SAMPLES, evaluate
 from flight_mapper.monitor import Monitor
 from flight_mapper.providers import MockProvider, Quote, TravelpayoutsProvider
-from flight_mapper.regions import Route, all_routes
+from flight_mapper.regions import PRIORITY_KEYS, Route, all_routes, is_priority
 from flight_mapper.state import HISTORY_WINDOW, PriceStore, RouteHistory
 
 
@@ -61,6 +61,38 @@ def test_detector_skips_minor_drop():
     history = RouteHistory(prices=[10000.0] * MIN_SAMPLES)
     decision = evaluate(history, 9000.0)
     assert decision.alert is False
+
+
+def test_priority_threshold_alerts_on_smaller_drop():
+    history = RouteHistory(prices=[10000.0] * MIN_SAMPLES)
+    normal = evaluate(history, 8200.0)  # 18% drop, abaixo do limite normal de 25%
+    assert normal.alert is False
+    priority = evaluate(history, 8200.0, priority=True)
+    assert priority.alert is True
+
+
+def test_priority_dedupe_window_is_shorter():
+    now = datetime(2026, 5, 7, 12, 0, tzinfo=timezone.utc)
+    history = RouteHistory(
+        prices=[10000.0] * MIN_SAMPLES,
+        last_alert_at=(now - timedelta(hours=15)).isoformat(),
+        last_alert_price=8000.0,
+    )
+    normal = evaluate(history, 8000.0, now=now)  # ainda dentro de 24h
+    assert normal.alert is False
+    priority = evaluate(history, 8000.0, now=now, priority=True)  # fora dos 12h
+    assert priority.alert is True
+
+
+def test_priority_keys_cover_target_routes():
+    assert "GRU-SFO-business" in PRIORITY_KEYS
+    assert "GRU-JFK-business" in PRIORITY_KEYS
+    assert is_priority(Route("GRU", "SFO", "EUA")) is True
+    assert is_priority(Route("GRU", "LHR", "Europa")) is False
+
+
+def test_sfo_present_in_routes():
+    assert any(r.destination == "SFO" for r in all_routes())
 
 
 def test_detector_dedupes_within_24h_unless_lower(monkeypatch):
@@ -122,10 +154,10 @@ def test_mock_provider_returns_quote_for_every_route():
 
 class _StubNotifier:
     def __init__(self):
-        self.alerts: list[tuple[str, float, float]] = []
+        self.alerts: list[tuple[str, float, float, bool]] = []
 
-    def send_alert(self, quote, average, drop_pct):
-        self.alerts.append((quote.route.key, average, drop_pct))
+    def send_alert(self, quote, average, drop_pct, priority=False):
+        self.alerts.append((quote.route.key, average, drop_pct, priority))
         return True
 
     def send(self, text):  # pragma: no cover - not used in these tests
@@ -149,7 +181,7 @@ def test_monitor_alerts_after_history_warmup(tmp_path: Path):
     assert len(notifier.alerts) == 1
 
 
-def test_monitor_run_cycle_processes_chunk_and_advances(tmp_path: Path):
+def test_monitor_run_cycle_includes_priority_plus_chunk(tmp_path: Path):
     store = PriceStore(tmp_path / "h.json")
     cycle = CycleState.load(tmp_path / "c.json")
     monitor = Monitor(
@@ -160,5 +192,27 @@ def test_monitor_run_cycle_processes_chunk_and_advances(tmp_path: Path):
         chunk_size=5,
     )
     result = monitor.run_cycle()
-    assert result.scanned == 5
+    # 2 rotas prioritárias (GRU-SFO, GRU-JFK) + 5 do chunk = 7 escaneadas
+    assert result.scanned == len(PRIORITY_KEYS) + 5
     assert cycle.cursor == 5
+    # cursor avança apenas sobre as não-prioritárias
+    keys_in_history = set(store.keys())
+    for priority_key in PRIORITY_KEYS:
+        assert priority_key in keys_in_history
+
+
+def test_monitor_priority_routes_scanned_every_cycle(tmp_path: Path):
+    store = PriceStore(tmp_path / "h.json")
+    cycle = CycleState.load(tmp_path / "c.json")
+    monitor = Monitor(
+        provider=MockProvider(seed=0),
+        notifier=None,
+        store=store,
+        cycle=cycle,
+        chunk_size=5,
+    )
+    for _ in range(3):
+        monitor.run_cycle()
+    # Após 3 ciclos, prioritárias devem ter 3 amostras cada
+    for key in PRIORITY_KEYS:
+        assert len(store.get(key).prices) == 3

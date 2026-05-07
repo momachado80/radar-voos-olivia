@@ -6,7 +6,7 @@ from dataclasses import dataclass
 ORIGINS = ["GRU", "CGH"]
 
 EUROPE = ["LHR", "CDG", "FRA", "MAD", "LIS", "FCO", "AMS", "ZRH"]
-USA = ["JFK", "MIA", "LAX", "ORD", "IAD", "BOS"]
+USA = ["JFK", "MIA", "LAX", "ORD", "IAD", "BOS", "SFO"]
 ASIA = ["NRT", "ICN", "HKG", "SIN", "DXB", "DOH"]
 
 REGIONS = {
@@ -14,6 +14,11 @@ REGIONS = {
     "EUA": USA,
     "Ásia": ASIA,
 }
+
+PRIORITY_KEYS = frozenset({
+    "GRU-SFO-business",
+    "GRU-JFK-business",
+})
 
 
 @dataclass(frozen=True)
@@ -25,6 +30,10 @@ class Route:
     @property
     def key(self) -> str:
         return f"{self.origin}-{self.destination}-business"
+
+
+def is_priority(route: Route) -> bool:
+    return route.key in PRIORITY_KEYS
 
 
 def all_routes() -> list[Route]:
