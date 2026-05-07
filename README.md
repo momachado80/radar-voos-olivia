@@ -6,7 +6,7 @@ Monitor automático de tarifas em classe executiva (business) saindo de São Pau
 
 A cada execução (cron a cada 30 minutos via GitHub Actions), o programa:
 
-1. Cota um chunk de rotas via API Kiwi Tequila (configurável).
+1. Cota um chunk de rotas via API Travelpayouts/Aviasales (gratuita para afiliados).
 2. Atualiza o histórico rolante de preços (50 amostras por rota) em `data/price_history.json`.
 3. Compara o preço atual com a média histórica da rota.
 4. Dispara alerta no Telegram se a queda for ≥ 25% e não houver alerta repetido em 24h.
@@ -21,7 +21,10 @@ Em `Settings → Secrets and variables → Actions`, cadastre:
 
 - `TELEGRAM_BOT_TOKEN` — token do bot (sem o prefixo `bot`).
 - `TELEGRAM_CHAT_ID` — ID numérico do chat ou canal de destino.
-- `KIWI_API_KEY` *(opcional)* — chave Tequila do Kiwi. Sem ela, o monitor roda em modo Mock (útil para validar a estrutura, mas não traz cotações reais).
+- `TRAVELPAYOUTS_TOKEN` — token de afiliado Travelpayouts (gratuito, cadastre em https://www.travelpayouts.com → painel de desenvolvedor).
+- `KIWI_API_KEY` *(opcional, fallback)* — chave Tequila do Kiwi. Só usado se `TRAVELPAYOUTS_TOKEN` estiver ausente.
+
+Sem nenhum dos dois tokens de provedor, o monitor roda em modo Mock (estrutura funciona, mas não traz cotações reais).
 
 ### Habilitar Actions
 
@@ -54,10 +57,10 @@ flight_mapper/
   detector.py      # decisão de alertar (média histórica + dedupe)
   monitor.py       # orquestrador
   notifier.py      # Telegram bot API
-  providers.py     # KiwiTequilaProvider + MockProvider
+  providers.py     # TravelpayoutsProvider + KiwiTequilaProvider + MockProvider
   regions.py       # rotas GRU/CGH → Europa, EUA, Ásia
   state.py         # histórico rolante persistido em JSON
-tests/             # 13 testes pytest
+tests/             # 16 testes pytest
 .github/workflows/
   flight-mapper.yml          # cron */30 * * * *
   telegram-smoke-test.yml    # workflow_dispatch

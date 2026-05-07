@@ -9,16 +9,22 @@ from .config import Config
 from .cycle_state import CycleState
 from .monitor import Monitor
 from .notifier import TelegramNotifier
-from .providers import KiwiTequilaProvider, MockProvider
+from .providers import KiwiTequilaProvider, MockProvider, TravelpayoutsProvider
 from .state import PriceStore
 
 
 def _make_provider(config: Config, use_mock: bool):
-    if use_mock or not config.kiwi_api_key:
-        if not use_mock:
-            print("KIWI_API_KEY ausente — usando MockProvider", file=sys.stderr)
+    if use_mock:
         return MockProvider()
-    return KiwiTequilaProvider(api_key=config.kiwi_api_key)
+    if config.travelpayouts_token:
+        return TravelpayoutsProvider(token=config.travelpayouts_token)
+    if config.kiwi_api_key:
+        return KiwiTequilaProvider(api_key=config.kiwi_api_key)
+    print(
+        "Sem TRAVELPAYOUTS_TOKEN nem KIWI_API_KEY — usando MockProvider",
+        file=sys.stderr,
+    )
+    return MockProvider()
 
 
 def _make_notifier(config: Config) -> TelegramNotifier | None:

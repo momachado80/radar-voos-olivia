@@ -11,6 +11,7 @@ from pathlib import Path
 class Config:
     telegram_bot_token: str | None
     telegram_chat_id: str | None
+    travelpayouts_token: str | None
     kiwi_api_key: str | None
     data_dir: Path
 
@@ -20,6 +21,7 @@ class Config:
         return cls(
             telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN"),
             telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID"),
+            travelpayouts_token=os.environ.get("TRAVELPAYOUTS_TOKEN"),
             kiwi_api_key=os.environ.get("KIWI_API_KEY"),
             data_dir=root / "data",
         )
