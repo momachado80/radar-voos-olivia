@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 
-ORIGINS = ["GRU", "CGH"]
+ORIGINS = ["GRU"]
 
 EUROPE = ["LHR", "CDG", "FRA", "MAD", "LIS", "FCO", "AMS", "ZRH"]
 USA = ["JFK", "MIA", "LAX", "ORD", "IAD", "BOS", "SFO"]

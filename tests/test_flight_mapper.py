@@ -17,7 +17,8 @@ def test_all_routes_covers_each_region():
     routes = all_routes()
     regions = {route.region for route in routes}
     assert regions == {"Europa", "EUA", "Ásia"}
-    assert len(routes) > 30
+    assert all(r.origin == "GRU" for r in routes)
+    assert len(routes) >= 20
 
 
 def test_route_history_push_caps_window():
