@@ -18,6 +18,8 @@ REGIONS = {
 PRIORITY_KEYS = frozenset({
     "GRU-SFO-business",
     "GRU-JFK-business",
+    "GRU-LHR-business",
+    "GRU-CDG-business",
 })
 
 

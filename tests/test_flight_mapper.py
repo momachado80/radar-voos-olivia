@@ -87,8 +87,11 @@ def test_priority_dedupe_window_is_shorter():
 def test_priority_keys_cover_target_routes():
     assert "GRU-SFO-business" in PRIORITY_KEYS
     assert "GRU-JFK-business" in PRIORITY_KEYS
+    assert "GRU-LHR-business" in PRIORITY_KEYS
+    assert "GRU-CDG-business" in PRIORITY_KEYS
     assert is_priority(Route("GRU", "SFO", "EUA")) is True
-    assert is_priority(Route("GRU", "LHR", "Europa")) is False
+    assert is_priority(Route("GRU", "LHR", "Europa")) is True
+    assert is_priority(Route("GRU", "FRA", "Europa")) is False
 
 
 def test_sfo_present_in_routes():
@@ -192,7 +195,7 @@ def test_monitor_run_cycle_includes_priority_plus_chunk(tmp_path: Path):
         chunk_size=5,
     )
     result = monitor.run_cycle()
-    # 2 rotas prioritárias (GRU-SFO, GRU-JFK) + 5 do chunk = 7 escaneadas
+    # rotas prioritárias + 5 do chunk
     assert result.scanned == len(PRIORITY_KEYS) + 5
     assert cycle.cursor == 5
     # cursor avança apenas sobre as não-prioritárias
