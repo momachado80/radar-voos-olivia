@@ -87,14 +87,15 @@ def test_priority_dedupe_window_is_shorter():
 
 def test_priority_keys_cover_target_routes():
     assert "GRU-SFO-business" in PRIORITY_KEYS
+    assert "GRU-JFK-business" in PRIORITY_KEYS
     assert "GRU-LAS-business" in PRIORITY_KEYS
     assert "GRU-LHR-business" in PRIORITY_KEYS
     assert "GRU-CDG-business" in PRIORITY_KEYS
     assert is_priority(Route("GRU", "SFO", "EUA")) is True
+    assert is_priority(Route("GRU", "JFK", "EUA")) is True
     assert is_priority(Route("GRU", "LAS", "EUA")) is True
     assert is_priority(Route("GRU", "LHR", "Europa")) is True
     assert is_priority(Route("GRU", "FRA", "Europa")) is False
-    assert is_priority(Route("GRU", "JFK", "EUA")) is False
 
 
 def test_sfo_present_in_routes():

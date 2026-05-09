@@ -13,7 +13,7 @@ A cada execução (cron a cada 30 minutos via GitHub Actions), o programa:
 
 ### Rotas prioritárias
 
-`GRU → SFO`, `GRU → LAS`, `GRU → LHR` e `GRU → CDG` são marcadas como prioritárias em `flight_mapper/regions.py`. Para essas rotas:
+`GRU → SFO`, `GRU → JFK`, `GRU → LAS`, `GRU → LHR` e `GRU → CDG` são marcadas como prioritárias em `flight_mapper/regions.py`. Para essas rotas:
 - São cotadas a **cada ciclo** (não esperam a varredura geral chegar até elas).
 - Threshold de alerta mais sensível: **15%** de queda (vs. 25% nas demais).
 - Janela de dedupe menor: **12h** (vs. 24h nas demais).
