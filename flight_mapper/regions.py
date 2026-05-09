@@ -6,7 +6,7 @@ from dataclasses import dataclass
 ORIGINS = ["GRU"]
 
 EUROPE = ["LHR", "CDG", "FRA", "MAD", "LIS", "FCO", "AMS", "ZRH"]
-USA = ["JFK", "MIA", "LAX", "ORD", "IAD", "BOS", "SFO"]
+USA = ["JFK", "MIA", "LAX", "ORD", "IAD", "BOS", "SFO", "LAS"]
 ASIA = ["NRT", "ICN", "HKG", "SIN", "DXB", "DOH"]
 
 REGIONS = {
@@ -17,7 +17,7 @@ REGIONS = {
 
 PRIORITY_KEYS = frozenset({
     "GRU-SFO-business",
-    "GRU-JFK-business",
+    "GRU-LAS-business",
     "GRU-LHR-business",
     "GRU-CDG-business",
 })
