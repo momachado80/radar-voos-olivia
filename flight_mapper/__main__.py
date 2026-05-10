@@ -11,6 +11,7 @@ from .monitor import Monitor
 from .notifier import TelegramNotifier
 from .providers import KiwiTequilaProvider, MockProvider, TravelpayoutsProvider
 from .state import PriceStore
+from .status import StatusState, maybe_send_status
 
 
 def _make_provider(config: Config, use_mock: bool):
@@ -57,6 +58,17 @@ def cmd_cycle(args: argparse.Namespace) -> int:
     print(f"cycle scanned={result.scanned} quotes={result.quotes_received} alerts={result.alerts_sent}")
     for note in result.notes:
         print(f"  {note}")
+
+    status_state = StatusState.load(config.status_path)
+    decision = maybe_send_status(
+        result=result,
+        store=store,
+        state=status_state,
+        notifier=notifier,
+        state_path=config.status_path,
+        throttle_hours=config.status_throttle_hours,
+    )
+    print(f"status action={decision.action} reason={decision.reason}")
     return 0
 
 
