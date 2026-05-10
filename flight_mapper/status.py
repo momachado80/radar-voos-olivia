@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from .airports import build_search_url, route_airport_label, route_city_label
 from .monitor import MonitorResult
 from .notifier import TelegramNotifier
 from .state import PriceStore
@@ -41,11 +42,11 @@ class StatusDecision:
     reason: str
 
 
-def _format_route(key: str) -> str:
+def _split_route_key(key: str) -> tuple[str, str] | None:
     parts = key.split("-")
-    if len(parts) >= 2:
-        return f"{parts[0]}→{parts[1]}"
-    return key
+    if len(parts) >= 2 and parts[0] and parts[1]:
+        return parts[0], parts[1]
+    return None
 
 
 def _format_brl(value: float) -> str:
@@ -59,6 +60,21 @@ def _latest_prices(store: PriceStore) -> list[tuple[str, float]]:
         if history.prices:
             items.append((key, history.prices[-1]))
     return items
+
+
+def _format_top3_line(index: int, key: str, price: float) -> str:
+    parts = _split_route_key(key)
+    price_str = _format_brl(price)
+    if parts is None:
+        return f"{index}. {key} — {price_str}"
+    origin, destination = parts
+    city = route_city_label(origin, destination)
+    iata = route_airport_label(origin, destination)
+    url = build_search_url(origin, destination)
+    return (
+        f'{index}. {city} ({iata}) — {price_str} — '
+        f'🔎 <a href="{url}">conferir</a>'
+    )
 
 
 def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> str:
@@ -76,7 +92,7 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
     latest = sorted(_latest_prices(store), key=lambda x: x[1])[:3]
     if latest:
         top3_lines = "\n".join(
-            f"{i + 1}. {_format_route(key)} — {_format_brl(price)}"
+            _format_top3_line(i + 1, key, price)
             for i, (key, price) in enumerate(latest)
         )
     else:

@@ -8,7 +8,41 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from .airports import route_airport_label, route_city_label
 from .providers import Quote
+
+
+SOURCE_LABELS = {
+    "travelpayouts": "Travelpayouts (cache)",
+    "kiwi": "Kiwi",
+    "mock": "Mock (sintético)",
+}
+
+
+def format_alert(quote: Quote, average: float, drop_pct: float, priority: bool = False) -> str:
+    """Monta o texto HTML do alerta. Função pura, sem efeitos colaterais."""
+    flag = "🔥 " if priority else ""
+    city_line = route_city_label(quote.route.origin, quote.route.destination)
+    iata_line = route_airport_label(quote.route.origin, quote.route.destination)
+
+    dates = quote.departure_date + (f" → {quote.return_date}" if quote.return_date else "")
+
+    extras: list[str] = []
+    if quote.source:
+        label = SOURCE_LABELS.get(quote.source, quote.source)
+        extras.append(f"🛒 Fonte: {label}")
+    if quote.deep_link:
+        extras.append(f'🔎 <a href="{quote.deep_link}">Conferir busca</a>')
+    extras_block = ("\n" + "\n".join(extras)) if extras else ""
+
+    return (
+        f"✈️ <b>{flag}Business em promoção</b>\n"
+        f"{city_line} ({quote.route.region})\n"
+        f"{iata_line}\n"
+        f"💰 R$ {quote.price_brl:,.0f} (média R$ {average:,.0f}, queda {drop_pct:.0%})\n"
+        f"📅 {dates}"
+        f"{extras_block}"
+    )
 
 
 class TelegramNotifier:
@@ -52,14 +86,4 @@ class TelegramNotifier:
             return False
 
     def send_alert(self, quote: Quote, average: float, drop_pct: float, priority: bool = False) -> bool:
-        flag = "🔥 " if priority else ""
-        link_line = f'\n<a href="{quote.deep_link}">Abrir oferta</a>' if quote.deep_link else ""
-        text = (
-            f"✈️ <b>{flag}Business em promoção</b>\n"
-            f"{quote.route.origin} → {quote.route.destination} ({quote.route.region})\n"
-            f"💰 R$ {quote.price_brl:,.0f} (média R$ {average:,.0f}, queda {drop_pct:.0%})\n"
-            f"📅 {quote.departure_date}"
-            + (f" → {quote.return_date}" if quote.return_date else "")
-            + link_line
-        )
-        return self.send(text)
+        return self.send(format_alert(quote, average, drop_pct, priority=priority))

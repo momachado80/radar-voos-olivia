@@ -127,12 +127,52 @@ def test_top3_ordering(tmp_path: Path):
 
     assert decision.action == "sent"
     body = notifier.sent[0]
-    miami_idx = body.index("GRU→MIA")
-    ord_idx = body.index("GRU→ORD")
-    lhr_idx = body.index("GRU→LHR")
+    miami_idx = body.index("GRU → MIA")
+    ord_idx = body.index("GRU → ORD")
+    lhr_idx = body.index("GRU → LHR")
     assert miami_idx < ord_idx < lhr_idx
-    assert "GRU→FRA" not in body
-    assert "GRU→SFO" not in body
+    assert "GRU → FRA" not in body
+    assert "GRU → SFO" not in body
+    assert "São Paulo → Miami" in body
+    assert "São Paulo → Chicago" in body
+    assert "São Paulo → Londres" in body
+
+
+def test_top3_includes_search_link(tmp_path: Path):
+    store = PriceStore(tmp_path / "h.json")
+    _populate(store, {"GRU-MIA-business": [1207.0]})
+    notifier = _StubNotifier()
+
+    maybe_send_status(
+        result=_result(),
+        store=store,
+        state=StatusState(),
+        notifier=notifier,
+        state_path=tmp_path / "status.json",
+    )
+
+    body = notifier.sent[0]
+    assert "https://www.aviasales.com/search/GRUMIA" in body
+    assert "conferir" in body
+    assert "Abrir oferta" not in body
+
+
+def test_top3_handles_unknown_airport(tmp_path: Path):
+    store = PriceStore(tmp_path / "h.json")
+    _populate(store, {"XYZ-ABC-business": [999.0]})
+    notifier = _StubNotifier()
+
+    maybe_send_status(
+        result=_result(),
+        store=store,
+        state=StatusState(),
+        notifier=notifier,
+        state_path=tmp_path / "status.json",
+    )
+
+    body = notifier.sent[0]
+    assert "XYZ → ABC" in body
+    assert "https://www.aviasales.com/search/XYZABC" in body
 
 
 def test_does_not_persist_when_send_fails(tmp_path: Path):
