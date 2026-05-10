@@ -20,6 +20,7 @@ class Quote:
     deep_link: str | None
     departure_date: str
     return_date: str | None
+    source: str | None = None
 
 
 class FlightProvider(Protocol):
@@ -73,6 +74,7 @@ class KiwiTequilaProvider:
             deep_link=item.get("deep_link"),
             departure_date=item.get("local_departure", "")[:10],
             return_date=(item.get("route", [{}])[-1].get("local_departure", "") or "")[:10] or None,
+            source="kiwi",
         )
 
 
@@ -125,6 +127,7 @@ class TravelpayoutsProvider:
             deep_link=self._search_url(route, departure, return_date),
             departure_date=departure,
             return_date=return_date,
+            source="travelpayouts",
         )
 
     @staticmethod
@@ -158,4 +161,5 @@ class MockProvider:
             deep_link=f"https://example.com/{route.origin}-{route.destination}",
             departure_date="2026-06-01",
             return_date="2026-06-08",
+            source="mock",
         )

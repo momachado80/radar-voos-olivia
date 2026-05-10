@@ -7,8 +7,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from .airports import build_search_url, humanize_route, route_airport_label
+from .formatting import format_brl
 from .monitor import MonitorResult
 from .notifier import TelegramNotifier
+from .regions import REGIONS
 from .state import PriceStore
 
 
@@ -41,15 +44,11 @@ class StatusDecision:
     reason: str
 
 
-def _format_route(key: str) -> str:
+def _split_route_key(key: str) -> tuple[str, str] | None:
     parts = key.split("-")
-    if len(parts) >= 2:
-        return f"{parts[0]}→{parts[1]}"
-    return key
-
-
-def _format_brl(value: float) -> str:
-    return f"R$ {value:,.0f}".replace(",", ".")
+    if len(parts) >= 2 and parts[0] and parts[1]:
+        return parts[0], parts[1]
+    return None
 
 
 def _latest_prices(store: PriceStore) -> list[tuple[str, float]]:
@@ -59,6 +58,58 @@ def _latest_prices(store: PriceStore) -> list[tuple[str, float]]:
         if history.prices:
             items.append((key, history.prices[-1]))
     return items
+
+
+def _format_top3_line(index: int, key: str, price: float) -> str:
+    parts = _split_route_key(key)
+    price_str = format_brl(price)
+    if parts is None:
+        return f"{index}. {key} — {price_str}"
+    origin, destination = parts
+    label = humanize_route(origin, destination)
+    url = build_search_url(origin, destination)
+    return f'{index}. {label} — {price_str} — 🔎 <a href="{url}">conferir</a>'
+
+
+def _region_for_destination(destination: str) -> str | None:
+    for region, codes in REGIONS.items():
+        if destination in codes:
+            return region
+    return None
+
+
+def _best_per_region(latest: list[tuple[str, float]]) -> list[tuple[str, str, float]]:
+    """Para cada região conhecida, devolve (região, key, price) do menor preço."""
+    by_region: dict[str, tuple[str, float]] = {}
+    for key, price in latest:
+        parts = _split_route_key(key)
+        if parts is None:
+            continue
+        _, destination = parts
+        region = _region_for_destination(destination)
+        if region is None:
+            continue
+        current = by_region.get(region)
+        if current is None or price < current[1]:
+            by_region[region] = (key, price)
+
+    out: list[tuple[str, str, float]] = []
+    for region in REGIONS.keys():
+        if region in by_region:
+            key, price = by_region[region]
+            out.append((region, key, price))
+    return out
+
+
+def _format_regional_line(region: str, key: str, price: float) -> str:
+    parts = _split_route_key(key)
+    price_str = format_brl(price)
+    if parts is None:
+        return f"• {region}: {key} — {price_str}"
+    origin, destination = parts
+    iata = route_airport_label(origin, destination)
+    url = build_search_url(origin, destination)
+    return f'• {region}: {iata} — {price_str} — 🔎 <a href="{url}">conferir</a>'
 
 
 def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> str:
@@ -73,14 +124,24 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
             "Próxima tentativa no próximo ciclo."
         )
 
-    latest = sorted(_latest_prices(store), key=lambda x: x[1])[:3]
-    if latest:
+    latest = _latest_prices(store)
+    top3 = sorted(latest, key=lambda x: x[1])[:3]
+    if top3:
         top3_lines = "\n".join(
-            f"{i + 1}. {_format_route(key)} — {_format_brl(price)}"
-            for i, (key, price) in enumerate(latest)
+            _format_top3_line(i + 1, key, price)
+            for i, (key, price) in enumerate(top3)
         )
     else:
         top3_lines = "Sem histórico disponível ainda."
+
+    regional = _best_per_region(latest)
+    regional_block = ""
+    if regional:
+        regional_lines = "\n".join(
+            _format_regional_line(region, key, price)
+            for region, key, price in regional
+        )
+        regional_block = f"\n\n🌎 Melhor por região\n{regional_lines}"
 
     footer = (
         "ℹ️ Sem oportunidade dentro dos critérios de alerta agora."
@@ -96,7 +157,8 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         f"• Cotações obtidas: {result.quotes_received}\n"
         f"• Alertas: {result.alerts_sent}\n\n"
         "💸 Top 3 menores preços atuais\n"
-        f"{top3_lines}\n\n"
+        f"{top3_lines}"
+        f"{regional_block}\n\n"
         f"{footer}"
     )
 

@@ -8,7 +8,54 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from .airports import route_airport_label, route_city_label
+from .detector import CRITERION_CEILING, Decision
+from .formatting import format_brl, format_source
 from .providers import Quote
+
+
+def format_alert(quote: Quote, decision: Decision, priority: bool = False) -> str:
+    """Monta o texto HTML do alerta. Função pura, sem efeitos colaterais."""
+    flag = "🔥 " if priority else ""
+    city_line = route_city_label(quote.route.origin, quote.route.destination)
+    iata_line = route_airport_label(quote.route.origin, quote.route.destination)
+
+    if decision.criterion == CRITERION_CEILING and decision.threshold is not None:
+        price_line = (
+            f"💰 {format_brl(quote.price_brl)} "
+            f"(teto {format_brl(decision.threshold)})"
+        )
+        criterion_line = "🎯 Critério: preço abaixo do alvo configurado para esta rota"
+    else:
+        if decision.average is not None and decision.drop_pct is not None:
+            price_line = (
+                f"💰 {format_brl(quote.price_brl)} "
+                f"(média {format_brl(decision.average)}, queda {decision.drop_pct:.0%})"
+            )
+        else:
+            price_line = f"💰 {format_brl(quote.price_brl)}"
+        criterion_line = "📉 Critério: queda histórica acima do limite"
+
+    dates = quote.departure_date + (f" → {quote.return_date}" if quote.return_date else "")
+
+    head_lines: list[str] = [f"{city_line} ({quote.route.region})"]
+    if iata_line != city_line:
+        head_lines.append(iata_line)
+
+    extras: list[str] = [criterion_line]
+    source_label = format_source(quote.source)
+    if source_label:
+        extras.append(f"🛒 Fonte: {source_label}")
+    if quote.deep_link:
+        extras.append(f'🔎 <a href="{quote.deep_link}">Conferir busca</a>')
+
+    return (
+        f"✈️ <b>{flag}Business em promoção</b>\n"
+        + "\n".join(head_lines)
+        + f"\n{price_line}\n"
+        + f"📅 {dates}\n"
+        + "\n".join(extras)
+    )
 
 
 class TelegramNotifier:
@@ -51,15 +98,5 @@ class TelegramNotifier:
             print(f"telegram resposta não-JSON: {exc}", file=sys.stderr)
             return False
 
-    def send_alert(self, quote: Quote, average: float, drop_pct: float, priority: bool = False) -> bool:
-        flag = "🔥 " if priority else ""
-        link_line = f'\n<a href="{quote.deep_link}">Abrir oferta</a>' if quote.deep_link else ""
-        text = (
-            f"✈️ <b>{flag}Business em promoção</b>\n"
-            f"{quote.route.origin} → {quote.route.destination} ({quote.route.region})\n"
-            f"💰 R$ {quote.price_brl:,.0f} (média R$ {average:,.0f}, queda {drop_pct:.0%})\n"
-            f"📅 {quote.departure_date}"
-            + (f" → {quote.return_date}" if quote.return_date else "")
-            + link_line
-        )
-        return self.send(text)
+    def send_alert(self, quote: Quote, decision: Decision, priority: bool = False) -> bool:
+        return self.send(format_alert(quote, decision, priority=priority))
