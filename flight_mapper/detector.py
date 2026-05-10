@@ -15,6 +15,11 @@ DEDUPE_WINDOW_HOURS = 24
 PRIORITY_DROP_THRESHOLD = 0.15
 PRIORITY_DEDUPE_HOURS = 12
 
+# Dedupe inteligente: dentro da janela, só liberamos novo alerta se o
+# preço melhorou pelo menos o suficiente para compensar ruído de cache.
+MIN_REALERT_IMPROVEMENT_BRL = 200.0
+MIN_REALERT_IMPROVEMENT_PCT = 0.05
+
 
 CRITERION_AVERAGE_DROP = "average_drop"
 CRITERION_CEILING = "ceiling"
@@ -36,7 +41,13 @@ def _within_dedupe(
     now: datetime,
     hours: int,
 ) -> bool:
-    """True se um alerta recente deve suprimir um novo, dentro da janela."""
+    """True se um alerta recente deve suprimir um novo, dentro da janela.
+
+    Considera melhoria mínima: preço só libera novo alerta se cair
+    pelo menos `MIN_REALERT_IMPROVEMENT_BRL` em valor absoluto OU
+    `MIN_REALERT_IMPROVEMENT_PCT` em proporção. Evita spam de cache
+    em rota estável abaixo do teto.
+    """
     if not history.last_alert_at or history.last_alert_price is None:
         return False
     last = datetime.fromisoformat(history.last_alert_at)
@@ -44,7 +55,17 @@ def _within_dedupe(
         last = last.replace(tzinfo=timezone.utc)
     if now - last >= timedelta(hours=hours):
         return False
-    return current_price >= history.last_alert_price
+    last_price = history.last_alert_price
+    improvement_brl = last_price - current_price
+    if improvement_brl <= 0:
+        return True
+    improvement_pct = improvement_brl / last_price if last_price > 0 else 0.0
+    if (
+        improvement_brl >= MIN_REALERT_IMPROVEMENT_BRL
+        or improvement_pct >= MIN_REALERT_IMPROVEMENT_PCT
+    ):
+        return False
+    return True
 
 
 def evaluate(

@@ -9,6 +9,8 @@ Ajuste manualmente conforme acompanhar o histórico real das rotas.
 
 from __future__ import annotations
 
+from .regions import Route, all_routes
+
 
 ABSOLUTE_CEILING_BRL: dict[str, float] = {
     "GRU-CDG-business": 2400,
@@ -24,5 +26,18 @@ ABSOLUTE_CEILING_BRL: dict[str, float] = {
 }
 
 
+# Rotas escaneadas pelo `hot-scan` — varredura focada em oportunidade
+# perecível. Inicialmente igual ao conjunto de chaves com teto, mas
+# pode divergir no futuro (ex.: hot scanner mais frequente cobrindo
+# subconjunto menor).
+HOT_ROUTE_KEYS: frozenset[str] = frozenset(ABSOLUTE_CEILING_BRL.keys())
+
+
 def ceiling_for(route_key: str) -> float | None:
     return ABSOLUTE_CEILING_BRL.get(route_key)
+
+
+def hot_routes() -> list[Route]:
+    """Filtra `all_routes()` para apenas as rotas em `HOT_ROUTE_KEYS`."""
+    return [r for r in all_routes() if r.key in HOT_ROUTE_KEYS]
+
