@@ -1,4 +1,4 @@
-"""CLI: python -m flight_mapper {scan|cycle|test|preview-messages}."""
+"""CLI: python -m flight_mapper {scan|cycle|hot-scan|test|preview-messages}."""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from .providers import KiwiTequilaProvider, MockProvider, Quote, TravelpayoutsPr
 from .regions import Route
 from .state import PriceStore
 from .status import StatusState, _build_message, maybe_send_status
+from .thresholds import hot_routes
 
 
 def _make_provider(config: Config, use_mock: bool):
@@ -76,6 +77,28 @@ def cmd_cycle(args: argparse.Namespace) -> int:
         throttle_hours=config.status_throttle_hours,
     )
     print(f"status action={decision.action} reason={decision.reason}")
+    return 0
+
+
+def cmd_hot_scan(args: argparse.Namespace) -> int:
+    """Varre apenas as rotas quentes (HOT_ROUTE_KEYS).
+
+    Reusa o pipeline atual do `Monitor.run_once`: ceiling primeiro,
+    depois detector legado de queda vs média. Salva estado normalmente.
+    """
+    config = Config.from_env()
+    provider = _make_provider(config, args.mock)
+    notifier = _make_notifier(config)
+    store = PriceStore(config.history_path)
+    routes = hot_routes()
+    monitor = Monitor(provider=provider, notifier=notifier, store=store)
+    result = monitor.run_once(routes)
+    print(
+        f"hot-scan scanned={result.scanned} "
+        f"quotes={result.quotes_received} alerts={result.alerts_sent}"
+    )
+    for note in result.notes:
+        print(f"  {note}")
     return 0
 
 
@@ -171,6 +194,13 @@ def main(argv: list[str] | None = None) -> int:
     p_cycle = sub.add_parser("cycle", help="Varredura do próximo chunk de rotas")
     p_cycle.add_argument("--mock", action="store_true", help="Força MockProvider")
     p_cycle.set_defaults(func=cmd_cycle)
+
+    p_hot = sub.add_parser(
+        "hot-scan",
+        help="Varre apenas as rotas quentes (HOT_ROUTE_KEYS)",
+    )
+    p_hot.add_argument("--mock", action="store_true", help="Força MockProvider")
+    p_hot.set_defaults(func=cmd_hot_scan)
 
     p_test = sub.add_parser("test", help="Smoke test do canal Telegram")
     p_test.set_defaults(func=cmd_test)

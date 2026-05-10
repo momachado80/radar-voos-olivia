@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from flight_mapper.detector import (
     CRITERION_AVERAGE_DROP,
     CRITERION_CEILING,
@@ -8,6 +10,9 @@ from flight_mapper.detector import (
 from flight_mapper.notifier import format_alert
 from flight_mapper.providers import Quote
 from flight_mapper.regions import Route
+
+
+_FIXED_NOW = datetime(2026, 5, 10, 10, 43, tzinfo=timezone.utc)
 
 
 def _quote(**overrides) -> Quote:
@@ -142,3 +147,32 @@ def test_format_alert_unknown_airport_omits_iata_duplicate_line():
 def test_format_alert_avoids_misleading_open_offer_label():
     text = format_alert(_quote(), _drop_decision())
     assert "Abrir oferta" not in text
+
+
+# ---------- Freshness e urgência ----------
+
+def test_format_alert_includes_detection_time():
+    text = format_alert(_quote(), _drop_decision(), now=_FIXED_NOW)
+    assert "🕒 Encontrado em:" in text
+    # 10:43 UTC = 07:43 BRT, aceita ambos os formatos por causa de tzdata
+    assert ("07:43 BRT" in text) or ("10:43 UTC" in text)
+
+
+def test_format_alert_ceiling_includes_urgency_notice():
+    text = format_alert(_quote(price_brl=2350.0), _ceiling_decision(), now=_FIXED_NOW)
+    assert "⚠️ Preço pode mudar rápido. Conferir agora." in text
+    # texto antigo evitado
+    assert "Preço sujeito a mudança" not in text
+
+
+def test_format_alert_legacy_drop_omits_urgency_notice():
+    text = format_alert(_quote(), _drop_decision(), now=_FIXED_NOW)
+    assert "⚠️ Preço pode mudar rápido" not in text
+
+
+def test_format_alert_uses_explicit_now_param_for_timestamp():
+    """now passado explicitamente deve aparecer formatado."""
+    fixed = datetime(2026, 6, 1, 13, 0, tzinfo=timezone.utc)  # 10:00 BRT
+    text = format_alert(_quote(), _drop_decision(), now=fixed)
+    assert ("10:00 BRT" in text) or ("13:00 UTC" in text)
+    assert "01/06" in text

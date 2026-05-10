@@ -11,6 +11,7 @@ from flight_mapper.detector import (
     CRITERION_CEILING,
     DROP_THRESHOLD,
     MIN_SAMPLES,
+    _within_dedupe,
     evaluate,
     evaluate_ceiling,
 )
@@ -217,6 +218,70 @@ def test_evaluate_legacy_decision_carries_criterion():
     decision = evaluate(history, 7000.0)
     assert decision.alert is True
     assert decision.criterion == CRITERION_AVERAGE_DROP
+
+
+# ---------- Dedupe inteligente (_within_dedupe testado direto) ----------
+
+def _history_with_alert(now: datetime, hours_ago: float, price: float) -> RouteHistory:
+    return RouteHistory(
+        last_alert_at=(now - timedelta(hours=hours_ago)).isoformat(),
+        last_alert_price=price,
+    )
+
+
+def test_within_dedupe_blocks_when_price_equal():
+    now = datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)
+    history = _history_with_alert(now, 2, 2000.0)
+    assert _within_dedupe(history, 2000.0, now, 24) is True
+
+
+def test_within_dedupe_blocks_when_price_worse():
+    now = datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)
+    history = _history_with_alert(now, 2, 2000.0)
+    assert _within_dedupe(history, 2100.0, now, 24) is True
+
+
+def test_within_dedupe_blocks_when_improvement_too_small():
+    """Melhora R$ 50 (2.5% de R$ 2000): abaixo dos dois thresholds → dedupe."""
+    now = datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)
+    history = _history_with_alert(now, 2, 2000.0)
+    assert _within_dedupe(history, 1950.0, now, 24) is True
+
+
+def test_within_dedupe_breaks_with_brl_threshold():
+    """R$ 250 melhor numa rota cara (% < 5%): BRL >= 200 libera."""
+    now = datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)
+    history = _history_with_alert(now, 2, 8000.0)
+    # 8000 -> 7750 = R$ 250 (3.1%). BRL passa, % falha. OR libera.
+    assert _within_dedupe(history, 7750.0, now, 24) is False
+
+
+def test_within_dedupe_breaks_with_pct_threshold():
+    """6% melhor numa rota barata (BRL < 200): % >= 5% libera."""
+    now = datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)
+    history = _history_with_alert(now, 2, 1000.0)
+    # 1000 -> 940 = R$ 60 (6%). % passa, BRL falha. OR libera.
+    assert _within_dedupe(history, 940.0, now, 24) is False
+
+
+def test_within_dedupe_breaks_with_both_thresholds():
+    now = datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)
+    history = _history_with_alert(now, 2, 5000.0)
+    # 5000 -> 4500 = R$ 500 (10%). Ambos passam.
+    assert _within_dedupe(history, 4500.0, now, 24) is False
+
+
+def test_within_dedupe_window_expired_releases_regardless():
+    """Fora da janela: libera mesmo sem melhoria."""
+    now = datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)
+    history = _history_with_alert(now, 30, 1500.0)
+    assert _within_dedupe(history, 1500.0, now, 24) is False
+
+
+def test_within_dedupe_no_prior_alert_releases():
+    now = datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)
+    history = RouteHistory()
+    assert _within_dedupe(history, 1500.0, now, 24) is False
 
 
 def test_monitor_alerts_after_history_warmup(tmp_path: Path):

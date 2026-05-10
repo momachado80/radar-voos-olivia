@@ -4,23 +4,31 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from .airports import route_airport_label, route_city_label
 from .detector import CRITERION_CEILING, Decision
-from .formatting import format_brl, format_source
+from .formatting import format_brl, format_detection_time, format_source
 from .providers import Quote
 
 
-def format_alert(quote: Quote, decision: Decision, priority: bool = False) -> str:
+def format_alert(
+    quote: Quote,
+    decision: Decision,
+    priority: bool = False,
+    now: datetime | None = None,
+) -> str:
     """Monta o texto HTML do alerta. Função pura, sem efeitos colaterais."""
+    now = now or datetime.now(timezone.utc)
     flag = "🔥 " if priority else ""
     city_line = route_city_label(quote.route.origin, quote.route.destination)
     iata_line = route_airport_label(quote.route.origin, quote.route.destination)
 
-    if decision.criterion == CRITERION_CEILING and decision.threshold is not None:
+    is_ceiling = decision.criterion == CRITERION_CEILING and decision.threshold is not None
+    if is_ceiling:
         price_line = (
             f"💰 {format_brl(quote.price_brl)} "
             f"(teto {format_brl(decision.threshold)})"
@@ -42,7 +50,11 @@ def format_alert(quote: Quote, decision: Decision, priority: bool = False) -> st
     if iata_line != city_line:
         head_lines.append(iata_line)
 
-    extras: list[str] = [criterion_line]
+    detection_line = f"🕒 Encontrado em: {format_detection_time(now)}"
+
+    extras: list[str] = [detection_line, criterion_line]
+    if is_ceiling:
+        extras.append("⚠️ Preço pode mudar rápido. Conferir agora.")
     source_label = format_source(quote.source)
     if source_label:
         extras.append(f"🛒 Fonte: {source_label}")

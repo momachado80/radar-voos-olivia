@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 
 SOURCE_LABELS: dict[str, str] = {
     "travelpayouts": "Travelpayouts (cache)",
@@ -21,3 +23,14 @@ def format_source(source: str | None) -> str | None:
     if not source:
         return None
     return SOURCE_LABELS.get(source, source)
+
+
+def format_detection_time(now: datetime) -> str:
+    """`10/05 07:43 BRT` quando zoneinfo disponível; fallback `10/05 10:43 UTC`."""
+    try:
+        from zoneinfo import ZoneInfo
+
+        local = now.astimezone(ZoneInfo("America/Sao_Paulo"))
+        return local.strftime("%d/%m %H:%M BRT")
+    except Exception:
+        return now.strftime("%d/%m %H:%M UTC")
