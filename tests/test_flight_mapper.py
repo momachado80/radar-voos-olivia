@@ -6,7 +6,14 @@ from pathlib import Path
 import pytest
 
 from flight_mapper.cycle_state import CycleState
-from flight_mapper.detector import DROP_THRESHOLD, MIN_SAMPLES, evaluate
+from flight_mapper.detector import (
+    CRITERION_AVERAGE_DROP,
+    CRITERION_CEILING,
+    DROP_THRESHOLD,
+    MIN_SAMPLES,
+    evaluate,
+    evaluate_ceiling,
+)
 from flight_mapper.monitor import Monitor
 from flight_mapper.providers import MockProvider, Quote, TravelpayoutsProvider
 from flight_mapper.regions import PRIORITY_KEYS, Route, all_routes, is_priority
@@ -158,14 +165,58 @@ def test_mock_provider_returns_quote_for_every_route():
 
 class _StubNotifier:
     def __init__(self):
-        self.alerts: list[tuple[str, float, float, bool]] = []
+        self.alerts: list[tuple[str, str, bool]] = []
 
-    def send_alert(self, quote, average, drop_pct, priority=False):
-        self.alerts.append((quote.route.key, average, drop_pct, priority))
+    def send_alert(self, quote, decision, priority=False):
+        self.alerts.append((quote.route.key, decision.criterion, priority))
         return True
 
     def send(self, text):  # pragma: no cover - not used in these tests
         return True
+
+
+def test_evaluate_ceiling_fires_below_threshold():
+    history = RouteHistory()
+    decision = evaluate_ceiling(history, 1500.0, "GRU-LHR-business")
+    assert decision.alert is True
+    assert decision.criterion == CRITERION_CEILING
+    assert decision.threshold == 1700
+
+
+def test_evaluate_ceiling_silent_above_threshold():
+    history = RouteHistory()
+    decision = evaluate_ceiling(history, 2000.0, "GRU-LHR-business")
+    assert decision.alert is False
+    assert decision.criterion == CRITERION_CEILING
+
+
+def test_evaluate_ceiling_unknown_route_returns_no_alert():
+    history = RouteHistory()
+    decision = evaluate_ceiling(history, 100.0, "XYZ-ABC-business")
+    assert decision.alert is False
+    assert decision.threshold is None
+    assert "sem teto" in decision.reason
+
+
+def test_evaluate_ceiling_respects_dedupe():
+    now = datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)
+    history = RouteHistory(
+        last_alert_at=(now - timedelta(hours=2)).isoformat(),
+        last_alert_price=1500.0,
+    )
+    # mesmo preço dentro da janela: dedupe
+    decision = evaluate_ceiling(history, 1500.0, "GRU-LHR-business", now=now)
+    assert decision.alert is False
+    # preço ainda menor: dispara mesmo dentro da janela
+    decision_lower = evaluate_ceiling(history, 1400.0, "GRU-LHR-business", now=now)
+    assert decision_lower.alert is True
+
+
+def test_evaluate_legacy_decision_carries_criterion():
+    history = RouteHistory(prices=[10000.0] * MIN_SAMPLES)
+    decision = evaluate(history, 7000.0)
+    assert decision.alert is True
+    assert decision.criterion == CRITERION_AVERAGE_DROP
 
 
 def test_monitor_alerts_after_history_warmup(tmp_path: Path):
@@ -183,6 +234,29 @@ def test_monitor_alerts_after_history_warmup(tmp_path: Path):
     cheap_monitor = Monitor(provider=cheap_provider, notifier=notifier, store=store)
     cheap_monitor.run_once(routes)
     assert len(notifier.alerts) == 1
+    # 6000 BRL > teto 1700 da rota → ceiling silencia, legacy dispara
+    _key, criterion, _priority = notifier.alerts[0]
+    assert criterion == CRITERION_AVERAGE_DROP
+
+
+def test_monitor_ceiling_wins_over_legacy(tmp_path: Path):
+    store = PriceStore(tmp_path / "h.json")
+    routes = [Route("GRU", "LHR", "Europa")]
+
+    expensive = MockProvider(seed=42, baseline=10000.0, jitter=0.0)
+    warmup_monitor = Monitor(provider=expensive, notifier=None, store=store)
+    for _ in range(MIN_SAMPLES):
+        warmup_monitor.run_once(routes)
+
+    # 1500 BRL: <= teto 1700 (ceiling firing) E queda > 25% (legacy firing) — ceiling vence
+    cheap = MockProvider(seed=99, baseline=1500.0, jitter=0.0)
+    notifier = _StubNotifier()
+    cheap_monitor = Monitor(provider=cheap, notifier=notifier, store=store)
+    cheap_monitor.run_once(routes)
+
+    assert len(notifier.alerts) == 1
+    _key, criterion, _priority = notifier.alerts[0]
+    assert criterion == CRITERION_CEILING
 
 
 def test_monitor_run_cycle_includes_priority_plus_chunk(tmp_path: Path):

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .cycle_state import CycleState
-from .detector import evaluate
+from .detector import evaluate, evaluate_ceiling
 from .notifier import TelegramNotifier
 from .providers import FlightProvider
 from .regions import Route, all_routes, is_priority
@@ -51,11 +51,15 @@ class Monitor:
                 continue
             quotes_received += 1
             history = self.store.get(route.key)
-            decision = evaluate(history, quote.price_brl, priority=priority)
+
+            ceiling_decision = evaluate_ceiling(history, quote.price_brl, route.key, priority=priority)
+            legacy_decision = evaluate(history, quote.price_brl, priority=priority)
+            decision = ceiling_decision if ceiling_decision.alert else legacy_decision
+
             history.push(quote.price_brl)
 
-            if decision.alert and self.notifier and decision.average is not None and decision.drop_pct is not None:
-                ok = self.notifier.send_alert(quote, decision.average, decision.drop_pct, priority=priority)
+            if decision.alert and self.notifier:
+                ok = self.notifier.send_alert(quote, decision, priority=priority)
                 if ok:
                     history.last_alert_at = datetime.now(timezone.utc).isoformat()
                     history.last_alert_price = quote.price_brl

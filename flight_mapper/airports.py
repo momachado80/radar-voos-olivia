@@ -49,6 +49,20 @@ def route_airport_label(origin: str, destination: str) -> str:
     return f"{origin} → {destination}"
 
 
+def humanize_route(origin: str, destination: str) -> str:
+    """Combinação cidade + sigla sem redundância.
+
+    - Ambos conhecidos: `São Paulo → Paris (GRU → CDG)`.
+    - Pelo menos um desconhecido em que cidade != sigla: idem com fallback.
+    - Ambos desconhecidos (cidade == sigla nas duas pontas): só `GRU → CDG`.
+    """
+    city = route_city_label(origin, destination)
+    iata = route_airport_label(origin, destination)
+    if city == iata:
+        return iata
+    return f"{city} ({iata})"
+
+
 def build_search_url(
     origin: str,
     destination: str,

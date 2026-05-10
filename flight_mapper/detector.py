@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from .state import RouteHistory
+from .thresholds import ceiling_for
 
 
 MIN_SAMPLES = 5
@@ -15,12 +16,35 @@ PRIORITY_DROP_THRESHOLD = 0.15
 PRIORITY_DEDUPE_HOURS = 12
 
 
+CRITERION_AVERAGE_DROP = "average_drop"
+CRITERION_CEILING = "ceiling"
+
+
 @dataclass
 class Decision:
     alert: bool
     reason: str
-    average: float | None
-    drop_pct: float | None
+    average: float | None = None
+    drop_pct: float | None = None
+    criterion: str = CRITERION_AVERAGE_DROP
+    threshold: float | None = None
+
+
+def _within_dedupe(
+    history: RouteHistory,
+    current_price: float,
+    now: datetime,
+    hours: int,
+) -> bool:
+    """True se um alerta recente deve suprimir um novo, dentro da janela."""
+    if not history.last_alert_at or history.last_alert_price is None:
+        return False
+    last = datetime.fromisoformat(history.last_alert_at)
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    if now - last >= timedelta(hours=hours):
+        return False
+    return current_price >= history.last_alert_price
 
 
 def evaluate(
@@ -41,6 +65,7 @@ def evaluate(
             reason=f"acumulando histórico ({samples}/{MIN_SAMPLES})",
             average=history.average,
             drop_pct=None,
+            criterion=CRITERION_AVERAGE_DROP,
         )
 
     average = history.average
@@ -53,24 +78,65 @@ def evaluate(
             reason=f"queda {drop_pct:.1%} < limite {threshold:.0%}",
             average=average,
             drop_pct=drop_pct,
+            criterion=CRITERION_AVERAGE_DROP,
         )
 
-    if history.last_alert_at and history.last_alert_price is not None:
-        last = datetime.fromisoformat(history.last_alert_at)
-        if last.tzinfo is None:
-            last = last.replace(tzinfo=timezone.utc)
-        within_dedupe = now - last < timedelta(hours=dedupe_hours)
-        if within_dedupe and current_price >= history.last_alert_price:
-            return Decision(
-                alert=False,
-                reason=f"alerta repetido dentro de {dedupe_hours}h sem nova queda",
-                average=average,
-                drop_pct=drop_pct,
-            )
+    if _within_dedupe(history, current_price, now, dedupe_hours):
+        return Decision(
+            alert=False,
+            reason=f"alerta repetido dentro de {dedupe_hours}h sem nova queda",
+            average=average,
+            drop_pct=drop_pct,
+            criterion=CRITERION_AVERAGE_DROP,
+        )
 
     return Decision(
         alert=True,
         reason=f"queda de {drop_pct:.1%} vs média histórica",
         average=average,
         drop_pct=drop_pct,
+        criterion=CRITERION_AVERAGE_DROP,
+    )
+
+
+def evaluate_ceiling(
+    history: RouteHistory,
+    current_price: float,
+    route_key: str,
+    now: datetime | None = None,
+    *,
+    priority: bool = False,
+) -> Decision:
+    """Alerta quando o preço atual está abaixo do teto absoluto configurado."""
+    now = now or datetime.now(timezone.utc)
+    threshold = ceiling_for(route_key)
+    if threshold is None:
+        return Decision(
+            alert=False,
+            reason="sem teto configurado",
+            criterion=CRITERION_CEILING,
+        )
+
+    if current_price > threshold:
+        return Decision(
+            alert=False,
+            reason=f"preço R$ {current_price:.0f} > teto R$ {threshold:.0f}",
+            criterion=CRITERION_CEILING,
+            threshold=threshold,
+        )
+
+    dedupe_hours = PRIORITY_DEDUPE_HOURS if priority else DEDUPE_WINDOW_HOURS
+    if _within_dedupe(history, current_price, now, dedupe_hours):
+        return Decision(
+            alert=False,
+            reason=f"alerta repetido dentro de {dedupe_hours}h sem nova queda",
+            criterion=CRITERION_CEILING,
+            threshold=threshold,
+        )
+
+    return Decision(
+        alert=True,
+        reason=f"preço R$ {current_price:.0f} <= teto R$ {threshold:.0f}",
+        criterion=CRITERION_CEILING,
+        threshold=threshold,
     )
