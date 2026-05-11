@@ -15,11 +15,18 @@ from flight_mapper.regions import Route
 _FIXED_NOW = datetime(2026, 5, 10, 10, 43, tzinfo=timezone.utc)
 
 
+_VALID_DEEP_LINK = (
+    "https://search.aviasales.com/flights/?origin_iata=GRU"
+    "&destination_iata=CDG&depart_date=2026-06-15&return_date=2026-06-22"
+    "&adults=1&children=0&infants=0&trip_class=1&currency=brl"
+)
+
+
 def _quote(**overrides) -> Quote:
     base = dict(
         route=Route("GRU", "CDG", "Europa"),
         price_brl=2140.0,
-        deep_link="https://www.aviasales.com/search/GRU1506CDG22061",
+        deep_link=_VALID_DEEP_LINK,
         departure_date="2026-06-15",
         return_date="2026-06-22",
         source="travelpayouts",
@@ -112,6 +119,31 @@ def test_format_alert_omits_link_when_missing():
     text = format_alert(_quote(deep_link=None), _drop_decision())
     assert "Conferir busca" not in text
     assert "Travelpayouts (cache)" in text
+
+
+def test_format_alert_shows_unavailable_warning_when_link_missing():
+    text = format_alert(_quote(deep_link=None), _drop_decision())
+    assert "⚠️ Link direto indisponível. Conferir manualmente na fonte pela rota GRU → CDG." in text
+
+
+def test_format_alert_shows_unavailable_warning_when_link_broken():
+    """URL no padrão antigo /search/GRUMIA é rejeitada; fallback aparece."""
+    text = format_alert(
+        _quote(deep_link="https://www.aviasales.com/search/GRUMIA"),
+        _drop_decision(),
+    )
+    assert "Conferir busca" not in text
+    assert "Link direto indisponível" in text
+    # nunca incluir o link quebrado no texto
+    assert "https://www.aviasales.com/search/GRUMIA" not in text
+
+
+def test_format_alert_includes_link_when_valid_parameterized_url():
+    text = format_alert(_quote(), _drop_decision())
+    assert "🔎 <a href=" in text
+    assert "Conferir busca" in text
+    assert "Link direto indisponível" not in text
+    assert _VALID_DEEP_LINK in text
 
 
 def test_format_alert_priority_has_flag():

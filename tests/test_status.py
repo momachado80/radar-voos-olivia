@@ -138,9 +138,10 @@ def test_top3_ordering(tmp_path: Path):
     assert "São Paulo → Londres" in body
 
 
-def test_top3_includes_search_link(tmp_path: Path):
+def test_daily_report_omits_aviasales_links(tmp_path: Path):
+    """Relatório diário é heartbeat — não traz links acionáveis nem genéricos."""
     store = PriceStore(tmp_path / "h.json")
-    _populate(store, {"GRU-MIA-business": [1207.0]})
+    _populate(store, {"GRU-MIA-business": [1207.0], "GRU-LHR-business": [1800.0]})
     notifier = _StubNotifier()
 
     maybe_send_status(
@@ -152,8 +153,13 @@ def test_top3_includes_search_link(tmp_path: Path):
     )
 
     body = notifier.sent[0]
-    assert "https://www.aviasales.com/search/GRUMIA" in body
-    assert "conferir" in body
+    # padrão antigo
+    assert "https://www.aviasales.com/search" not in body
+    # padrão novo (parametrizado) também não
+    assert "search.aviasales.com/flights" not in body
+    # nada de hyperlinks
+    assert "<a href" not in body
+    assert "conferir" not in body
     assert "Abrir oferta" not in body
 
 
@@ -223,7 +229,9 @@ def test_top3_handles_unknown_airport(tmp_path: Path):
 
     body = notifier.sent[0]
     assert "XYZ → ABC" in body
-    assert "https://www.aviasales.com/search/XYZABC" in body
+    # relatório diário não inclui links — nem para rotas conhecidas, nem desconhecidas
+    assert "https://www.aviasales.com/search" not in body
+    assert "search.aviasales.com/flights" not in body
 
 
 def test_does_not_persist_when_send_fails(tmp_path: Path):

@@ -110,10 +110,12 @@ def cmd_preview(args: argparse.Namespace) -> int:
     print("=" * 60)
     print("ALERTA POR PREÇO-ALVO (ceiling)")
     print("=" * 60)
+    from .airports import build_search_url
+
     quote_ceiling = Quote(
         route=Route("GRU", "CDG", "Europa"),
         price_brl=2350.0,
-        deep_link="https://www.aviasales.com/search/GRU1506CDG22061",
+        deep_link=build_search_url("GRU", "CDG", "2026-06-15", "2026-06-22"),
         departure_date="2026-06-15",
         return_date="2026-06-22",
         source="travelpayouts",
@@ -133,7 +135,7 @@ def cmd_preview(args: argparse.Namespace) -> int:
     quote_drop = Quote(
         route=Route("GRU", "LHR", "Europa"),
         price_brl=1700.0,
-        deep_link="https://www.aviasales.com/search/GRU1007LHR17071",
+        deep_link=build_search_url("GRU", "LHR", "2026-07-10", "2026-07-17"),
         departure_date="2026-07-10",
         return_date="2026-07-17",
         source="travelpayouts",

@@ -1,6 +1,9 @@
-"""Humanização de códigos IATA e construção de URLs de busca."""
+"""Humanização de códigos IATA, construção de URLs de busca e validação."""
 
 from __future__ import annotations
+
+from datetime import datetime
+from urllib.parse import parse_qs, urlencode, urlparse
 
 
 AIRPORTS: dict[str, str] = {
@@ -63,31 +66,82 @@ def humanize_route(origin: str, destination: str) -> str:
     return f"{city} ({iata})"
 
 
+SEARCH_BASE_URL = "https://search.aviasales.com/flights/"
+
+# Domínios cujas URLs consideramos "acionáveis" sem validação adicional dos params
+# (ex.: Kiwi devolve deep_link próprio bem-formado).
+_TRUSTED_DOMAINS = {"www.kiwi.com", "kiwi.com"}
+
+# Parâmetros que toda URL gerada por nós deve conter para ser considerada acionável.
+_REQUIRED_AVIASALES_PARAMS = frozenset(
+    {"origin_iata", "destination_iata", "depart_date", "trip_class"}
+)
+
+
 def build_search_url(
     origin: str,
     destination: str,
     departure: str | None = None,
     return_date: str | None = None,
-) -> str:
-    """URL de busca no Aviasales.
+) -> str | None:
+    """URL parametrizada de busca no Aviasales.
 
-    Sem datas: `https://www.aviasales.com/search/{O}{D}`.
-    Com data de ida: codifica `DDMM`. Com volta: idem + sufixo `1` (1 passageiro).
-    Mesmo padrão que `TravelpayoutsProvider._search_url` usa hoje.
+    Retorna `None` quando faltam dados essenciais (origem, destino ou data de ida).
+    Preferimos não devolver link a devolver link frágil que abre busca quebrada.
+
+    Datas no formato ISO (YYYY-MM-DD).
     """
-    base = f"https://www.aviasales.com/search/{origin}{destination}"
-    if not departure:
-        return base
+    if not origin or not destination or not departure:
+        return None
     try:
-        from datetime import datetime
-        dep = datetime.fromisoformat(departure).strftime("%d%m")
+        datetime.fromisoformat(departure)
+        if return_date:
+            datetime.fromisoformat(return_date)
     except (ValueError, TypeError):
-        return base
+        return None
+
+    params: list[tuple[str, str]] = [
+        ("origin_iata", origin),
+        ("destination_iata", destination),
+        ("depart_date", departure),
+    ]
     if return_date:
-        try:
-            from datetime import datetime
-            ret = datetime.fromisoformat(return_date).strftime("%d%m")
-            return f"https://www.aviasales.com/search/{origin}{dep}{destination}{ret}1"
-        except (ValueError, TypeError):
-            pass
-    return f"https://www.aviasales.com/search/{origin}{dep}{destination}1"
+        params.append(("return_date", return_date))
+    params.extend(
+        [
+            ("adults", "1"),
+            ("children", "0"),
+            ("infants", "0"),
+            ("trip_class", "1"),
+            ("currency", "brl"),
+        ]
+    )
+    return f"{SEARCH_BASE_URL}?{urlencode(params)}"
+
+
+def is_actionable_url(url: str | None) -> bool:
+    """Aprova apenas URLs com formato acionável conhecido.
+
+    - URLs do nosso `build_search_url` (search.aviasales.com com parâmetros mínimos).
+    - Deep links do Kiwi (domínios kiwi.com).
+
+    Rejeita o padrão antigo `https://www.aviasales.com/search/GRUMIA`, URLs vazias,
+    `example.com` (mock), e qualquer coisa fora dos domínios confiáveis.
+    """
+    if not url or not isinstance(url, str):
+        return False
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        return False
+    host = parsed.netloc.lower()
+    if not host:
+        return False
+
+    if host == "search.aviasales.com":
+        qs = parse_qs(parsed.query)
+        return _REQUIRED_AVIASALES_PARAMS.issubset(qs.keys())
+
+    if host in _TRUSTED_DOMAINS:
+        return True
+
+    return False
