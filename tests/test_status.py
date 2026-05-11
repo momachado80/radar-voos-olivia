@@ -138,9 +138,17 @@ def test_top3_ordering(tmp_path: Path):
     assert "São Paulo → Londres" in body
 
 
-def test_top3_includes_search_link(tmp_path: Path):
+def test_daily_report_omits_generic_search_links(tmp_path: Path):
+    """Relatório diário é heartbeat/panorama — não traz links genéricos do Aviasales."""
     store = PriceStore(tmp_path / "h.json")
-    _populate(store, {"GRU-MIA-business": [1207.0]})
+    _populate(
+        store,
+        {
+            "GRU-MIA-business": [1207.0],
+            "GRU-LHR-business": [1800.0],
+            "GRU-DXB-business": [2798.0],
+        },
+    )
     notifier = _StubNotifier()
 
     maybe_send_status(
@@ -152,8 +160,9 @@ def test_top3_includes_search_link(tmp_path: Path):
     )
 
     body = notifier.sent[0]
-    assert "https://www.aviasales.com/search/GRUMIA" in body
-    assert "conferir" in body
+    assert "https://www.aviasales.com/search" not in body
+    assert "conferir" not in body
+    assert "<a href" not in body
     assert "Abrir oferta" not in body
 
 
@@ -181,13 +190,35 @@ def test_status_includes_regional_best_section(tmp_path: Path):
 
     body = notifier.sent[0]
     assert "🌎 Melhor por região" in body
-    # menor preço de cada região vence
-    assert "Europa: GRU → LHR" in body
-    assert "EUA: GRU → MIA" in body
-    assert "Ásia: GRU → DXB" in body
+    # cidade + sigla humanizadas em cada região vencedora
+    assert "Europa: São Paulo → Londres (GRU → LHR)" in body
+    assert "EUA: São Paulo → Miami (GRU → MIA)" in body
+    # Ásia exibida como "Ásia/Oriente Médio" (display-only rename)
+    assert "Ásia/Oriente Médio: São Paulo → Dubai (GRU → DXB)" in body
+    # display antigo "Ásia: GRU → DXB" não aparece mais
+    assert "Ásia: GRU → DXB" not in body
     # rota não-vencedora não aparece no bloco regional
-    assert "Europa: GRU → FRA" not in body
-    assert "EUA: GRU → ORD" not in body
+    assert "GRU → FRA" not in body or body.count("GRU → FRA") == 0
+    assert "EUA: São Paulo → Chicago" not in body
+
+
+def test_regional_section_renames_asia_for_display(tmp_path: Path):
+    store = PriceStore(tmp_path / "h.json")
+    _populate(store, {"GRU-DXB-business": [2798.0]})
+    notifier = _StubNotifier()
+
+    maybe_send_status(
+        result=_result(),
+        store=store,
+        state=StatusState(),
+        notifier=notifier,
+        state_path=tmp_path / "status.json",
+    )
+
+    body = notifier.sent[0]
+    assert "Ásia/Oriente Médio" in body
+    # checagem específica: a string "• Ásia:" não aparece (renomeada)
+    assert "• Ásia:" not in body
 
 
 def test_status_uses_brl_with_dot_separator(tmp_path: Path):
@@ -223,7 +254,8 @@ def test_top3_handles_unknown_airport(tmp_path: Path):
 
     body = notifier.sent[0]
     assert "XYZ → ABC" in body
-    assert "https://www.aviasales.com/search/XYZABC" in body
+    # relatório diário não traz links genéricos, nem para rotas desconhecidas
+    assert "https://www.aviasales.com/search" not in body
 
 
 def test_does_not_persist_when_send_fails(tmp_path: Path):

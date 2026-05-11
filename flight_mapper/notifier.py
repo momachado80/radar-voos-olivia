@@ -85,7 +85,7 @@ class TelegramNotifier:
                 "chat_id": self.chat_id,
                 "text": text,
                 "parse_mode": "HTML",
-                "disable_web_page_preview": "false",
+                "disable_web_page_preview": "true",
             }
         ).encode("utf-8")
         request = Request(self._url, data=body, method="POST")

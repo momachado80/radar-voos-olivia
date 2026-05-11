@@ -7,12 +7,19 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .airports import build_search_url, humanize_route, route_airport_label
+from .airports import humanize_route
 from .formatting import format_brl
 from .monitor import MonitorResult
 from .notifier import TelegramNotifier
 from .regions import REGIONS
 from .state import PriceStore
+
+
+# Display-only: a região "Ásia" agrupa Ásia + Oriente Médio (DXB, DOH etc).
+# Renomeada na mensagem do Telegram para refletir isso, sem alterar `regions.py`.
+REGION_DISPLAY_LABELS: dict[str, str] = {
+    "Ásia": "Ásia/Oriente Médio",
+}
 
 
 @dataclass
@@ -67,8 +74,7 @@ def _format_top3_line(index: int, key: str, price: float) -> str:
         return f"{index}. {key} — {price_str}"
     origin, destination = parts
     label = humanize_route(origin, destination)
-    url = build_search_url(origin, destination)
-    return f'{index}. {label} — {price_str} — 🔎 <a href="{url}">conferir</a>'
+    return f"{index}. {label} — {price_str}"
 
 
 def _region_for_destination(destination: str) -> str | None:
@@ -104,12 +110,12 @@ def _best_per_region(latest: list[tuple[str, float]]) -> list[tuple[str, str, fl
 def _format_regional_line(region: str, key: str, price: float) -> str:
     parts = _split_route_key(key)
     price_str = format_brl(price)
+    display_region = REGION_DISPLAY_LABELS.get(region, region)
     if parts is None:
-        return f"• {region}: {key} — {price_str}"
+        return f"• {display_region}: {key} — {price_str}"
     origin, destination = parts
-    iata = route_airport_label(origin, destination)
-    url = build_search_url(origin, destination)
-    return f'• {region}: {iata} — {price_str} — 🔎 <a href="{url}">conferir</a>'
+    label = humanize_route(origin, destination)
+    return f"• {display_region}: {label} — {price_str}"
 
 
 def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> str:
