@@ -10,6 +10,7 @@ from typing import Protocol
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from .airports import build_search_url
 from .regions import Route
 
 
@@ -124,25 +125,11 @@ class TravelpayoutsProvider:
         return Quote(
             route=route,
             price_brl=float(item["price"]),
-            deep_link=self._search_url(route, departure, return_date),
+            deep_link=build_search_url(route.origin, route.destination, departure, return_date),
             departure_date=departure,
             return_date=return_date,
             source="travelpayouts",
         )
-
-    @staticmethod
-    def _search_url(route: Route, departure: str, return_date: str | None) -> str:
-        try:
-            dep = datetime.fromisoformat(departure).strftime("%d%m")
-        except (ValueError, TypeError):
-            return f"https://www.aviasales.com/search/{route.origin}{route.destination}"
-        if return_date:
-            try:
-                ret = datetime.fromisoformat(return_date).strftime("%d%m")
-                return f"https://www.aviasales.com/search/{route.origin}{dep}{route.destination}{ret}1"
-            except (ValueError, TypeError):
-                pass
-        return f"https://www.aviasales.com/search/{route.origin}{dep}{route.destination}1"
 
 
 class MockProvider:

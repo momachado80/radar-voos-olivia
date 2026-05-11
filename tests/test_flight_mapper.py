@@ -139,24 +139,6 @@ def test_cycle_state_persists(tmp_path: Path):
     assert CycleState.load(path).cursor == 7
 
 
-def test_travelpayouts_search_url_with_round_trip():
-    route = Route("GRU", "LHR", "Europa")
-    url = TravelpayoutsProvider._search_url(route, "2026-06-15", "2026-06-22")
-    assert url == "https://www.aviasales.com/search/GRU1506LHR22061"
-
-
-def test_travelpayouts_search_url_one_way():
-    route = Route("GRU", "LHR", "Europa")
-    url = TravelpayoutsProvider._search_url(route, "2026-06-15", None)
-    assert url == "https://www.aviasales.com/search/GRU1506LHR1"
-
-
-def test_travelpayouts_search_url_falls_back_when_date_invalid():
-    route = Route("GRU", "LHR", "Europa")
-    url = TravelpayoutsProvider._search_url(route, "", None)
-    assert url == "https://www.aviasales.com/search/GRULHR"
-
-
 def test_mock_provider_returns_quote_for_every_route():
     provider = MockProvider(seed=1)
     quote = provider.quote(Route("GRU", "LHR", "Europa"))

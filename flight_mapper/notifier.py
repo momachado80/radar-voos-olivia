@@ -9,7 +9,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from .airports import route_airport_label, route_city_label
+from .airports import is_actionable_url, route_airport_label, route_city_label
 from .detector import CRITERION_CEILING, Decision
 from .formatting import format_brl, format_detection_time, format_source
 from .providers import Quote
@@ -58,8 +58,13 @@ def format_alert(
     source_label = format_source(quote.source)
     if source_label:
         extras.append(f"🛒 Fonte: {source_label}")
-    if quote.deep_link:
+    if is_actionable_url(quote.deep_link):
         extras.append(f'🔎 <a href="{quote.deep_link}">Conferir busca</a>')
+    else:
+        extras.append(
+            "⚠️ Link direto indisponível. Conferir manualmente na fonte pela rota "
+            f"{quote.route.origin} → {quote.route.destination}."
+        )
 
     return (
         f"✈️ <b>{flag}Business em promoção</b>\n"
