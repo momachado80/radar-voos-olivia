@@ -6,7 +6,8 @@
       2738.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-BOS-business": {
     "prices": [
@@ -15,7 +16,8 @@
       2158.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-CDG-business": {
     "prices": [
@@ -24,7 +26,8 @@
       2640.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-DOH-business": {
     "prices": [
@@ -32,7 +35,8 @@
       4563.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-DXB-business": {
     "prices": [
@@ -40,7 +44,8 @@
       4006.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-FCO-business": {
     "prices": [
@@ -49,7 +54,8 @@
       2859.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-FRA-business": {
     "prices": [
@@ -58,7 +64,8 @@
       3322.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-HKG-business": {
     "prices": [
@@ -66,7 +73,8 @@
       6060.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-IAD-business": {
     "prices": [
@@ -75,7 +83,8 @@
       2992.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-ICN-business": {
     "prices": [
@@ -84,7 +93,8 @@
       5934.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-JFK-business": {
     "prices": [
@@ -93,7 +103,8 @@
       2062.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-LAX-business": {
     "prices": [
@@ -102,7 +113,8 @@
       2016.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-LHR-business": {
     "prices": [
@@ -111,7 +123,8 @@
       3071.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-LIS-business": {
     "prices": [
@@ -120,7 +133,8 @@
       2124.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-MAD-business": {
     "prices": [
@@ -129,7 +143,8 @@
       2422.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-MIA-business": {
     "prices": [
@@ -138,7 +153,8 @@
       1965.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-NRT-business": {
     "prices": [
@@ -147,7 +163,8 @@
       4399.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-ORD-business": {
     "prices": [
@@ -156,7 +173,8 @@
       1619.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-SFO-business": {
     "prices": [
@@ -165,7 +183,8 @@
       2549.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-SIN-business": {
     "prices": [
@@ -173,7 +192,8 @@
       7943.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "CGH-ZRH-business": {
     "prices": [
@@ -182,7 +202,8 @@
       4720.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "GRU-AMS-business": {
     "prices": [
@@ -229,10 +250,24 @@
       2592.0,
       2592.0,
       2592.0,
+      2592.0,
       2592.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 2592.0,
+      "origin": "GRU",
+      "destination": "AMS",
+      "departure_date": "2027-04-01",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=AMS&depart_date=2027-04-01&adults=1&children=0&infants=0&trip_class=1&currency=brl",
+      "detected_at": "2026-05-12T20:56:26.423202+00:00",
+      "actionable_url": true,
+      "cabin": "business",
+      "provider_note": null
+    }
   },
   "GRU-BOS-business": {
     "prices": [
@@ -266,7 +301,8 @@
       2693.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "GRU-CDG-business": {
     "prices": [
@@ -285,7 +321,7 @@
       2483.0,
       2483.0,
       2483.0,
-      2483.0,
+      2565.0,
       2565.0,
       2565.0,
       2565.0,
@@ -321,8 +357,21 @@
       2565.0,
       2565.0
     ],
-    "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_at": "2026-05-12T20:56:25.155548+00:00",
+    "last_alert_price": 2565.0,
+    "last_quote": {
+      "price_brl": 2565.0,
+      "origin": "GRU",
+      "destination": "CDG",
+      "departure_date": "2026-06-15",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=CDG&depart_date=2026-06-15&adults=1&children=0&infants=0&trip_class=1&currency=brl",
+      "detected_at": "2026-05-12T20:56:24.695841+00:00",
+      "actionable_url": true,
+      "cabin": "business",
+      "provider_note": "second-confirmation"
+    }
   },
   "GRU-DOH-business": {
     "prices": [
@@ -356,7 +405,8 @@
       3571.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "GRU-DXB-business": {
     "prices": [
@@ -390,7 +440,8 @@
       2827.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "GRU-FCO-business": {
     "prices": [
@@ -434,10 +485,24 @@
       2376.0,
       2376.0,
       2376.0,
+      2376.0,
       2376.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 2376.0,
+      "origin": "GRU",
+      "destination": "FCO",
+      "departure_date": "2026-06-10",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=FCO&depart_date=2026-06-10&adults=1&children=0&infants=0&trip_class=1&currency=brl",
+      "detected_at": "2026-05-12T20:56:26.371859+00:00",
+      "actionable_url": true,
+      "cabin": "business",
+      "provider_note": null
+    }
   },
   "GRU-FRA-business": {
     "prices": [
@@ -449,7 +514,8 @@
       2378.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "GRU-HKG-business": {
     "prices": [
@@ -483,7 +549,8 @@
       4720.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "GRU-IAD-business": {
     "prices": [
@@ -501,7 +568,8 @@
       2470.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "GRU-ICN-business": {
     "prices": [
@@ -535,7 +603,8 @@
       4543.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "GRU-JFK-business": {
     "prices": [
@@ -586,12 +655,25 @@
       1936.0,
       1936.0,
       1936.0,
-      1936.0,
+      2061.0,
       2061.0,
       2061.0
     ],
-    "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_at": "2026-05-12T20:56:27.025264+00:00",
+    "last_alert_price": 2061.0,
+    "last_quote": {
+      "price_brl": 2061.0,
+      "origin": "GRU",
+      "destination": "JFK",
+      "departure_date": "2026-10-16",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=JFK&depart_date=2026-10-16&adults=1&children=0&infants=0&trip_class=1&currency=brl",
+      "detected_at": "2026-05-12T20:56:26.592839+00:00",
+      "actionable_url": true,
+      "cabin": "business",
+      "provider_note": "second-confirmation"
+    }
   },
   "GRU-LAX-business": {
     "prices": [
@@ -646,12 +728,24 @@
       1822.0,
       1822.0
     ],
-    "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_at": "2026-05-12T20:56:28.257136+00:00",
+    "last_alert_price": 1822.0,
+    "last_quote": {
+      "price_brl": 1822.0,
+      "origin": "GRU",
+      "destination": "LAX",
+      "departure_date": "2026-11-12",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=LAX&depart_date=2026-11-12&adults=1&children=0&infants=0&trip_class=1&currency=brl",
+      "detected_at": "2026-05-12T20:56:27.805300+00:00",
+      "actionable_url": true,
+      "cabin": "business",
+      "provider_note": "second-confirmation"
+    }
   },
   "GRU-LHR-business": {
     "prices": [
-      2216.0,
       2216.0,
       2216.0,
       2216.0,
@@ -700,10 +794,24 @@
       1878.0,
       1878.0,
       1878.0,
+      1878.0,
       1878.0
     ],
-    "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_at": "2026-05-12T20:56:24.408302+00:00",
+    "last_alert_price": 1878.0,
+    "last_quote": {
+      "price_brl": 1878.0,
+      "origin": "GRU",
+      "destination": "LHR",
+      "departure_date": "2026-11-10",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=LHR&depart_date=2026-11-10&adults=1&children=0&infants=0&trip_class=1&currency=brl",
+      "detected_at": "2026-05-12T20:56:23.723755+00:00",
+      "actionable_url": true,
+      "cabin": "business",
+      "provider_note": "second-confirmation"
+    }
   },
   "GRU-LIS-business": {
     "prices": [
@@ -744,10 +852,24 @@
       1919.0,
       1919.0,
       1919.0,
+      1919.0,
       1919.0
     ],
-    "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_at": "2026-05-12T20:56:26.284653+00:00",
+    "last_alert_price": 1919.0,
+    "last_quote": {
+      "price_brl": 1919.0,
+      "origin": "GRU",
+      "destination": "LIS",
+      "departure_date": "2026-10-26",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=LIS&depart_date=2026-10-26&adults=1&children=0&infants=0&trip_class=1&currency=brl",
+      "detected_at": "2026-05-12T20:56:25.848586+00:00",
+      "actionable_url": true,
+      "cabin": "business",
+      "provider_note": "second-confirmation"
+    }
   },
   "GRU-MAD-business": {
     "prices": [
@@ -784,10 +906,24 @@
       2057.0,
       2057.0,
       2057.0,
+      2057.0,
       2057.0
     ],
-    "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_at": "2026-05-12T20:56:25.713459+00:00",
+    "last_alert_price": 2057.0,
+    "last_quote": {
+      "price_brl": 2057.0,
+      "origin": "GRU",
+      "destination": "MAD",
+      "departure_date": "2027-03-09",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=MAD&depart_date=2027-03-09&adults=1&children=0&infants=0&trip_class=1&currency=brl",
+      "detected_at": "2026-05-12T20:56:25.265277+00:00",
+      "actionable_url": true,
+      "cabin": "business",
+      "provider_note": "second-confirmation"
+    }
   },
   "GRU-MIA-business": {
     "prices": [
@@ -801,7 +937,7 @@
       1207.0,
       1207.0,
       1207.0,
-      1207.0,
+      1234.0,
       1234.0,
       1234.0,
       1234.0,
@@ -842,8 +978,21 @@
       1234.0,
       1234.0
     ],
-    "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_at": "2026-05-12T20:56:27.642688+00:00",
+    "last_alert_price": 1234.0,
+    "last_quote": {
+      "price_brl": 1234.0,
+      "origin": "GRU",
+      "destination": "MIA",
+      "departure_date": "2026-11-12",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=MIA&depart_date=2026-11-12&adults=1&children=0&infants=0&trip_class=1&currency=brl",
+      "detected_at": "2026-05-12T20:56:27.199290+00:00",
+      "actionable_url": true,
+      "cabin": "business",
+      "provider_note": "second-confirmation"
+    }
   },
   "GRU-NRT-business": {
     "prices": [
@@ -877,7 +1026,8 @@
       3999.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "GRU-ORD-business": {
     "prices": [
@@ -911,7 +1061,8 @@
       1709.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "GRU-SFO-business": {
     "prices": [
@@ -966,8 +1117,21 @@
       1997.0,
       1997.0
     ],
-    "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_at": "2026-05-12T20:56:28.933589+00:00",
+    "last_alert_price": 1997.0,
+    "last_quote": {
+      "price_brl": 1997.0,
+      "origin": "GRU",
+      "destination": "SFO",
+      "departure_date": "2026-11-12",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=SFO&depart_date=2026-11-12&adults=1&children=0&infants=0&trip_class=1&currency=brl",
+      "detected_at": "2026-05-12T20:56:28.496249+00:00",
+      "actionable_url": true,
+      "cabin": "business",
+      "provider_note": "second-confirmation"
+    }
   },
   "GRU-SIN-business": {
     "prices": [
@@ -993,7 +1157,8 @@
       4772.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   },
   "GRU-ZRH-business": {
     "prices": [
@@ -1021,6 +1186,7 @@
       2598.0
     ],
     "last_alert_at": null,
-    "last_alert_price": null
+    "last_alert_price": null,
+    "last_quote": null
   }
 }
