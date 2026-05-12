@@ -1,11 +1,14 @@
-"""CLI: python -m flight_mapper {scan|cycle|hot-scan|test|preview-messages}."""
+"""CLI: python -m flight_mapper {scan|cycle|hot-scan|test|preview-messages|
+calibrate-routes|simulate-thresholds|rank-routes|provider-health|audit-links|export-history}."""
 
 from __future__ import annotations
 
 import argparse
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
+from . import diagnostics
 from .config import Config
 from .cycle_state import CycleState
 from .detector import (
@@ -15,6 +18,7 @@ from .detector import (
     LEVEL_GOOD,
     Decision,
 )
+from .formatting import format_brl
 from .monitor import Monitor, MonitorResult
 from .notifier import TelegramNotifier, format_alert
 from .providers import KiwiTequilaProvider, MockProvider, Quote, TravelpayoutsProvider
@@ -244,6 +248,177 @@ def cmd_test(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+# ============================================================
+# Calibration & Diagnostics (read-only; no provider, no telegram, no HTTP)
+# ============================================================
+
+
+def _load_diag_store() -> "PriceStore | None":
+    """Carrega o store. Devolve None se vazio (sem rotas no histórico)."""
+    config = Config.from_env()
+    store = PriceStore(config.history_path)
+    if not list(store.keys()):
+        return None
+    return store
+
+
+def _empty_history_msg() -> str:
+    return (
+        "Sem dados suficientes em data/price_history.json — "
+        "rode `python -m flight_mapper cycle` ou aguarde o cron para acumular histórico."
+    )
+
+
+def _fmt_brl(value):
+    if value is None:
+        return "—"
+    return format_brl(value)
+
+
+def cmd_calibrate_routes(args: argparse.Namespace) -> int:
+    store = _load_diag_store()
+    if store is None:
+        print(_empty_history_msg())
+        return 0
+    stats = diagnostics.all_stats(store)
+    headers = ["ROTA", "SAMPLES", "LATEST", "MIN", "AVG", "P10", "P25", "EXCELLENT", "GOOD", "SUGGEST_EXC", "SUGGEST_GOOD"]
+    print(" | ".join(headers))
+    print("-" * 140)
+    for s in stats:
+        sugg_e, sugg_g = diagnostics.suggest_thresholds(s)
+        print(
+            " | ".join(
+                [
+                    f"{s.key:24s} {s.route_label}",
+                    f"{s.samples:3d}",
+                    _fmt_brl(s.latest).rjust(10),
+                    _fmt_brl(s.min_price).rjust(10),
+                    _fmt_brl(s.avg).rjust(10),
+                    _fmt_brl(s.p10).rjust(10),
+                    _fmt_brl(s.p25).rjust(10),
+                    _fmt_brl(s.excellent_brl).rjust(10),
+                    _fmt_brl(s.good_brl).rjust(10),
+                    _fmt_brl(sugg_e).rjust(10),
+                    _fmt_brl(sugg_g).rjust(10),
+                ]
+            )
+        )
+    return 0
+
+
+def cmd_simulate_thresholds(args: argparse.Namespace) -> int:
+    store = _load_diag_store()
+    if store is None:
+        print(_empty_history_msg())
+        return 0
+    stats = diagnostics.all_stats(store)
+    scenarios = [
+        ("current", dict(factor=1.0)),
+        ("stricter -10%", dict(factor=0.9)),
+        ("looser +10%", dict(factor=1.1)),
+        ("p10 cutoff", dict(use_p10=True)),
+        ("p25 cutoff", dict(use_p25=True)),
+    ]
+    print("Simulação de alertas sobre LATEST de cada rota.")
+    print("stricter -10% = teto menor → menos alertas. looser +10% = teto maior → mais alertas.")
+    print()
+    print(f"{'SCENARIO':<20} {'TOTAL':>8} {'EXCELLENT':>10} {'GOOD_ONLY':>10} {'SKIPPED':>10}")
+    print("-" * 64)
+    for name, kwargs in scenarios:
+        result = diagnostics.simulate_alerts(stats, **kwargs)
+        print(
+            f"{name:<20} {result['total']:>8} {result['excellent']:>10} "
+            f"{result['good_only']:>10} {result['skipped_no_threshold']:>10}"
+        )
+    return 0
+
+
+def cmd_rank_routes(args: argparse.Namespace) -> int:
+    store = _load_diag_store()
+    if store is None:
+        print(_empty_history_msg())
+        return 0
+    stats = diagnostics.all_stats(store)
+    ranked = diagnostics.ranked_routes(stats, top_n=args.top)
+    print(
+        "Rank de rotas promissoras (rank_score 0-100, separado do opportunity score do alerta)."
+    )
+    print()
+    for i, (s, score) in enumerate(ranked, 1):
+        link_flag = "link ✓" if s.last_quote_actionable else "sem link"
+        wl_flag = f"watchlist: {s.watchlist_label}" if s.watchlist_label else "sem watchlist"
+        hot_flag = "hot" if s.is_hot else ""
+        latest_str = _fmt_brl(s.latest)
+        good_str = _fmt_brl(s.good_brl)
+        flags = ", ".join(filter(None, [link_flag, wl_flag, hot_flag, f"{s.samples} amostras"]))
+        print(
+            f"{i:2d}. {s.key:24s} {s.route_label} — rank_score {score}/100 — "
+            f"{latest_str} (alvo good {good_str}) — {flags}"
+        )
+    return 0
+
+
+def cmd_provider_health(args: argparse.Namespace) -> int:
+    store = _load_diag_store()
+    if store is None:
+        print(_empty_history_msg())
+        return 0
+    stats = diagnostics.all_stats(store)
+    health = diagnostics.provider_health(stats)
+    print("Cobertura histórica de cotações (snapshot do que está em data/price_history.json,")
+    print("não consulta o provider em tempo real).")
+    print()
+    print(f"Total rotas em histórico:    {health['total_routes']}")
+    print(f"Com cotação (>=1 amostra):   {health['with_quote']}")
+    print(f"Poucas amostras (<5):        {health['few_samples']}")
+    print(f"Com last_quote:              {health['with_last_quote']}")
+    print(f"Sem last_quote:              {health['without_last_quote']}")
+    print(
+        f"Link acionável:              {health['actionable_links']}"
+        f"/{health['with_last_quote']} ({health['actionable_pct']:.1f}%)"
+    )
+    return 0
+
+
+def cmd_audit_links(args: argparse.Namespace) -> int:
+    store = _load_diag_store()
+    if store is None:
+        print(_empty_history_msg())
+        return 0
+    stats = diagnostics.all_stats(store)
+    audit = diagnostics.audit_links(stats)
+    print(f"Total last_quote presentes:  {audit['total_with_lq']}")
+    print(f"Acionáveis:                  {audit['actionable']}")
+    print(f"Não acionáveis:              {audit['non_actionable']}")
+    print(f"URLs antigas (/search/...):  {len(audit['legacy_urls'])}")
+    if audit["legacy_urls"]:
+        print()
+        print("Rotas com URL antiga (corrigir se persistir):")
+        for s in audit["legacy_urls"]:
+            print(f"  {s.key}: {s.deep_link}")
+    if audit["no_link"]:
+        print()
+        print(f"Top rotas sem link funcional ({min(5, len(audit['no_link']))} mostradas):")
+        for s in audit["no_link"][:5]:
+            print(f"  {s.key} ({s.route_label})")
+    return 0
+
+
+def cmd_export_history(args: argparse.Namespace) -> int:
+    if not args.out:
+        print("Use --out /path/to/history.csv")
+        return 0
+    store = _load_diag_store()
+    if store is None:
+        print(_empty_history_msg())
+        return 0
+    stats = diagnostics.all_stats(store)
+    out_path = Path(args.out)
+    n = diagnostics.export_csv(stats, out_path)
+    print(f"exported {n} routes to {out_path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="flight_mapper")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -271,6 +446,45 @@ def main(argv: list[str] | None = None) -> int:
         help="Imprime mensagens-exemplo no terminal (sem rede, sem secrets)",
     )
     p_preview.set_defaults(func=cmd_preview)
+
+    # ----- Calibration & Diagnostics (read-only) -----
+    p_cal = sub.add_parser(
+        "calibrate-routes",
+        help="Stats por rota + sugestão de thresholds (leitura do histórico).",
+    )
+    p_cal.set_defaults(func=cmd_calibrate_routes)
+
+    p_sim = sub.add_parser(
+        "simulate-thresholds",
+        help="Simula quantos alertas teriam ocorrido em diferentes cenários de teto.",
+    )
+    p_sim.set_defaults(func=cmd_simulate_thresholds)
+
+    p_rank = sub.add_parser(
+        "rank-routes",
+        help="Lista rotas mais promissoras (rank_score, não confundir com alert score).",
+    )
+    p_rank.add_argument("--top", type=int, default=10, help="Top N rotas (default 10)")
+    p_rank.set_defaults(func=cmd_rank_routes)
+
+    p_phealth = sub.add_parser(
+        "provider-health",
+        help="Cobertura histórica de cotações (snapshot do data/, sem consultar provider).",
+    )
+    p_phealth.set_defaults(func=cmd_provider_health)
+
+    p_audit = sub.add_parser(
+        "audit-links",
+        help="Auditoria de links em last_quote (acionáveis, antigos, ausentes).",
+    )
+    p_audit.set_defaults(func=cmd_audit_links)
+
+    p_export = sub.add_parser(
+        "export-history",
+        help="Exporta histórico em CSV (requer --out PATH).",
+    )
+    p_export.add_argument("--out", default=None, help="Caminho do CSV de saída")
+    p_export.set_defaults(func=cmd_export_history)
 
     args = parser.parse_args(argv)
     return args.func(args)
