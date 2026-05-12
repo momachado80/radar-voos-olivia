@@ -187,13 +187,36 @@ def test_status_includes_regional_best_section(tmp_path: Path):
 
     body = notifier.sent[0]
     assert "🌎 Melhor por região" in body
-    # menor preço de cada região vence
-    assert "Europa: GRU → LHR" in body
-    assert "EUA: GRU → MIA" in body
-    assert "Ásia: GRU → DXB" in body
-    # rota não-vencedora não aparece no bloco regional
-    assert "Europa: GRU → FRA" not in body
-    assert "EUA: GRU → ORD" not in body
+    # cada região mostra cidade + sigla humanizadas
+    assert "Europa: São Paulo → Londres (GRU → LHR)" in body
+    assert "EUA: São Paulo → Miami (GRU → MIA)" in body
+    # Ásia exibida como "Ásia/Oriente Médio" (display-only rename)
+    assert "Ásia/Oriente Médio: São Paulo → Dubai (GRU → DXB)" in body
+    # display antigo "Ásia: GRU → DXB" não aparece mais
+    assert "Ásia: GRU → DXB" not in body
+    # rota não-vencedora não aparece como linha do bloco regional
+    # (Frankfurt e Chicago podem aparecer no Top 3, mas nunca prefixados pela região)
+    assert "Europa: São Paulo → Frankfurt" not in body
+    assert "EUA: São Paulo → Chicago" not in body
+
+
+def test_regional_section_renames_asia_for_display(tmp_path: Path):
+    store = PriceStore(tmp_path / "h.json")
+    _populate(store, {"GRU-DXB-business": [2798.0]})
+    notifier = _StubNotifier()
+
+    maybe_send_status(
+        result=_result(),
+        store=store,
+        state=StatusState(),
+        notifier=notifier,
+        state_path=tmp_path / "status.json",
+    )
+
+    body = notifier.sent[0]
+    assert "Ásia/Oriente Médio" in body
+    # nada do display antigo, mesmo como prefixo isolado
+    assert "• Ásia:" not in body
 
 
 def test_status_uses_brl_with_dot_separator(tmp_path: Path):
