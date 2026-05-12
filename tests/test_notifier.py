@@ -21,6 +21,7 @@ _VALID_DEEP_LINK = (
     "https://search.aviasales.com/flights/?origin_iata=GRU"
     "&destination_iata=CDG&depart_date=2026-06-15&return_date=2026-06-22"
     "&adults=1&children=0&infants=0&trip_class=1&currency=brl"
+    "&locale=en&marker_locale=en"
 )
 
 
@@ -305,6 +306,39 @@ def test_format_alert_score_is_informative_does_not_filter():
     # mensagem completa renderiza normalmente
     assert "🚨 EXCELENTE — Score 30/100" in text
     assert "Conferir busca" in text
+
+
+# ---------- Preview do Telegram desativado ----------
+
+def test_telegram_send_payload_disables_web_page_preview(monkeypatch):
+    """O payload enviado ao Telegram exige disable_web_page_preview=true."""
+    from urllib.parse import parse_qs
+    from flight_mapper.notifier import TelegramNotifier
+
+    captured: dict = {}
+
+    class _FakeResponse:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self):
+            return b'{"ok": true}'
+
+    def _fake_urlopen(request, timeout=None):
+        # Captura body do POST
+        captured["body"] = request.data
+        return _FakeResponse()
+
+    import flight_mapper.notifier as nm
+    monkeypatch.setattr(nm, "urlopen", _fake_urlopen)
+
+    notifier = TelegramNotifier("fake-token", "12345")
+    ok = notifier.send("<b>alerta de teste</b>")
+    assert ok is True
+    payload = parse_qs(captured["body"].decode("utf-8"))
+    assert payload["disable_web_page_preview"] == ["true"]
+    assert payload["parse_mode"] == ["HTML"]
 
 
 def test_format_alert_uses_explicit_now_param_for_timestamp():

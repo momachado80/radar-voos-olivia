@@ -72,9 +72,11 @@ SEARCH_BASE_URL = "https://search.aviasales.com/flights/"
 # (ex.: Kiwi devolve deep_link próprio bem-formado).
 _TRUSTED_DOMAINS = {"www.kiwi.com", "kiwi.com"}
 
-# Parâmetros que toda URL gerada por nós deve conter para ser considerada acionável.
+# Parâmetros que toda URL nossa deve conter para ser considerada acionável.
+# `locale` foi adicionado para forçar Aviasales a servir em inglês quando
+# possível (evita preview e página em russo).
 _REQUIRED_AVIASALES_PARAMS = frozenset(
-    {"origin_iata", "destination_iata", "depart_date", "trip_class"}
+    {"origin_iata", "destination_iata", "depart_date", "trip_class", "locale"}
 )
 
 
@@ -83,13 +85,16 @@ def build_search_url(
     destination: str,
     departure: str | None = None,
     return_date: str | None = None,
+    locale: str = "en",
 ) -> str | None:
     """URL parametrizada de busca no Aviasales.
 
     Retorna `None` quando faltam dados essenciais (origem, destino ou data de ida).
     Preferimos não devolver link a devolver link frágil que abre busca quebrada.
 
-    Datas no formato ISO (YYYY-MM-DD).
+    Datas no formato ISO (YYYY-MM-DD). `locale` força idioma da busca
+    (default `en` para evitar Aviasales servir russo, que é o fallback do
+    domínio search.aviasales.com).
     """
     if not origin or not destination or not departure:
         return None
@@ -114,19 +119,25 @@ def build_search_url(
             ("infants", "0"),
             ("trip_class", "1"),
             ("currency", "brl"),
+            ("locale", locale),
+            ("marker_locale", locale),
         ]
     )
     return f"{SEARCH_BASE_URL}?{urlencode(params)}"
 
 
 def is_actionable_url(url: str | None) -> bool:
-    """Aprova apenas URLs com formato acionável conhecido.
+    """Aprova apenas URLs com formato acionável e comercialmente útil.
 
-    - URLs do nosso `build_search_url` (search.aviasales.com com parâmetros mínimos).
-    - Deep links do Kiwi (domínios kiwi.com).
+    Aprova:
+    - URLs do nosso `build_search_url` (search.aviasales.com com `locale` + params mínimos)
+    - Deep links do Kiwi (`*.kiwi.com`)
 
-    Rejeita o padrão antigo `https://www.aviasales.com/search/GRUMIA`, URLs vazias,
-    `example.com` (mock), e qualquer coisa fora dos domínios confiáveis.
+    Rejeita:
+    - Padrão antigo `https://www.aviasales.com/search/GRUMIA` (path-encoded quebrado)
+    - Hosts com TLD `.ru` ou subdomínios russos (`ru.aviasales.com` etc.)
+    - search.aviasales.com sem `locale` (cairia em russo por default)
+    - Esquemas não-HTTP, URLs vazias, domínios desconhecidos
     """
     if not url or not isinstance(url, str):
         return False
@@ -137,8 +148,15 @@ def is_actionable_url(url: str | None) -> bool:
     if not host:
         return False
 
+    # Rejeita domínios russos
+    if host.endswith(".ru") or host.startswith("ru."):
+        return False
+
     if host == "search.aviasales.com":
         qs = parse_qs(parsed.query)
+        # Exigir locale para evitar fallback para russo
+        if "locale" not in qs:
+            return False
         return _REQUIRED_AVIASALES_PARAMS.issubset(qs.keys())
 
     if host in _TRUSTED_DOMAINS:
