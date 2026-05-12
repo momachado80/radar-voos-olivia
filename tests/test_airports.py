@@ -125,3 +125,52 @@ def test_is_actionable_url_rejects_aviasales_without_required_params():
 def test_is_actionable_url_rejects_non_http_scheme():
     assert is_actionable_url("ftp://search.aviasales.com/flights/") is False
     assert is_actionable_url("javascript:alert(1)") is False
+
+
+# ---------- Comercialmente útil: locale e domínios russos ----------
+
+def test_build_search_url_includes_locale_en_by_default():
+    url = build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22")
+    assert url is not None
+    qs = parse_qs(urlparse(url).query)
+    assert qs["locale"] == ["en"]
+    assert qs["marker_locale"] == ["en"]
+
+
+def test_build_search_url_accepts_custom_locale():
+    url = build_search_url("GRU", "MIA", "2026-06-15", locale="pt-br")
+    assert url is not None
+    qs = parse_qs(urlparse(url).query)
+    assert qs["locale"] == ["pt-br"]
+
+
+def test_build_search_url_keeps_currency_brl():
+    url = build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22")
+    qs = parse_qs(urlparse(url).query)
+    assert qs["currency"] == ["brl"]
+
+
+def test_is_actionable_url_rejects_russian_tld():
+    assert is_actionable_url("https://aviasales.ru/flights/?origin_iata=GRU&destination_iata=MIA&depart_date=2026-06-15&trip_class=1&locale=ru") is False
+    assert is_actionable_url("https://foo.ru/bar") is False
+
+
+def test_is_actionable_url_rejects_russian_subdomain():
+    assert is_actionable_url("https://ru.aviasales.com/flights/?origin_iata=GRU&destination_iata=MIA") is False
+
+
+def test_is_actionable_url_rejects_aviasales_without_locale():
+    """URL antiga sem locale → rejeitada (cairia em russo no Aviasales)."""
+    url = (
+        "https://search.aviasales.com/flights/?origin_iata=GRU"
+        "&destination_iata=MIA&depart_date=2026-06-15&return_date=2026-06-22"
+        "&adults=1&children=0&infants=0&trip_class=1&currency=brl"
+    )
+    assert is_actionable_url(url) is False
+
+
+def test_is_actionable_url_accepts_aviasales_with_locale():
+    url = build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22")
+    assert is_actionable_url(url) is True
+    qs = parse_qs(urlparse(url).query)
+    assert "locale" in qs

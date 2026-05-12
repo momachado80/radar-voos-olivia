@@ -107,12 +107,15 @@ class TelegramNotifier:
         return f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
 
     def send(self, text: str) -> bool:
+        # `disable_web_page_preview=true` evita que o Telegram busque preview
+        # do servidor do destino (Aviasales) e mostre conteúdo em russo no chat.
+        # O link continua clicável; só o embed/preview é desativado.
         body = urlencode(
             {
                 "chat_id": self.chat_id,
                 "text": text,
                 "parse_mode": "HTML",
-                "disable_web_page_preview": "false",
+                "disable_web_page_preview": "true",
             }
         ).encode("utf-8")
         request = Request(self._url, data=body, method="POST")
