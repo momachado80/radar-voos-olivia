@@ -21,17 +21,22 @@ def test_preview_messages_runs_and_prints_examples(capsys, monkeypatch, tmp_path
 
     assert rc == 0
     out = capsys.readouterr().out
-    assert "ALERTA POR PREÇO-ALVO" in out
-    assert "ALERTA POR QUEDA VS MÉDIA" in out
-    assert "RELATÓRIO DIÁRIO" in out
+    # 5 cenários da spec
+    assert "1. ALERTA EXCELENTE" in out
+    assert "2. ALERTA BOM" in out
+    assert "3. ALERTA QUE SERIA DESCARTADO" in out
+    assert "4. RELATÓRIO DIÁRIO com last_quote acionável" in out
+    assert "5. RELATÓRIO DIÁRIO SEM last_quote" in out
+    # nível no título
+    assert "🚨 EXCELENTE" in out
+    assert "🎯 BOM" in out
     # mensagens humanizadas presentes
     assert "São Paulo → Paris" in out
     assert "São Paulo → Londres" in out
-    # critérios explícitos
-    assert "🎯 Critério: preço abaixo do alvo" in out
-    assert "📉 Critério: queda histórica" in out
-    # BRL formatado
-    assert "R$ 2.350" in out
+    # alerta com link funcional aparece pelo menos em cenários 1, 2 e 4
+    assert "search.aviasales.com/flights/" in out
+    # fallback de link aparece no cenário 3
+    assert "Link direto indisponível" in out
     assert "R$ 1.700" in out
     # bloco regional
     assert "🌎 Melhor por região" in out

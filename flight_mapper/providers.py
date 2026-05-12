@@ -142,11 +142,13 @@ class MockProvider:
 
     def quote(self, route: Route) -> Quote | None:
         price = self.baseline * (1 + self._rng.uniform(-self.jitter, self.jitter))
+        departure = "2026-06-01"
+        return_date = "2026-06-08"
         return Quote(
             route=route,
             price_brl=round(price, 2),
-            deep_link=f"https://example.com/{route.origin}-{route.destination}",
-            departure_date="2026-06-01",
-            return_date="2026-06-08",
+            deep_link=build_search_url(route.origin, route.destination, departure, return_date),
+            departure_date=departure,
+            return_date=return_date,
             source="mock",
         )

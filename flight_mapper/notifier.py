@@ -10,9 +10,28 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from .airports import is_actionable_url, route_airport_label, route_city_label
-from .detector import CRITERION_CEILING, Decision
+from .detector import CRITERION_CEILING, LEVEL_EXCELLENT, LEVEL_GOOD, Decision
 from .formatting import format_brl, format_detection_time, format_source
 from .providers import Quote
+
+
+def _level_title(level: str | None) -> str:
+    """Marcador de nível no título do alerta."""
+    if level == LEVEL_EXCELLENT:
+        return "🚨 EXCELENTE — "
+    if level == LEVEL_GOOD:
+        return "🎯 BOM — "
+    return ""
+
+
+def _level_criterion_line(decision: Decision) -> str:
+    if decision.criterion == CRITERION_CEILING:
+        if decision.level == LEVEL_EXCELLENT:
+            return "🚨 Critério: preço excelente — abaixo do alvo de oportunidade"
+        if decision.level == LEVEL_GOOD:
+            return "🎯 Critério: preço bom — abaixo do teto configurado"
+        return "🎯 Critério: preço abaixo do alvo configurado para esta rota"
+    return "📉 Critério: queda histórica acima do limite"
 
 
 def format_alert(
@@ -24,6 +43,7 @@ def format_alert(
     """Monta o texto HTML do alerta. Função pura, sem efeitos colaterais."""
     now = now or datetime.now(timezone.utc)
     flag = "🔥 " if priority else ""
+    level_prefix = _level_title(decision.level)
     city_line = route_city_label(quote.route.origin, quote.route.destination)
     iata_line = route_airport_label(quote.route.origin, quote.route.destination)
 
@@ -31,9 +51,8 @@ def format_alert(
     if is_ceiling:
         price_line = (
             f"💰 {format_brl(quote.price_brl)} "
-            f"(teto {format_brl(decision.threshold)})"
+            f"(alvo {format_brl(decision.threshold)})"
         )
-        criterion_line = "🎯 Critério: preço abaixo do alvo configurado para esta rota"
     else:
         if decision.average is not None and decision.drop_pct is not None:
             price_line = (
@@ -42,8 +61,8 @@ def format_alert(
             )
         else:
             price_line = f"💰 {format_brl(quote.price_brl)}"
-        criterion_line = "📉 Critério: queda histórica acima do limite"
 
+    criterion_line = _level_criterion_line(decision)
     dates = quote.departure_date + (f" → {quote.return_date}" if quote.return_date else "")
 
     head_lines: list[str] = [f"{city_line} ({quote.route.region})"]
@@ -67,7 +86,7 @@ def format_alert(
         )
 
     return (
-        f"✈️ <b>{flag}Business em promoção</b>\n"
+        f"✈️ <b>{flag}{level_prefix}Business em promoção</b>\n"
         + "\n".join(head_lines)
         + f"\n{price_line}\n"
         + f"📅 {dates}\n"

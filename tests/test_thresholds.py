@@ -26,12 +26,40 @@ def test_all_keys_follow_business_pattern():
 
 
 def test_ceiling_for_known_route():
-    assert ceiling_for("GRU-CDG-business") == ABSOLUTE_CEILING_BRL["GRU-CDG-business"]
+    """ceiling_for prefere good_brl do ROUTE_THRESHOLDS quando definido."""
+    from flight_mapper.thresholds import ROUTE_THRESHOLDS
+    assert ceiling_for("GRU-CDG-business") == ROUTE_THRESHOLDS["GRU-CDG-business"]["good_brl"]
 
 
 def test_ceiling_for_unknown_route_returns_none():
     assert ceiling_for("XYZ-ABC-business") is None
     assert ceiling_for("") is None
+
+
+def test_levels_for_known_route_returns_dict():
+    from flight_mapper.thresholds import levels_for
+    lvl = levels_for("GRU-CDG-business")
+    assert lvl is not None
+    assert lvl["excellent_brl"] == 2400
+    assert lvl["good_brl"] == 2800
+
+
+def test_levels_for_unknown_route_returns_none():
+    from flight_mapper.thresholds import levels_for
+    assert levels_for("XYZ-ABC-business") is None
+
+
+def test_levels_for_legacy_compat():
+    """Rota só em ABSOLUTE_CEILING_BRL devolve excellent_brl=None + good_brl=ceiling."""
+    from flight_mapper.thresholds import ABSOLUTE_CEILING_BRL, ROUTE_THRESHOLDS, levels_for
+    # Cria rota fake só em ABSOLUTE_CEILING_BRL para testar compat
+    ABSOLUTE_CEILING_BRL["TEST-LEGACY-business"] = 1234.0
+    try:
+        assert "TEST-LEGACY-business" not in ROUTE_THRESHOLDS
+        lvl = levels_for("TEST-LEGACY-business")
+        assert lvl == {"excellent_brl": None, "good_brl": 1234.0}
+    finally:
+        del ABSOLUTE_CEILING_BRL["TEST-LEGACY-business"]
 
 
 def test_priority_routes_have_ceiling():

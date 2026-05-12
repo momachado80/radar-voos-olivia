@@ -11,6 +11,8 @@ from .cycle_state import CycleState
 from .detector import (
     CRITERION_AVERAGE_DROP,
     CRITERION_CEILING,
+    LEVEL_EXCELLENT,
+    LEVEL_GOOD,
     Decision,
 )
 from .monitor import Monitor, MonitorResult
@@ -107,70 +109,116 @@ def cmd_preview(args: argparse.Namespace) -> int:
     import tempfile
     from pathlib import Path
 
-    print("=" * 60)
-    print("ALERTA POR PREÇO-ALVO (ceiling)")
-    print("=" * 60)
     from .airports import build_search_url
 
-    quote_ceiling = Quote(
+    print("=" * 60)
+    print("1. ALERTA EXCELENTE com link funcional")
+    print("=" * 60)
+    quote_excellent = Quote(
         route=Route("GRU", "CDG", "Europa"),
-        price_brl=2350.0,
+        price_brl=2300.0,
         deep_link=build_search_url("GRU", "CDG", "2026-06-15", "2026-06-22"),
         departure_date="2026-06-15",
         return_date="2026-06-22",
         source="travelpayouts",
     )
-    decision_ceiling = Decision(
+    decision_excellent = Decision(
         alert=True,
-        reason="preço R$ 2350 <= teto R$ 2400",
+        reason="preço R$ 2300 <= alvo R$ 2400 (nível excellent)",
         criterion=CRITERION_CEILING,
         threshold=2400.0,
+        level=LEVEL_EXCELLENT,
     )
-    print(format_alert(quote_ceiling, decision_ceiling, priority=True))
+    print(format_alert(quote_excellent, decision_excellent, priority=True))
 
     print()
     print("=" * 60)
-    print("ALERTA POR QUEDA VS MÉDIA (legado)")
+    print("2. ALERTA BOM com link funcional")
     print("=" * 60)
-    quote_drop = Quote(
+    quote_good = Quote(
         route=Route("GRU", "LHR", "Europa"),
-        price_brl=1700.0,
+        price_brl=1900.0,
         deep_link=build_search_url("GRU", "LHR", "2026-07-10", "2026-07-17"),
         departure_date="2026-07-10",
         return_date="2026-07-17",
         source="travelpayouts",
     )
-    decision_drop = Decision(
+    decision_good = Decision(
         alert=True,
-        reason="queda de 8% vs média histórica",
-        average=1855.0,
-        drop_pct=0.083,
-        criterion=CRITERION_AVERAGE_DROP,
+        reason="preço R$ 1900 <= alvo R$ 2000 (nível good)",
+        criterion=CRITERION_CEILING,
+        threshold=2000.0,
+        level=LEVEL_GOOD,
     )
-    print(format_alert(quote_drop, decision_drop, priority=True))
+    print(format_alert(quote_good, decision_good, priority=True))
 
     print()
     print("=" * 60)
-    print("RELATÓRIO DIÁRIO (top-3 + melhor por região)")
+    print("3. ALERTA QUE SERIA DESCARTADO por link não acionável")
     print("=" * 60)
-    samples = {
-        "GRU-MIA-business": 1207.0,
-        "GRU-ORD-business": 1631.0,
-        "GRU-LHR-business": 1794.0,
-        "GRU-CDG-business": 2483.0,
-        "GRU-LIS-business": 1987.0,
-        "GRU-DXB-business": 2798.0,
-        "GRU-NRT-business": 3999.0,
+    quote_broken = Quote(
+        route=Route("GRU", "JFK", "EUA"),
+        price_brl=1700.0,
+        deep_link="https://www.aviasales.com/search/GRUJFK",  # link quebrado
+        departure_date="2026-08-05",
+        return_date="2026-08-15",
+        source="travelpayouts",
+    )
+    decision_broken = Decision(
+        alert=True,
+        reason="preço R$ 1700 <= alvo R$ 1800 (nível excellent)",
+        criterion=CRITERION_CEILING,
+        threshold=1800.0,
+        level=LEVEL_EXCELLENT,
+    )
+    print("(em produção, monitor descarta este alerta e loga 'link não acionável')")
+    print(format_alert(quote_broken, decision_broken, priority=True))
+
+    print()
+    print("=" * 60)
+    print("4. RELATÓRIO DIÁRIO com last_quote acionável (top-3 + regional com link)")
+    print("=" * 60)
+    samples_with_lq = {
+        "GRU-MIA-business": (1207.0, build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22")),
+        "GRU-ORD-business": (1631.0, build_search_url("GRU", "ORD", "2026-06-15", "2026-06-22")),
+        "GRU-LHR-business": (1794.0, build_search_url("GRU", "LHR", "2026-06-15", "2026-06-22")),
+        "GRU-CDG-business": (2483.0, build_search_url("GRU", "CDG", "2026-06-15", "2026-06-22")),
+        "GRU-LIS-business": (1987.0, build_search_url("GRU", "LIS", "2026-06-15", "2026-06-22")),
+        "GRU-DXB-business": (2798.0, build_search_url("GRU", "DXB", "2026-06-15", "2026-06-22")),
     }
     with tempfile.TemporaryDirectory() as tmpdir:
         seeded = PriceStore(Path(tmpdir) / "preview.json")
-        for key, price in samples.items():
-            seeded.get(key).push(price)
-        fake_result = MonitorResult(
-            scanned=12, quotes_received=7, alerts_sent=0, notes=[]
-        )
-        now = datetime(2026, 5, 10, 14, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 5, 12, 14, 0, tzinfo=timezone.utc)
+        for key, (price, link) in samples_with_lq.items():
+            history = seeded.get(key)
+            history.push(price)
+            o, d, _ = key.split("-")
+            history.last_quote = {
+                "price_brl": price,
+                "origin": o,
+                "destination": d,
+                "departure_date": "2026-06-15",
+                "return_date": "2026-06-22",
+                "source": "travelpayouts",
+                "deep_link": link,
+                "detected_at": now.isoformat(),
+                "actionable_url": True,
+                "cabin": "business",
+                "provider_note": None,
+            }
+        fake_result = MonitorResult(scanned=12, quotes_received=6, alerts_sent=0, notes=[])
         print(_build_message(fake_result, seeded, now))
+
+    print()
+    print("=" * 60)
+    print("5. RELATÓRIO DIÁRIO SEM last_quote (sem links)")
+    print("=" * 60)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        seeded2 = PriceStore(Path(tmpdir) / "preview2.json")
+        for key, (price, _) in samples_with_lq.items():
+            seeded2.get(key).push(price)  # sem last_quote
+        fake_result2 = MonitorResult(scanned=12, quotes_received=6, alerts_sent=0, notes=[])
+        print(_build_message(fake_result2, seeded2, datetime(2026, 5, 12, 14, 0, tzinfo=timezone.utc)))
     return 0
 
 
