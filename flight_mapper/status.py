@@ -7,12 +7,12 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .airports import humanize_route
+from .airports import humanize_route, is_actionable_url
 from .formatting import format_brl
 from .monitor import MonitorResult
 from .notifier import TelegramNotifier
 from .regions import REGIONS
-from .state import PriceStore
+from .state import PriceStore, RouteHistory
 
 
 # Display-only: a região "Ásia" agrupa Ásia + Oriente Médio (DXB, DOH, ICN…).
@@ -67,14 +67,32 @@ def _latest_prices(store: PriceStore) -> list[tuple[str, float]]:
     return items
 
 
-def _format_top3_line(index: int, key: str, price: float) -> str:
+def _actionable_link_from_history(history: RouteHistory, origin: str, destination: str) -> str | None:
+    """Retorna deep_link do `last_quote` apenas se for da mesma rota e acionável."""
+    lq = history.last_quote
+    if not isinstance(lq, dict):
+        return None
+    if lq.get("origin") != origin or lq.get("destination") != destination:
+        return None
+    if not lq.get("departure_date"):
+        return None
+    link = lq.get("deep_link")
+    if is_actionable_url(link):
+        return link
+    return None
+
+
+def _format_top3_line(index: int, key: str, price: float, link: str | None = None) -> str:
     parts = _split_route_key(key)
     price_str = format_brl(price)
     if parts is None:
         return f"{index}. {key} — {price_str}"
     origin, destination = parts
     label = humanize_route(origin, destination)
-    return f"{index}. {label} — {price_str}"
+    base = f"{index}. {label} — {price_str}"
+    if link:
+        return f'{base} — 🔎 <a href="{link}">Conferir busca</a>'
+    return base
 
 
 def _region_for_destination(destination: str) -> str | None:
@@ -107,7 +125,7 @@ def _best_per_region(latest: list[tuple[str, float]]) -> list[tuple[str, str, fl
     return out
 
 
-def _format_regional_line(region: str, key: str, price: float) -> str:
+def _format_regional_line(region: str, key: str, price: float, link: str | None = None) -> str:
     parts = _split_route_key(key)
     price_str = format_brl(price)
     display_region = REGION_DISPLAY_LABELS.get(region, region)
@@ -115,7 +133,10 @@ def _format_regional_line(region: str, key: str, price: float) -> str:
         return f"• {display_region}: {key} — {price_str}"
     origin, destination = parts
     label = humanize_route(origin, destination)
-    return f"• {display_region}: {label} — {price_str}"
+    base = f"• {display_region}: {label} — {price_str}"
+    if link:
+        return f'{base} — 🔎 <a href="{link}">Conferir busca</a>'
+    return base
 
 
 def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> str:
@@ -134,7 +155,14 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
     top3 = sorted(latest, key=lambda x: x[1])[:3]
     if top3:
         top3_lines = "\n".join(
-            _format_top3_line(i + 1, key, price)
+            _format_top3_line(
+                i + 1,
+                key,
+                price,
+                link=_actionable_link_from_history(
+                    store.get(key), *(_split_route_key(key) or ("", ""))
+                ),
+            )
             for i, (key, price) in enumerate(top3)
         )
     else:
@@ -144,7 +172,14 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
     regional_block = ""
     if regional:
         regional_lines = "\n".join(
-            _format_regional_line(region, key, price)
+            _format_regional_line(
+                region,
+                key,
+                price,
+                link=_actionable_link_from_history(
+                    store.get(key), *(_split_route_key(key) or ("", ""))
+                ),
+            )
             for region, key, price in regional
         )
         regional_block = f"\n\n🌎 Melhor por região\n{regional_lines}"

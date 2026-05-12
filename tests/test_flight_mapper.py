@@ -167,8 +167,9 @@ def test_evaluate_ceiling_fires_below_threshold():
 
 
 def test_evaluate_ceiling_silent_above_threshold():
+    """GRU-LHR: good_brl=2000. Preço 2500 está acima → silencia."""
     history = RouteHistory()
-    decision = evaluate_ceiling(history, 2000.0, "GRU-LHR-business")
+    decision = evaluate_ceiling(history, 2500.0, "GRU-LHR-business")
     assert decision.alert is False
     assert decision.criterion == CRITERION_CEILING
 

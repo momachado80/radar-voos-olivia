@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from .state import RouteHistory
-from .thresholds import ceiling_for
+from .thresholds import levels_for
+
+
+LEVEL_EXCELLENT = "excellent"
+LEVEL_GOOD = "good"
 
 
 MIN_SAMPLES = 5
@@ -33,6 +37,7 @@ class Decision:
     drop_pct: float | None = None
     criterion: str = CRITERION_AVERAGE_DROP
     threshold: float | None = None
+    level: str | None = None  # "excellent" | "good" | None
 
 
 def _within_dedupe(
@@ -128,22 +133,37 @@ def evaluate_ceiling(
     *,
     priority: bool = False,
 ) -> Decision:
-    """Alerta quando o preço atual está abaixo do teto absoluto configurado."""
+    """Alerta com nível Excelente ou Bom conforme `ROUTE_THRESHOLDS`.
+
+    Compat: rotas só em `ABSOLUTE_CEILING_BRL` viram nível Bom usando o teto antigo.
+    """
     now = now or datetime.now(timezone.utc)
-    threshold = ceiling_for(route_key)
-    if threshold is None:
+    levels = levels_for(route_key)
+    if levels is None:
         return Decision(
             alert=False,
             reason="sem teto configurado",
             criterion=CRITERION_CEILING,
         )
 
-    if current_price > threshold:
+    excellent_brl = levels.get("excellent_brl")
+    good_brl = levels.get("good_brl")
+
+    level: str | None = None
+    threshold: float | None = None
+    if excellent_brl is not None and current_price <= excellent_brl:
+        level = LEVEL_EXCELLENT
+        threshold = excellent_brl
+    elif good_brl is not None and current_price <= good_brl:
+        level = LEVEL_GOOD
+        threshold = good_brl
+    else:
+        ref = good_brl if good_brl is not None else excellent_brl
         return Decision(
             alert=False,
-            reason=f"preço R$ {current_price:.0f} > teto R$ {threshold:.0f}",
+            reason=f"preço R$ {current_price:.0f} acima de bom (R$ {ref:.0f})",
             criterion=CRITERION_CEILING,
-            threshold=threshold,
+            threshold=ref,
         )
 
     dedupe_hours = PRIORITY_DEDUPE_HOURS if priority else DEDUPE_WINDOW_HOURS
@@ -153,11 +173,13 @@ def evaluate_ceiling(
             reason=f"alerta repetido dentro de {dedupe_hours}h sem nova queda",
             criterion=CRITERION_CEILING,
             threshold=threshold,
+            level=level,
         )
 
     return Decision(
         alert=True,
-        reason=f"preço R$ {current_price:.0f} <= teto R$ {threshold:.0f}",
+        reason=f"preço R$ {current_price:.0f} <= alvo R$ {threshold:.0f} (nível {level})",
         criterion=CRITERION_CEILING,
         threshold=threshold,
+        level=level,
     )

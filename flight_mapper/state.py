@@ -16,6 +16,7 @@ class RouteHistory:
     prices: list[float] = field(default_factory=list)
     last_alert_at: str | None = None
     last_alert_price: float | None = None
+    last_quote: dict | None = None
 
     def push(self, price: float) -> None:
         self.prices.append(round(float(price), 2))
@@ -44,6 +45,7 @@ class PriceStore:
                 prices=list(value.get("prices", [])),
                 last_alert_at=value.get("last_alert_at"),
                 last_alert_price=value.get("last_alert_price"),
+                last_quote=value.get("last_quote"),
             )
 
     def get(self, key: str) -> RouteHistory:

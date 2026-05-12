@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from flight_mapper.detector import (
     CRITERION_AVERAGE_DROP,
     CRITERION_CEILING,
+    LEVEL_EXCELLENT,
+    LEVEL_GOOD,
     Decision,
 )
 from flight_mapper.notifier import format_alert
@@ -95,10 +97,10 @@ def test_format_alert_ceiling_has_target_criterion_line():
     assert "📉 Critério" not in text
 
 
-def test_format_alert_ceiling_shows_price_and_ceiling():
+def test_format_alert_ceiling_shows_price_and_target():
     text = format_alert(_quote(price_brl=2350.0), _ceiling_decision())
     assert "R$ 2.350" in text
-    assert "teto R$ 2.400" in text
+    assert "alvo R$ 2.400" in text
 
 
 def test_format_alert_ceiling_omits_average_block():
@@ -200,6 +202,50 @@ def test_format_alert_ceiling_includes_urgency_notice():
 def test_format_alert_legacy_drop_omits_urgency_notice():
     text = format_alert(_quote(), _drop_decision(), now=_FIXED_NOW)
     assert "⚠️ Preço pode mudar rápido" not in text
+
+
+def test_format_alert_excellent_marks_title_and_criterion():
+    decision = Decision(
+        alert=True,
+        reason="...",
+        criterion=CRITERION_CEILING,
+        threshold=2400.0,
+        level=LEVEL_EXCELLENT,
+    )
+    text = format_alert(_quote(price_brl=2300.0), decision)
+    assert "🚨 EXCELENTE" in text
+    assert "🚨 Critério: preço excelente" in text
+
+
+def test_format_alert_good_marks_title_and_criterion():
+    decision = Decision(
+        alert=True,
+        reason="...",
+        criterion=CRITERION_CEILING,
+        threshold=2000.0,
+        level=LEVEL_GOOD,
+    )
+    text = format_alert(_quote(price_brl=1900.0), decision)
+    assert "🎯 BOM" in text
+    assert "🎯 Critério: preço bom" in text
+    assert "🚨" not in text
+
+
+def test_format_alert_no_level_falls_back_to_default_title():
+    """Decision sem level (legado average_drop) não tem prefixo de nível."""
+    decision = Decision(
+        alert=True,
+        reason="...",
+        criterion=CRITERION_AVERAGE_DROP,
+        average=2483.0,
+        drop_pct=0.14,
+        level=None,
+    )
+    text = format_alert(_quote(), decision)
+    assert "🚨 EXCELENTE" not in text
+    assert "🎯 BOM" not in text
+    # mantém o critério antigo de queda
+    assert "📉 Critério: queda histórica" in text
 
 
 def test_format_alert_uses_explicit_now_param_for_timestamp():

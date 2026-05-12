@@ -200,6 +200,125 @@ def test_status_includes_regional_best_section(tmp_path: Path):
     assert "EUA: São Paulo → Chicago" not in body
 
 
+def test_daily_report_shows_link_when_last_quote_actionable(tmp_path: Path):
+    """Quando RouteHistory.last_quote tem deep_link acionável, mostra 🔎 no top-3 e regional."""
+    from flight_mapper.airports import build_search_url
+    store = PriceStore(tmp_path / "h.json")
+    history = store.get("GRU-MIA-business")
+    history.push(1207.0)
+    history.last_quote = {
+        "price_brl": 1207.0,
+        "origin": "GRU",
+        "destination": "MIA",
+        "departure_date": "2026-06-15",
+        "return_date": "2026-06-22",
+        "source": "travelpayouts",
+        "deep_link": build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22"),
+        "detected_at": "2026-05-12T17:30:00+00:00",
+        "actionable_url": True,
+        "cabin": "business",
+        "provider_note": None,
+    }
+    notifier = _StubNotifier()
+
+    maybe_send_status(
+        result=_result(),
+        store=store,
+        state=StatusState(),
+        notifier=notifier,
+        state_path=tmp_path / "status.json",
+    )
+
+    body = notifier.sent[0]
+    assert "search.aviasales.com/flights/" in body
+    assert "Conferir busca" in body
+
+
+def test_daily_report_omits_link_when_no_last_quote(tmp_path: Path):
+    """Sem last_quote, relatório fica sem link mesmo no top-3."""
+    store = PriceStore(tmp_path / "h.json")
+    _populate(store, {"GRU-MIA-business": [1207.0]})
+    notifier = _StubNotifier()
+
+    maybe_send_status(
+        result=_result(),
+        store=store,
+        state=StatusState(),
+        notifier=notifier,
+        state_path=tmp_path / "status.json",
+    )
+
+    body = notifier.sent[0]
+    assert "search.aviasales.com/flights" not in body
+    assert "Conferir busca" not in body
+
+
+def test_daily_report_omits_link_when_last_quote_not_actionable(tmp_path: Path):
+    """last_quote com deep_link quebrado (padrão antigo) → sem link."""
+    store = PriceStore(tmp_path / "h.json")
+    history = store.get("GRU-MIA-business")
+    history.push(1207.0)
+    history.last_quote = {
+        "price_brl": 1207.0,
+        "origin": "GRU",
+        "destination": "MIA",
+        "departure_date": "2026-06-15",
+        "return_date": None,
+        "source": "travelpayouts",
+        "deep_link": "https://www.aviasales.com/search/GRUMIA",  # padrão antigo
+        "detected_at": "2026-05-12T17:30:00+00:00",
+        "actionable_url": False,
+        "cabin": "business",
+        "provider_note": None,
+    }
+    notifier = _StubNotifier()
+
+    maybe_send_status(
+        result=_result(),
+        store=store,
+        state=StatusState(),
+        notifier=notifier,
+        state_path=tmp_path / "status.json",
+    )
+
+    body = notifier.sent[0]
+    assert "Conferir busca" not in body
+    assert "GRUMIA" not in body  # URL antiga jamais aparece
+
+
+def test_daily_report_omits_link_when_last_quote_route_mismatch(tmp_path: Path):
+    """Se last_quote.origin/destination diferem da route key, ignora."""
+    from flight_mapper.airports import build_search_url
+    store = PriceStore(tmp_path / "h.json")
+    history = store.get("GRU-MIA-business")
+    history.push(1207.0)
+    history.last_quote = {
+        "price_brl": 1207.0,
+        "origin": "ZZZ",  # diferente do route key
+        "destination": "MIA",
+        "departure_date": "2026-06-15",
+        "return_date": "2026-06-22",
+        "source": "travelpayouts",
+        "deep_link": build_search_url("ZZZ", "MIA", "2026-06-15", "2026-06-22"),
+        "detected_at": "2026-05-12T17:30:00+00:00",
+        "actionable_url": True,
+        "cabin": "business",
+        "provider_note": None,
+    }
+    notifier = _StubNotifier()
+
+    maybe_send_status(
+        result=_result(),
+        store=store,
+        state=StatusState(),
+        notifier=notifier,
+        state_path=tmp_path / "status.json",
+    )
+
+    body = notifier.sent[0]
+    assert "Conferir busca" not in body
+
+
 def test_regional_section_renames_asia_for_display(tmp_path: Path):
     store = PriceStore(tmp_path / "h.json")
     _populate(store, {"GRU-DXB-business": [2798.0]})

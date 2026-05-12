@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
 
+from .airports import is_actionable_url
 from .cycle_state import CycleState
 from .detector import evaluate, evaluate_ceiling
 from .notifier import TelegramNotifier
-from .providers import FlightProvider
+from .providers import FlightProvider, Quote
 from .regions import Route, all_routes, is_priority
 from .state import PriceStore
+
+
+CONFIRMATION_TOLERANCE_PCT = 0.05  # 5%: segunda quote dentro disso ainda confirma
 
 
 @dataclass
@@ -19,7 +22,26 @@ class MonitorResult:
     scanned: int
     quotes_received: int
     alerts_sent: int
-    notes: list[str]
+    notes: list[str] = field(default_factory=list)
+    stale_quotes_skipped: int = 0
+    non_actionable_links_skipped: int = 0
+    actionable_links_generated: int = 0
+
+
+def _quote_to_dict(quote: Quote, now: datetime, *, provider_note: str | None = None) -> dict:
+    return {
+        "price_brl": quote.price_brl,
+        "origin": quote.route.origin,
+        "destination": quote.route.destination,
+        "departure_date": quote.departure_date,
+        "return_date": quote.return_date,
+        "source": quote.source,
+        "deep_link": quote.deep_link,
+        "detected_at": now.isoformat(),
+        "actionable_url": is_actionable_url(quote.deep_link),
+        "cabin": "business",
+        "provider_note": provider_note,
+    }
 
 
 class Monitor:
@@ -30,18 +52,49 @@ class Monitor:
         store: PriceStore,
         cycle: CycleState | None = None,
         chunk_size: int = 8,
+        confirm_alerts: bool = True,
     ):
         self.provider = provider
         self.notifier = notifier
         self.store = store
         self.cycle = cycle
         self.chunk_size = chunk_size
+        self.confirm_alerts = confirm_alerts
+
+    def _confirm(self, route: Route, first_price: float) -> tuple[bool, Quote | None]:
+        """Segunda chamada ao provider para confirmar oportunidade.
+
+        Retorna (confirmed, quote_to_use).
+        - confirmed=True se a segunda quote vier com preço dentro de
+          CONFIRMATION_TOLERANCE_PCT do primeiro (ou melhor).
+        - confirmed=False se a segunda quote não vier ou vier acima da tolerância.
+        """
+        print(f"confirming alert for {route.origin}→{route.destination}", flush=True)
+        second = self.provider.quote(route)
+        if second is None:
+            print("stale quote skipped", flush=True)
+            return False, None
+        max_allowed = first_price * (1 + CONFIRMATION_TOLERANCE_PCT)
+        if second.price_brl <= max_allowed:
+            print("confirmed alert", flush=True)
+            return True, second
+        print(
+            f"stale quote skipped (second {second.price_brl:.0f} > tolerated {max_allowed:.0f})",
+            flush=True,
+        )
+        return False, second
 
     def run_once(self, routes: list[Route] | None = None) -> MonitorResult:
         routes = routes if routes is not None else all_routes()
         notes: list[str] = []
         quotes_received = 0
         alerts_sent = 0
+        stale_quotes_skipped = 0
+        non_actionable_links_skipped = 0
+        actionable_links_generated = 0
+
+        def _now():
+            return datetime.now(timezone.utc)
 
         for route in routes:
             priority = is_priority(route)
@@ -57,18 +110,52 @@ class Monitor:
             decision = ceiling_decision if ceiling_decision.alert else legacy_decision
 
             history.push(quote.price_brl)
+            history.last_quote = _quote_to_dict(quote, _now())
 
-            if decision.alert and self.notifier:
-                ok = self.notifier.send_alert(quote, decision, priority=priority)
-                if ok:
-                    history.last_alert_at = datetime.now(timezone.utc).isoformat()
-                    history.last_alert_price = quote.price_brl
-                    alerts_sent += 1
-                    notes.append(f"{route.origin}→{route.destination}: ALERTA {decision.reason}")
-                else:
-                    notes.append(f"{route.origin}→{route.destination}: alerta falhou no envio")
-            else:
+            if not decision.alert:
                 notes.append(f"{route.origin}→{route.destination}: {decision.reason}")
+                continue
+
+            quote_to_send = quote
+            if self.confirm_alerts:
+                confirmed, second_quote = self._confirm(route, quote.price_brl)
+                if not confirmed:
+                    stale_quotes_skipped += 1
+                    notes.append(
+                        f"{route.origin}→{route.destination}: stale_quote_skipped ({decision.reason})"
+                    )
+                    continue
+                quote_to_send = second_quote or quote
+                history.last_quote = _quote_to_dict(
+                    quote_to_send, _now(), provider_note="second-confirmation"
+                )
+
+            if not is_actionable_url(quote_to_send.deep_link):
+                non_actionable_links_skipped += 1
+                notes.append(
+                    f"{route.origin}→{route.destination}: alerta descartado — link não acionável"
+                )
+                continue
+
+            actionable_links_generated += 1
+
+            if self.notifier:
+                ok = self.notifier.send_alert(quote_to_send, decision, priority=priority)
+                if ok:
+                    history.last_alert_at = _now().isoformat()
+                    history.last_alert_price = quote_to_send.price_brl
+                    alerts_sent += 1
+                    notes.append(
+                        f"{route.origin}→{route.destination}: ALERTA {decision.reason}"
+                    )
+                else:
+                    notes.append(
+                        f"{route.origin}→{route.destination}: alerta falhou no envio"
+                    )
+            else:
+                notes.append(
+                    f"{route.origin}→{route.destination}: {decision.reason} (notifier ausente)"
+                )
 
         self.store.save()
         return MonitorResult(
@@ -76,6 +163,9 @@ class Monitor:
             quotes_received=quotes_received,
             alerts_sent=alerts_sent,
             notes=notes,
+            stale_quotes_skipped=stale_quotes_skipped,
+            non_actionable_links_skipped=non_actionable_links_skipped,
+            actionable_links_generated=actionable_links_generated,
         )
 
     def run_cycle(self) -> MonitorResult:
