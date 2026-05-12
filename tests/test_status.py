@@ -186,18 +186,16 @@ def test_status_includes_regional_best_section(tmp_path: Path):
     )
 
     body = notifier.sent[0]
-    assert "🌎 Melhor por região" in body
-    # cada região mostra cidade + sigla humanizadas
-    assert "Europa: São Paulo → Londres (GRU → LHR)" in body
-    assert "EUA: São Paulo → Miami (GRU → MIA)" in body
-    # Ásia exibida como "Ásia/Oriente Médio" (display-only rename)
-    assert "Ásia/Oriente Médio: São Paulo → Dubai (GRU → DXB)" in body
-    # display antigo "Ásia: GRU → DXB" não aparece mais
-    assert "Ásia: GRU → DXB" not in body
-    # rota não-vencedora não aparece como linha do bloco regional
-    # (Frankfurt e Chicago podem aparecer no Top 3, mas nunca prefixados pela região)
-    assert "Europa: São Paulo → Frankfurt" not in body
-    assert "EUA: São Paulo → Chicago" not in body
+    # Watchlists substituíram "Melhor por região" no heartbeat
+    assert "📌 Melhores oportunidades monitoradas" in body
+    assert "Europa Executiva: São Paulo → Londres (GRU → LHR)" in body
+    assert "EUA Executiva: São Paulo → Miami (GRU → MIA)" in body
+    assert "Ásia/Oriente Médio Executiva: São Paulo → Dubai (GRU → DXB)" in body
+    # Título antigo não aparece mais
+    assert "🌎 Melhor por região" not in body
+    # rotas não-vencedoras não aparecem como linha de watchlist
+    assert "Europa Executiva: São Paulo → Frankfurt" not in body
+    assert "EUA Executiva: São Paulo → Chicago" not in body
 
 
 def test_daily_report_shows_link_when_last_quote_actionable(tmp_path: Path):
@@ -317,6 +315,46 @@ def test_daily_report_omits_link_when_last_quote_route_mismatch(tmp_path: Path):
 
     body = notifier.sent[0]
     assert "Conferir busca" not in body
+
+
+def test_status_includes_average_score_line(tmp_path: Path):
+    """Quando há Top 3 com histórico, score médio aparece como linha ⭐."""
+    store = PriceStore(tmp_path / "h.json")
+    _populate(store, {"GRU-MIA-business": [1207.0], "GRU-LHR-business": [1800.0]})
+    notifier = _StubNotifier()
+
+    maybe_send_status(
+        result=_result(),
+        store=store,
+        state=StatusState(),
+        notifier=notifier,
+        state_path=tmp_path / "status.json",
+    )
+
+    body = notifier.sent[0]
+    assert "⭐ Score médio do Top 3:" in body
+    assert "/100" in body
+
+
+def test_status_uses_watchlist_section_title(tmp_path: Path):
+    """Heartbeat usa '📌 Melhores oportunidades monitoradas', não 'Melhor por watchlist'."""
+    store = PriceStore(tmp_path / "h.json")
+    _populate(store, {"GRU-MIA-business": [1207.0]})
+    notifier = _StubNotifier()
+
+    maybe_send_status(
+        result=_result(),
+        store=store,
+        state=StatusState(),
+        notifier=notifier,
+        state_path=tmp_path / "status.json",
+    )
+
+    body = notifier.sent[0]
+    assert "📌 Melhores oportunidades monitoradas" in body
+    # nomes técnicos não vazam para o usuário final
+    assert "Melhor por watchlist" not in body
+    assert "watchlist" not in body.lower()
 
 
 def test_regional_section_renames_asia_for_display(tmp_path: Path):

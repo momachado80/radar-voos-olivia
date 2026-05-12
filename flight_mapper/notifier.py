@@ -15,12 +15,15 @@ from .formatting import format_brl, format_detection_time, format_source
 from .providers import Quote
 
 
-def _level_title(level: str | None) -> str:
-    """Marcador de nível no título do alerta."""
+def _level_title(level: str | None, score: int | None = None) -> str:
+    """Marcador de nível no título do alerta, com score informativo opcional."""
+    score_suffix = f" — Score {score}/100" if score is not None else ""
     if level == LEVEL_EXCELLENT:
-        return "🚨 EXCELENTE — "
+        return f"🚨 EXCELENTE{score_suffix} — "
     if level == LEVEL_GOOD:
-        return "🎯 BOM — "
+        return f"🎯 BOM{score_suffix} — "
+    if score is not None:
+        return f"📉 Score {score}/100 — "
     return ""
 
 
@@ -43,7 +46,7 @@ def format_alert(
     """Monta o texto HTML do alerta. Função pura, sem efeitos colaterais."""
     now = now or datetime.now(timezone.utc)
     flag = "🔥 " if priority else ""
-    level_prefix = _level_title(decision.level)
+    level_prefix = _level_title(decision.level, decision.score)
     city_line = route_city_label(quote.route.origin, quote.route.destination)
     iata_line = route_airport_label(quote.route.origin, quote.route.destination)
 

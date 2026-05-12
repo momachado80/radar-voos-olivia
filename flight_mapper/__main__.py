@@ -128,6 +128,7 @@ def cmd_preview(args: argparse.Namespace) -> int:
         criterion=CRITERION_CEILING,
         threshold=2400.0,
         level=LEVEL_EXCELLENT,
+        score=94,
     )
     print(format_alert(quote_excellent, decision_excellent, priority=True))
 
@@ -149,34 +150,25 @@ def cmd_preview(args: argparse.Namespace) -> int:
         criterion=CRITERION_CEILING,
         threshold=2000.0,
         level=LEVEL_GOOD,
+        score=81,
     )
     print(format_alert(quote_good, decision_good, priority=True))
 
     print()
     print("=" * 60)
-    print("3. ALERTA QUE SERIA DESCARTADO por link não acionável")
+    print("3. ALERTA OBSERVAR (formato compacto, como entraria no relatório)")
     print("=" * 60)
-    quote_broken = Quote(
-        route=Route("GRU", "JFK", "EUA"),
-        price_brl=1700.0,
-        deep_link="https://www.aviasales.com/search/GRUJFK",  # link quebrado
-        departure_date="2026-08-05",
-        return_date="2026-08-15",
-        source="travelpayouts",
+    print(
+        "Alertas com score 60-74 ainda podem disparar pelo detector (ceiling/legacy),\n"
+        "mas tipicamente aparecem como sinal de acompanhar, não como urgência."
     )
-    decision_broken = Decision(
-        alert=True,
-        reason="preço R$ 1700 <= alvo R$ 1800 (nível excellent)",
-        criterion=CRITERION_CEILING,
-        threshold=1800.0,
-        level=LEVEL_EXCELLENT,
-    )
-    print("(em produção, monitor descarta este alerta e loga 'link não acionável')")
-    print(format_alert(quote_broken, decision_broken, priority=True))
+    print()
+    print("👁️ OBSERVAR — Score 64/100 — São Paulo → Amsterdã (GRU → AMS) — R$ 2.150")
+    print("  alvo R$ 2.500 · 🛒 Travelpayouts (cache) · 🕒 12/05 14:00 BRT")
 
     print()
     print("=" * 60)
-    print("4. RELATÓRIO DIÁRIO com last_quote acionável (top-3 + regional com link)")
+    print("4. RELATÓRIO DIÁRIO com last_quote acionável (top-3 + watchlists + score médio)")
     print("=" * 60)
     samples_with_lq = {
         "GRU-MIA-business": (1207.0, build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22")),
@@ -211,14 +203,33 @@ def cmd_preview(args: argparse.Namespace) -> int:
 
     print()
     print("=" * 60)
-    print("5. RELATÓRIO DIÁRIO SEM last_quote (sem links)")
+    print("5. OPERATIONAL SUMMARY (FASE 3 — preview do PR seguinte)")
     print("=" * 60)
-    with tempfile.TemporaryDirectory() as tmpdir:
-        seeded2 = PriceStore(Path(tmpdir) / "preview2.json")
-        for key, (price, _) in samples_with_lq.items():
-            seeded2.get(key).push(price)  # sem last_quote
-        fake_result2 = MonitorResult(scanned=12, quotes_received=6, alerts_sent=0, notes=[])
-        print(_build_message(fake_result2, seeded2, datetime(2026, 5, 12, 14, 0, tzinfo=timezone.utc)))
+    print(
+        "FASE 3 (operational_summary.json) está deferida para um PR focado em\n"
+        "evitar race entre flight-mapper e flight-hot-scan. Quando entrar,\n"
+        "data/operational_summary.json conterá algo como:"
+    )
+    print()
+    import json as _json
+    print(_json.dumps(
+        {
+            "generated_at": "2026-05-12T17:00:00+00:00",
+            "kind": "hot-scan",
+            "counters": {
+                "scanned": 10,
+                "quotes_received": 9,
+                "alerts_sent": 0,
+                "stale_quotes_skipped": 0,
+                "non_actionable_links_skipped": 0,
+                "actionable_links_generated": 0,
+            },
+            "last_alert_at": None,
+            "last_alert_route": None,
+        },
+        indent=2,
+        ensure_ascii=False,
+    ))
     return 0
 
 

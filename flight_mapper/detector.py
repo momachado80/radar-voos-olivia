@@ -38,6 +38,7 @@ class Decision:
     criterion: str = CRITERION_AVERAGE_DROP
     threshold: float | None = None
     level: str | None = None  # "excellent" | "good" | None
+    score: int | None = None  # 0-100, informativo (não filtra)
 
 
 def _within_dedupe(

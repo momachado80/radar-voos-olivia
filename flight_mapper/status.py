@@ -11,15 +11,10 @@ from .airports import humanize_route, is_actionable_url
 from .formatting import format_brl
 from .monitor import MonitorResult
 from .notifier import TelegramNotifier
-from .regions import REGIONS
+from .score import compute_opportunity_score
 from .state import PriceStore, RouteHistory
-
-
-# Display-only: a região "Ásia" agrupa Ásia + Oriente Médio (DXB, DOH, ICN…).
-# Renomeada na mensagem do Telegram para refletir isso, sem alterar `regions.py`.
-REGION_DISPLAY_LABELS: dict[str, str] = {
-    "Ásia": "Ásia/Oriente Médio",
-}
+from .thresholds import HOT_ROUTE_KEYS, levels_for
+from .watchlists import Watchlist, best_per_watchlist
 
 
 @dataclass
@@ -95,48 +90,42 @@ def _format_top3_line(index: int, key: str, price: float, link: str | None = Non
     return base
 
 
-def _region_for_destination(destination: str) -> str | None:
-    for region, codes in REGIONS.items():
-        if destination in codes:
-            return region
-    return None
-
-
-def _best_per_region(latest: list[tuple[str, float]]) -> list[tuple[str, str, float]]:
-    """Para cada região conhecida, devolve (região, key, price) do menor preço."""
-    by_region: dict[str, tuple[str, float]] = {}
-    for key, price in latest:
-        parts = _split_route_key(key)
-        if parts is None:
-            continue
-        _, destination = parts
-        region = _region_for_destination(destination)
-        if region is None:
-            continue
-        current = by_region.get(region)
-        if current is None or price < current[1]:
-            by_region[region] = (key, price)
-
-    out: list[tuple[str, str, float]] = []
-    for region in REGIONS.keys():
-        if region in by_region:
-            key, price = by_region[region]
-            out.append((region, key, price))
-    return out
-
-
-def _format_regional_line(region: str, key: str, price: float, link: str | None = None) -> str:
+def _format_watchlist_line(watchlist: Watchlist, key: str, price: float, link: str | None = None) -> str:
     parts = _split_route_key(key)
     price_str = format_brl(price)
-    display_region = REGION_DISPLAY_LABELS.get(region, region)
     if parts is None:
-        return f"• {display_region}: {key} — {price_str}"
+        return f"• {watchlist.label}: {key} — {price_str}"
     origin, destination = parts
     label = humanize_route(origin, destination)
-    base = f"• {display_region}: {label} — {price_str}"
+    base = f"• {watchlist.label}: {label} — {price_str}"
     if link:
         return f'{base} — 🔎 <a href="{link}">Conferir busca</a>'
     return base
+
+
+def _compute_average_score(store: PriceStore, keys: list[str]) -> int | None:
+    """Score médio (0-100) das `keys` informadas, usando last_quote quando disponível."""
+    scores: list[int] = []
+    for key in keys:
+        history = store.get(key)
+        if not history.prices:
+            continue
+        price = history.prices[-1]
+        lq = history.last_quote if isinstance(history.last_quote, dict) else None
+        actionable = bool(lq.get("actionable_url")) if lq else False
+        scores.append(
+            compute_opportunity_score(
+                price,
+                levels_for(key),
+                history,
+                actionable_url=actionable,
+                confirmed=False,  # heartbeat não confirma; usa flag conservadora
+                is_hot_route=key in HOT_ROUTE_KEYS,
+            )
+        )
+    if not scores:
+        return None
+    return round(sum(scores) / len(scores))
 
 
 def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> str:
@@ -165,24 +154,29 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
             )
             for i, (key, price) in enumerate(top3)
         )
+        avg_score = _compute_average_score(store, [k for k, _ in top3])
+        avg_score_line = (
+            f"⭐ Score médio do Top 3: {avg_score}/100\n" if avg_score is not None else ""
+        )
     else:
         top3_lines = "Sem histórico disponível ainda."
+        avg_score_line = ""
 
-    regional = _best_per_region(latest)
-    regional_block = ""
-    if regional:
-        regional_lines = "\n".join(
-            _format_regional_line(
-                region,
+    watchlist_best = best_per_watchlist(store)
+    watchlist_block = ""
+    if watchlist_best:
+        watchlist_lines = "\n".join(
+            _format_watchlist_line(
+                wl,
                 key,
                 price,
                 link=_actionable_link_from_history(
                     store.get(key), *(_split_route_key(key) or ("", ""))
                 ),
             )
-            for region, key, price in regional
+            for wl, key, price in watchlist_best
         )
-        regional_block = f"\n\n🌎 Melhor por região\n{regional_lines}"
+        watchlist_block = f"\n\n📌 Melhores oportunidades monitoradas\n{watchlist_lines}"
 
     footer = (
         "ℹ️ Sem oportunidade dentro dos critérios de alerta agora."
@@ -197,9 +191,10 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         f"• Rotas escaneadas: {result.scanned}\n"
         f"• Cotações obtidas: {result.quotes_received}\n"
         f"• Alertas: {result.alerts_sent}\n\n"
+        f"{avg_score_line}"
         "💸 Top 3 menores preços atuais\n"
         f"{top3_lines}"
-        f"{regional_block}\n\n"
+        f"{watchlist_block}\n\n"
         f"{footer}"
     )
 

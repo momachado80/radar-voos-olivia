@@ -11,7 +11,9 @@ from .detector import evaluate, evaluate_ceiling
 from .notifier import TelegramNotifier
 from .providers import FlightProvider, Quote
 from .regions import Route, all_routes, is_priority
+from .score import compute_opportunity_score
 from .state import PriceStore
+from .thresholds import HOT_ROUTE_KEYS, levels_for
 
 
 CONFIRMATION_TOLERANCE_PCT = 0.05  # 5%: segunda quote dentro disso ainda confirma
@@ -130,7 +132,8 @@ class Monitor:
                     quote_to_send, _now(), provider_note="second-confirmation"
                 )
 
-            if not is_actionable_url(quote_to_send.deep_link):
+            actionable = is_actionable_url(quote_to_send.deep_link)
+            if not actionable:
                 non_actionable_links_skipped += 1
                 notes.append(
                     f"{route.origin}→{route.destination}: alerta descartado — link não acionável"
@@ -138,6 +141,16 @@ class Monitor:
                 continue
 
             actionable_links_generated += 1
+
+            # Score informativo embutido na decision (não filtra)
+            decision.score = compute_opportunity_score(
+                quote_to_send.price_brl,
+                levels_for(route.key),
+                history,
+                actionable_url=actionable,
+                confirmed=self.confirm_alerts,
+                is_hot_route=route.key in HOT_ROUTE_KEYS,
+            )
 
             if self.notifier:
                 ok = self.notifier.send_alert(quote_to_send, decision, priority=priority)

@@ -21,25 +21,28 @@ def test_preview_messages_runs_and_prints_examples(capsys, monkeypatch, tmp_path
 
     assert rc == 0
     out = capsys.readouterr().out
-    # 5 cenários da spec
+    # 5 cenários da spec atualizada
     assert "1. ALERTA EXCELENTE" in out
     assert "2. ALERTA BOM" in out
-    assert "3. ALERTA QUE SERIA DESCARTADO" in out
-    assert "4. RELATÓRIO DIÁRIO com last_quote acionável" in out
-    assert "5. RELATÓRIO DIÁRIO SEM last_quote" in out
-    # nível no título
-    assert "🚨 EXCELENTE" in out
-    assert "🎯 BOM" in out
+    assert "3. ALERTA OBSERVAR" in out
+    assert "4. RELATÓRIO DIÁRIO" in out
+    assert "5. OPERATIONAL SUMMARY" in out
+    # nível + score no título
+    assert "🚨 EXCELENTE — Score 94/100" in out
+    assert "🎯 BOM — Score 81/100" in out
     # mensagens humanizadas presentes
     assert "São Paulo → Paris" in out
     assert "São Paulo → Londres" in out
-    # alerta com link funcional aparece pelo menos em cenários 1, 2 e 4
+    # alerta com link funcional aparece em cenários 1, 2, e no relatório do cenário 4
     assert "search.aviasales.com/flights/" in out
-    # fallback de link aparece no cenário 3
-    assert "Link direto indisponível" in out
-    assert "R$ 1.700" in out
-    # bloco regional
-    assert "🌎 Melhor por região" in out
+    # watchlist substitui "Melhor por região"
+    assert "📌 Melhores oportunidades monitoradas" in out
+    assert "🌎 Melhor por região" not in out
+    # score médio no relatório
+    assert "⭐ Score médio do Top 3:" in out
+    # observação FASE 3 deferida
+    assert "FASE 3" in out
+    assert "deferida" in out
 
 
 def test_preview_messages_does_not_touch_data_dir(capsys, monkeypatch, tmp_path: Path):
