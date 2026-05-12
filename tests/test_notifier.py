@@ -248,6 +248,65 @@ def test_format_alert_no_level_falls_back_to_default_title():
     assert "📉 Critério: queda histórica" in text
 
 
+# ---------- Score informativo no título ----------
+
+def test_format_alert_excellent_includes_score_in_title():
+    decision = Decision(
+        alert=True,
+        reason="...",
+        criterion=CRITERION_CEILING,
+        threshold=2400.0,
+        level=LEVEL_EXCELLENT,
+        score=94,
+    )
+    text = format_alert(_quote(price_brl=2300.0), decision)
+    assert "🚨 EXCELENTE — Score 94/100" in text
+
+
+def test_format_alert_good_includes_score_in_title():
+    decision = Decision(
+        alert=True,
+        reason="...",
+        criterion=CRITERION_CEILING,
+        threshold=2000.0,
+        level=LEVEL_GOOD,
+        score=81,
+    )
+    text = format_alert(_quote(price_brl=1900.0), decision)
+    assert "🎯 BOM — Score 81/100" in text
+
+
+def test_format_alert_omits_score_when_none():
+    """Decision.score=None: título permanece sem 'Score'."""
+    decision = Decision(
+        alert=True,
+        reason="...",
+        criterion=CRITERION_CEILING,
+        threshold=2400.0,
+        level=LEVEL_EXCELLENT,
+        score=None,
+    )
+    text = format_alert(_quote(price_brl=2300.0), decision)
+    assert "🚨 EXCELENTE" in text
+    assert "Score" not in text
+
+
+def test_format_alert_score_is_informative_does_not_filter():
+    """Score baixo não impede renderização do alerta — score é só informativo."""
+    decision = Decision(
+        alert=True,
+        reason="...",
+        criterion=CRITERION_CEILING,
+        threshold=2400.0,
+        level=LEVEL_EXCELLENT,
+        score=30,
+    )
+    text = format_alert(_quote(price_brl=2300.0), decision)
+    # mensagem completa renderiza normalmente
+    assert "🚨 EXCELENTE — Score 30/100" in text
+    assert "Conferir busca" in text
+
+
 def test_format_alert_uses_explicit_now_param_for_timestamp():
     """now passado explicitamente deve aparecer formatado."""
     fixed = datetime(2026, 6, 1, 13, 0, tzinfo=timezone.utc)  # 10:00 BRT
