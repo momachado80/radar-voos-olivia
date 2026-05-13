@@ -199,8 +199,7 @@ def test_status_includes_regional_best_section(tmp_path: Path):
 
 
 def test_daily_report_shows_link_when_last_quote_actionable(tmp_path: Path):
-    """Quando RouteHistory.last_quote tem deep_link acionável, mostra 🔎 no top-3 e regional."""
-    from flight_mapper.airports import build_search_url
+    """Quando RouteHistory.last_quote tem deep_link acionável (Kiwi), mostra 🔎 no top-3 e regional."""
     store = PriceStore(tmp_path / "h.json")
     history = store.get("GRU-MIA-business")
     history.push(1207.0)
@@ -210,8 +209,8 @@ def test_daily_report_shows_link_when_last_quote_actionable(tmp_path: Path):
         "destination": "MIA",
         "departure_date": "2026-06-15",
         "return_date": "2026-06-22",
-        "source": "travelpayouts",
-        "deep_link": build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22"),
+        "source": "kiwi",
+        "deep_link": "https://www.kiwi.com/deep/GRU-MIA-2026-06-15",
         "detected_at": "2026-05-12T17:30:00+00:00",
         "actionable_url": True,
         "cabin": "business",
@@ -228,8 +227,10 @@ def test_daily_report_shows_link_when_last_quote_actionable(tmp_path: Path):
     )
 
     body = notifier.sent[0]
-    assert "search.aviasales.com/flights/" in body
+    assert "kiwi.com" in body
     assert "Conferir busca" in body
+    # Aviasales jamais aparece
+    assert "aviasales" not in body
 
 
 def test_daily_report_omits_link_when_no_last_quote(tmp_path: Path):
@@ -286,7 +287,6 @@ def test_daily_report_omits_link_when_last_quote_not_actionable(tmp_path: Path):
 
 def test_daily_report_omits_link_when_last_quote_route_mismatch(tmp_path: Path):
     """Se last_quote.origin/destination diferem da route key, ignora."""
-    from flight_mapper.airports import build_search_url
     store = PriceStore(tmp_path / "h.json")
     history = store.get("GRU-MIA-business")
     history.push(1207.0)
@@ -296,8 +296,8 @@ def test_daily_report_omits_link_when_last_quote_route_mismatch(tmp_path: Path):
         "destination": "MIA",
         "departure_date": "2026-06-15",
         "return_date": "2026-06-22",
-        "source": "travelpayouts",
-        "deep_link": build_search_url("ZZZ", "MIA", "2026-06-15", "2026-06-22"),
+        "source": "kiwi",
+        "deep_link": "https://www.kiwi.com/deep/ZZZ-MIA-2026-06-15",
         "detected_at": "2026-05-12T17:30:00+00:00",
         "actionable_url": True,
         "cabin": "business",

@@ -33,8 +33,11 @@ def test_preview_messages_runs_and_prints_examples(capsys, monkeypatch, tmp_path
     # mensagens humanizadas presentes
     assert "São Paulo → Paris" in out
     assert "São Paulo → Londres" in out
-    # alerta com link funcional aparece em cenários 1, 2, e no relatório do cenário 4
-    assert "search.aviasales.com/flights/" in out
+    # alerta com link funcional usa Kiwi (Aviasales foi bloqueado)
+    assert "kiwi.com" in out
+    # cenário explícito mostra Aviasales sendo rejeitado
+    assert "4b. ALERTA com link Aviasales" in out
+    assert "bloqueado pelo is_actionable_url" in out
     # watchlist substitui "Melhor por região"
     assert "📌 Melhores oportunidades monitoradas" in out
     assert "🌎 Melhor por região" not in out

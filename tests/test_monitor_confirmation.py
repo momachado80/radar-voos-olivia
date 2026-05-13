@@ -48,7 +48,7 @@ def _quote(price: float, route: Route) -> Quote:
     return Quote(
         route=route,
         price_brl=price,
-        deep_link=build_search_url(route.origin, route.destination, "2026-06-15", "2026-06-22"),
+        deep_link=f"https://www.kiwi.com/deep/{route.origin}-{route.destination}-2026-06-15",
         departure_date="2026-06-15",
         return_date="2026-06-22",
         source="travelpayouts",
@@ -191,7 +191,7 @@ def test_last_quote_records_actionable_url_field(tmp_path: Path):
 
     lq = store.get("GRU-LHR-business").last_quote
     assert lq["actionable_url"] is True
-    assert "search.aviasales.com/flights/" in lq["deep_link"]
+    assert "kiwi.com" in lq["deep_link"]
 
 
 def test_decision_carries_level_excellent(tmp_path: Path):

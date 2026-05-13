@@ -113,18 +113,19 @@ def cmd_preview(args: argparse.Namespace) -> int:
     import tempfile
     from pathlib import Path
 
-    from .airports import build_search_url
-
+    # Aviasales foi bloqueado por completo (evidência real: redirecionamento
+    # para experiência russa apesar do locale=en-us). Os exemplos abaixo usam
+    # deep_link estilo Kiwi para demonstrar o caminho "alerta com link acionável".
     print("=" * 60)
-    print("1. ALERTA EXCELENTE com link funcional")
+    print("1. ALERTA EXCELENTE com link funcional (Kiwi)")
     print("=" * 60)
     quote_excellent = Quote(
         route=Route("GRU", "CDG", "Europa"),
         price_brl=2300.0,
-        deep_link=build_search_url("GRU", "CDG", "2026-06-15", "2026-06-22"),
+        deep_link="https://www.kiwi.com/deep/GRU-CDG-2026-06-15-2026-06-22",
         departure_date="2026-06-15",
         return_date="2026-06-22",
-        source="travelpayouts",
+        source="kiwi",
     )
     decision_excellent = Decision(
         alert=True,
@@ -138,15 +139,15 @@ def cmd_preview(args: argparse.Namespace) -> int:
 
     print()
     print("=" * 60)
-    print("2. ALERTA BOM com link funcional")
+    print("2. ALERTA BOM com link funcional (Kiwi)")
     print("=" * 60)
     quote_good = Quote(
         route=Route("GRU", "LHR", "Europa"),
         price_brl=1900.0,
-        deep_link=build_search_url("GRU", "LHR", "2026-07-10", "2026-07-17"),
+        deep_link="https://www.kiwi.com/deep/GRU-LHR-2026-07-10-2026-07-17",
         departure_date="2026-07-10",
         return_date="2026-07-17",
-        source="travelpayouts",
+        source="kiwi",
     )
     decision_good = Decision(
         alert=True,
@@ -175,12 +176,12 @@ def cmd_preview(args: argparse.Namespace) -> int:
     print("4. RELATÓRIO DIÁRIO com last_quote acionável (top-3 + watchlists + score médio)")
     print("=" * 60)
     samples_with_lq = {
-        "GRU-MIA-business": (1207.0, build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22")),
-        "GRU-ORD-business": (1631.0, build_search_url("GRU", "ORD", "2026-06-15", "2026-06-22")),
-        "GRU-LHR-business": (1794.0, build_search_url("GRU", "LHR", "2026-06-15", "2026-06-22")),
-        "GRU-CDG-business": (2483.0, build_search_url("GRU", "CDG", "2026-06-15", "2026-06-22")),
-        "GRU-LIS-business": (1987.0, build_search_url("GRU", "LIS", "2026-06-15", "2026-06-22")),
-        "GRU-DXB-business": (2798.0, build_search_url("GRU", "DXB", "2026-06-15", "2026-06-22")),
+        "GRU-MIA-business": (1207.0, "https://www.kiwi.com/deep/GRU-MIA-2026-06-15"),
+        "GRU-ORD-business": (1631.0, "https://www.kiwi.com/deep/GRU-ORD-2026-06-15"),
+        "GRU-LHR-business": (1794.0, "https://www.kiwi.com/deep/GRU-LHR-2026-06-15"),
+        "GRU-CDG-business": (2483.0, "https://www.kiwi.com/deep/GRU-CDG-2026-06-15"),
+        "GRU-LIS-business": (1987.0, "https://www.kiwi.com/deep/GRU-LIS-2026-06-15"),
+        "GRU-DXB-business": (2798.0, "https://www.kiwi.com/deep/GRU-DXB-2026-06-15"),
     }
     with tempfile.TemporaryDirectory() as tmpdir:
         seeded = PriceStore(Path(tmpdir) / "preview.json")
@@ -204,6 +205,29 @@ def cmd_preview(args: argparse.Namespace) -> int:
             }
         fake_result = MonitorResult(scanned=12, quotes_received=6, alerts_sent=0, notes=[])
         print(_build_message(fake_result, seeded, now))
+
+    print()
+    print("=" * 60)
+    print("4b. ALERTA com link Aviasales (bloqueado pelo is_actionable_url)")
+    print("=" * 60)
+    from .airports import is_actionable_url as _is_actionable
+    aviasales_url = (
+        "https://search.aviasales.com/flights/?origin_iata=GRU"
+        "&destination_iata=CDG&depart_date=2026-06-15&return_date=2026-06-22"
+        "&adults=1&children=0&infants=0&trip_class=1&currency=usd"
+        "&locale=en-us&marker_locale=en-us"
+    )
+    print(f"URL Aviasales: {aviasales_url}")
+    print(f"is_actionable_url({aviasales_url[:50]}...) = {_is_actionable(aviasales_url)}")
+    print(
+        "→ Monitor descarta alerta com este link (count non_actionable_links_skipped += 1).\n"
+        "  Travelpayouts agora retorna deep_link=None — sem link, sem alerta enviado."
+    )
+    print()
+    print("Kiwi (caminho preferido quando KIWI_API_KEY estiver setado):")
+    kiwi_url = "https://www.kiwi.com/deep/GRU-CDG-2026-06-15"
+    print(f"  URL: {kiwi_url}")
+    print(f"  is_actionable_url() = {_is_actionable(kiwi_url)}")
 
     print()
     print("=" * 60)

@@ -132,18 +132,18 @@ def build_search_url(
 
 
 def is_actionable_url(url: str | None) -> bool:
-    """Aprova apenas URLs com formato comercialmente útil.
+    """Aprova apenas URLs comercialmente úteis.
+
+    **Aviasales bloqueado por completo**: evidência real mostrou que o
+    domínio redireciona para experiência russa mesmo com `locale=en-us` +
+    `currency=usd`. Qualquer host contendo `aviasales` é rejeitado.
 
     Aprova:
-    - URLs do nosso `build_search_url` no domínio `search.aviasales.com`,
-      com `locale=en-us`, `currency=usd` e demais params obrigatórios.
-    - Deep links do Kiwi (`*.kiwi.com`) — Kiwi serve multilíngue por padrão.
+    - Deep links do Kiwi (`*.kiwi.com`) — Kiwi serve multilíngue por padrão
 
     Rejeita:
-    - Padrão antigo `https://www.aviasales.com/search/GRUMIA`
-    - Hosts `.ru` ou subdomínios `ru.*`
-    - URLs do search.aviasales.com sem `locale=en-us` ou sem `currency=usd`
-    - URLs com `locale=ru` ou `currency=rub`
+    - Qualquer host que contenha `aviasales` (search/www/aviasales.ru/ru.aviasales.com/etc.)
+    - Hosts com TLD `.ru` ou subdomínio `ru.*`
     - Esquemas não-HTTP, URLs vazias, domínios desconhecidos
     """
     if not url or not isinstance(url, str):
@@ -155,22 +155,19 @@ def is_actionable_url(url: str | None) -> bool:
     if not host:
         return False
 
-    # Rejeita domínios russos
+    # Bloqueio total Aviasales (todos os domínios da família)
+    if "aviasales" in host:
+        return False
+
+    # Rejeita domínios russos (gerais)
     if host.endswith(".ru") or host.startswith("ru."):
         return False
 
-    if host == "search.aviasales.com":
-        qs = parse_qs(parsed.query)
-        if not _REQUIRED_AVIASALES_PARAMS.issubset(qs.keys()):
-            return False
-        # locale/currency com valores explicitamente aceitos
-        if qs.get("locale", [""])[0].lower() != DEFAULT_LOCALE:
-            return False
-        if qs.get("currency", [""])[0].lower() != DEFAULT_CURRENCY:
-            return False
+    if host in _TRUSTED_DOMAINS:
         return True
 
-    if host in _TRUSTED_DOMAINS:
+    # Subdomínios de Kiwi
+    if host.endswith(".kiwi.com"):
         return True
 
     return False
