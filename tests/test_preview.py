@@ -54,6 +54,31 @@ def test_preview_messages_does_not_touch_data_dir(capsys, monkeypatch, tmp_path:
     assert not data_dir.exists()
 
 
+def test_preview_links_prints_4_variants(capsys, monkeypatch, tmp_path: Path):
+    """preview-links imprime variantes A/B/C/D para teste manual no navegador."""
+    monkeypatch.chdir(tmp_path)
+    import urllib.request
+    monkeypatch.setattr(
+        urllib.request, "urlopen",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("preview-links não deve usar rede")),
+    )
+
+    rc = main(["preview-links"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "A) URL atual" in out
+    assert "B) Variação: locale=en-us" in out
+    assert "C) Variação: locale=en-gb" in out
+    assert "D) Variação: locale=en " in out  # espaço para distinguir de "en-us"/"en-gb"
+    # roteiro de decisão
+    assert "próximo PR deve priorizar Kiwi" in out
+    # URL canônica nova aparece
+    assert "locale=en-us" in out
+    assert "currency=usd" in out
+    # nenhum arquivo criado
+    assert not (tmp_path / "data").exists()
+
+
 def test_preview_messages_does_not_require_secrets(capsys, monkeypatch, tmp_path: Path):
     monkeypatch.chdir(tmp_path)
     for var in (

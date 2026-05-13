@@ -248,6 +248,58 @@ def cmd_test(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def cmd_preview_links(args: argparse.Namespace) -> int:
+    """Imprime variantes de URL de busca para teste manual no navegador.
+
+    Não usa rede, não envia Telegram, não toca data/.
+    """
+    from .airports import build_search_url
+
+    origin = "GRU"
+    destination = "LHR"
+    depart = "2026-07-10"
+    ret = "2026-07-17"
+
+    print("=" * 78)
+    print(f"Variantes de URL Aviasales para {origin} → {destination}  "
+          f"({depart} → {ret})")
+    print("Abra cada link no navegador e verifique idioma/moeda da página.")
+    print("=" * 78)
+    print()
+
+    print("A) URL atual (default em produção neste PR — en-us + usd):")
+    print("   " + build_search_url(origin, destination, depart, ret))
+    print()
+
+    print("B) Variação: locale=en-us + marker_locale=en-us + currency=usd")
+    print("   (idêntica à atual neste PR — mostrada explicitamente para comparação)")
+    print("   " + build_search_url(origin, destination, depart, ret,
+                                   locale="en-us", currency="usd"))
+    print()
+
+    print("C) Variação: locale=en-gb + marker_locale=en-gb + currency=usd")
+    print("   " + build_search_url(origin, destination, depart, ret,
+                                   locale="en-gb", currency="usd"))
+    print()
+
+    print("D) Variação: locale=en + marker_locale=en + currency=usd")
+    print("   " + build_search_url(origin, destination, depart, ret,
+                                   locale="en", currency="usd"))
+    print()
+
+    print("E) Variação alternativa de domínio")
+    print("   (aviasales.com/searches/new não tem documentação clara; intencionalmente")
+    print("    omitido para não criar URL frágil. Se preferir, valide manualmente.)")
+    print()
+
+    print("-" * 78)
+    print("Roteiro:")
+    print("- Se A/B abrirem em inglês com USD: o default deste PR está OK.")
+    print("- Se ainda servir russo: Aviasales não respeita locale aqui;")
+    print("  próximo PR deve priorizar Kiwi deep_link (quando KIWI_API_KEY presente).")
+    return 0
+
+
 # ============================================================
 # Calibration & Diagnostics (read-only; no provider, no telegram, no HTTP)
 # ============================================================
@@ -446,6 +498,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Imprime mensagens-exemplo no terminal (sem rede, sem secrets)",
     )
     p_preview.set_defaults(func=cmd_preview)
+
+    p_preview_links = sub.add_parser(
+        "preview-links",
+        help="Imprime variantes de URL Aviasales para teste manual no navegador.",
+    )
+    p_preview_links.set_defaults(func=cmd_preview_links)
 
     # ----- Calibration & Diagnostics (read-only) -----
     p_cal = sub.add_parser(

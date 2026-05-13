@@ -20,8 +20,8 @@ _FIXED_NOW = datetime(2026, 5, 10, 10, 43, tzinfo=timezone.utc)
 _VALID_DEEP_LINK = (
     "https://search.aviasales.com/flights/?origin_iata=GRU"
     "&destination_iata=CDG&depart_date=2026-06-15&return_date=2026-06-22"
-    "&adults=1&children=0&infants=0&trip_class=1&currency=brl"
-    "&locale=en&marker_locale=en"
+    "&adults=1&children=0&infants=0&trip_class=1&currency=usd"
+    "&locale=en-us&marker_locale=en-us"
 )
 
 
