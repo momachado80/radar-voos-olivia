@@ -48,12 +48,29 @@ def _make_notifier(config: Config) -> TelegramNotifier | None:
     return TelegramNotifier(config.telegram_bot_token, config.telegram_chat_id)
 
 
+def _make_link_provider(config: Config, primary):
+    """Provider auxiliar SÓ para validar/obter link comercial acionável.
+
+    - Se o primário já é Kiwi: retorna None (Kiwi devolve link próprio).
+    - Se KIWI_API_KEY está setado: instancia KiwiTequilaProvider como link_provider.
+    - Caso contrário: None (sem cross-check; Travelpayouts puro = silêncio).
+    """
+    if isinstance(primary, KiwiTequilaProvider):
+        return None
+    if config.kiwi_api_key:
+        return KiwiTequilaProvider(api_key=config.kiwi_api_key)
+    return None
+
+
 def cmd_scan(args: argparse.Namespace) -> int:
     config = Config.from_env()
     provider = _make_provider(config, args.mock)
     notifier = _make_notifier(config)
     store = PriceStore(config.history_path)
-    monitor = Monitor(provider=provider, notifier=notifier, store=store)
+    link_provider = _make_link_provider(config, provider)
+    monitor = Monitor(
+        provider=provider, notifier=notifier, store=store, link_provider=link_provider,
+    )
     result = monitor.run_once()
     print(f"scanned={result.scanned} quotes={result.quotes_received} alerts={result.alerts_sent}")
     for note in result.notes:
@@ -67,7 +84,11 @@ def cmd_cycle(args: argparse.Namespace) -> int:
     notifier = _make_notifier(config)
     store = PriceStore(config.history_path)
     cycle = CycleState.load(config.cycle_path)
-    monitor = Monitor(provider=provider, notifier=notifier, store=store, cycle=cycle)
+    link_provider = _make_link_provider(config, provider)
+    monitor = Monitor(
+        provider=provider, notifier=notifier, store=store, cycle=cycle,
+        link_provider=link_provider,
+    )
     result = monitor.run_cycle()
     print(f"cycle scanned={result.scanned} quotes={result.quotes_received} alerts={result.alerts_sent}")
     for note in result.notes:
@@ -97,7 +118,10 @@ def cmd_hot_scan(args: argparse.Namespace) -> int:
     notifier = _make_notifier(config)
     store = PriceStore(config.history_path)
     routes = hot_routes()
-    monitor = Monitor(provider=provider, notifier=notifier, store=store)
+    link_provider = _make_link_provider(config, provider)
+    monitor = Monitor(
+        provider=provider, notifier=notifier, store=store, link_provider=link_provider,
+    )
     result = monitor.run_once(routes)
     print(
         f"hot-scan scanned={result.scanned} "
