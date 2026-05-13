@@ -55,7 +55,9 @@ def test_build_search_url_round_trip_parametrized():
     assert qs["children"] == ["0"]
     assert qs["infants"] == ["0"]
     assert qs["trip_class"] == ["1"]
-    assert qs["currency"] == ["brl"]
+    assert qs["currency"] == ["usd"]
+    assert qs["locale"] == ["en-us"]
+    assert qs["marker_locale"] == ["en-us"]
 
 
 def test_build_search_url_one_way_omits_return_date():
@@ -129,25 +131,30 @@ def test_is_actionable_url_rejects_non_http_scheme():
 
 # ---------- Comercialmente útil: locale e domínios russos ----------
 
-def test_build_search_url_includes_locale_en_by_default():
+def test_build_search_url_default_locale_is_en_us():
     url = build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22")
     assert url is not None
     qs = parse_qs(urlparse(url).query)
-    assert qs["locale"] == ["en"]
-    assert qs["marker_locale"] == ["en"]
+    assert qs["locale"] == ["en-us"]
+    assert qs["marker_locale"] == ["en-us"]
 
 
-def test_build_search_url_accepts_custom_locale():
-    url = build_search_url("GRU", "MIA", "2026-06-15", locale="pt-br")
+def test_build_search_url_default_currency_is_usd():
+    url = build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22")
     assert url is not None
     qs = parse_qs(urlparse(url).query)
-    assert qs["locale"] == ["pt-br"]
+    assert qs["currency"] == ["usd"]
 
 
-def test_build_search_url_keeps_currency_brl():
-    url = build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22")
+def test_build_search_url_accepts_custom_locale_and_currency():
+    url = build_search_url(
+        "GRU", "MIA", "2026-06-15", "2026-06-22",
+        locale="en-gb", currency="eur",
+    )
+    assert url is not None
     qs = parse_qs(urlparse(url).query)
-    assert qs["currency"] == ["brl"]
+    assert qs["locale"] == ["en-gb"]
+    assert qs["currency"] == ["eur"]
 
 
 def test_is_actionable_url_rejects_russian_tld():
@@ -174,3 +181,30 @@ def test_is_actionable_url_accepts_aviasales_with_locale():
     assert is_actionable_url(url) is True
     qs = parse_qs(urlparse(url).query)
     assert "locale" in qs
+
+
+def test_is_actionable_url_rejects_old_locale_en():
+    """locale=en não passa mais — defaults migraram para en-us."""
+    url = (
+        "https://search.aviasales.com/flights/?origin_iata=GRU"
+        "&destination_iata=MIA&depart_date=2026-06-15&return_date=2026-06-22"
+        "&adults=1&children=0&infants=0&trip_class=1&currency=usd"
+        "&locale=en&marker_locale=en"
+    )
+    assert is_actionable_url(url) is False
+
+
+def test_is_actionable_url_rejects_currency_brl():
+    """currency=brl não passa mais — defaults migraram para usd."""
+    url = build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22", currency="brl")
+    assert is_actionable_url(url) is False
+
+
+def test_is_actionable_url_rejects_locale_ru_even_on_correct_host():
+    url = (
+        "https://search.aviasales.com/flights/?origin_iata=GRU"
+        "&destination_iata=MIA&depart_date=2026-06-15"
+        "&adults=1&children=0&infants=0&trip_class=1&currency=usd"
+        "&locale=ru&marker_locale=ru"
+    )
+    assert is_actionable_url(url) is False
