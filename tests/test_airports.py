@@ -95,14 +95,29 @@ def test_build_search_url_does_not_use_legacy_path_pattern():
 
 # ---------- is_actionable_url ----------
 
-def test_is_actionable_url_accepts_parameterized_aviasales():
+def test_is_actionable_url_rejects_parameterized_aviasales():
+    """Aviasales bloqueado por completo — domínio redireciona para russo."""
     url = build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22")
-    assert is_actionable_url(url) is True
+    assert is_actionable_url(url) is False
 
 
 def test_is_actionable_url_rejects_legacy_pattern():
     assert is_actionable_url("https://www.aviasales.com/search/GRUMIA") is False
     assert is_actionable_url("https://www.aviasales.com/search/GRU1506MIA22061") is False
+
+
+def test_is_actionable_url_rejects_all_aviasales_hosts():
+    """Qualquer host com 'aviasales' no nome é rejeitado."""
+    hosts_to_block = [
+        "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=MIA&depart_date=2026-06-15&return_date=2026-06-22&adults=1&children=0&infants=0&trip_class=1&currency=usd&locale=en-us&marker_locale=en-us",
+        "https://www.aviasales.com/flights/",
+        "https://aviasales.com/anywhere",
+        "https://aviasales.ru/flights/",
+        "https://ru.aviasales.com/flights/",
+        "https://search.aviasales.com.br/flights/",  # mesmo subdomínio br
+    ]
+    for url in hosts_to_block:
+        assert is_actionable_url(url) is False, f"deveria rejeitar {url}"
 
 
 def test_is_actionable_url_rejects_none_and_empty():
@@ -176,35 +191,24 @@ def test_is_actionable_url_rejects_aviasales_without_locale():
     assert is_actionable_url(url) is False
 
 
-def test_is_actionable_url_accepts_aviasales_with_locale():
+def test_is_actionable_url_rejects_aviasales_even_with_correct_locale():
+    """Mesmo com locale=en-us+usd, Aviasales é bloqueado por completo.
+
+    Evidência real: domínio redireciona para experiência russa apesar dos params.
+    """
     url = build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22")
-    assert is_actionable_url(url) is True
-    qs = parse_qs(urlparse(url).query)
-    assert "locale" in qs
-
-
-def test_is_actionable_url_rejects_old_locale_en():
-    """locale=en não passa mais — defaults migraram para en-us."""
-    url = (
-        "https://search.aviasales.com/flights/?origin_iata=GRU"
-        "&destination_iata=MIA&depart_date=2026-06-15&return_date=2026-06-22"
-        "&adults=1&children=0&infants=0&trip_class=1&currency=usd"
-        "&locale=en&marker_locale=en"
-    )
+    # build_search_url ainda gera a URL (compat com preview-links),
+    # mas is_actionable_url a rejeita.
     assert is_actionable_url(url) is False
 
 
-def test_is_actionable_url_rejects_currency_brl():
-    """currency=brl não passa mais — defaults migraram para usd."""
-    url = build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22", currency="brl")
-    assert is_actionable_url(url) is False
+def test_is_actionable_url_accepts_kiwi_subdomain():
+    """www.kiwi.com e subdomínios kiwi.com passam."""
+    assert is_actionable_url("https://www.kiwi.com/deep/abc") is True
+    assert is_actionable_url("https://m.kiwi.com/booking/123") is True
 
 
-def test_is_actionable_url_rejects_locale_ru_even_on_correct_host():
-    url = (
-        "https://search.aviasales.com/flights/?origin_iata=GRU"
-        "&destination_iata=MIA&depart_date=2026-06-15"
-        "&adults=1&children=0&infants=0&trip_class=1&currency=usd"
-        "&locale=ru&marker_locale=ru"
-    )
+def test_is_actionable_url_rejects_legacy_aviasales_path():
+    """Padrão antigo path-encoded continua rejeitado (já era)."""
+    url = "https://www.aviasales.com/search/GRUMIA"
     assert is_actionable_url(url) is False

@@ -122,10 +122,15 @@ class TravelpayoutsProvider:
         return_raw = item.get("return_at")
         return_date = return_raw[:10] if return_raw else None
 
+        # Travelpayouts vira fonte de PREÇO. Não geramos mais link Aviasales
+        # porque o endpoint redireciona para russo mesmo com locale=en-us.
+        # Alerta só sai se outra fonte (Kiwi) fornecer deep_link acionável
+        # (cross-fetch fica para PR seguinte; por hora, deep_link=None força
+        # o monitor a contar non_actionable_links_skipped e não enviar Telegram).
         return Quote(
             route=route,
             price_brl=float(item["price"]),
-            deep_link=build_search_url(route.origin, route.destination, departure, return_date),
+            deep_link=None,
             departure_date=departure,
             return_date=return_date,
             source="travelpayouts",
@@ -133,7 +138,12 @@ class TravelpayoutsProvider:
 
 
 class MockProvider:
-    """Provedor sintético determinístico, útil para testes e dry-run."""
+    """Provedor sintético determinístico, útil para testes e dry-run.
+
+    Usa um deep_link estilo Kiwi (host kiwi.com) porque `is_actionable_url`
+    rejeita Aviasales por completo. URL falsa, só serve para testes
+    exercitarem o caminho "link acionável" sem precisar de chave Kiwi real.
+    """
 
     def __init__(self, seed: int = 0, baseline: float = 8000.0, jitter: float = 0.15):
         self._rng = random.Random(seed)
@@ -147,7 +157,7 @@ class MockProvider:
         return Quote(
             route=route,
             price_brl=round(price, 2),
-            deep_link=build_search_url(route.origin, route.destination, departure, return_date),
+            deep_link=f"https://www.kiwi.com/deep/{route.origin}-{route.destination}-{departure}",
             departure_date=departure,
             return_date=return_date,
             source="mock",

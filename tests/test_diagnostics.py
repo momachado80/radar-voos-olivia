@@ -78,8 +78,8 @@ def test_stats_for_route_with_actionable_last_quote(tmp_path: Path):
         "destination": "MIA",
         "departure_date": "2026-06-15",
         "return_date": "2026-06-22",
-        "source": "travelpayouts",
-        "deep_link": build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22"),
+        "source": "kiwi",
+        "deep_link": "https://www.kiwi.com/deep/GRU-MIA-2026-06-15",
         "detected_at": "2026-05-12T17:00:00+00:00",
         "actionable_url": True,
         "cabin": "business",
@@ -88,8 +88,8 @@ def test_stats_for_route_with_actionable_last_quote(tmp_path: Path):
     stats = diagnostics.stats_for("GRU-MIA-business", history)
     assert stats.last_quote_present is True
     assert stats.last_quote_actionable is True
-    assert "search.aviasales.com/flights/" in stats.deep_link
-    assert stats.source == "travelpayouts"
+    assert "kiwi.com" in stats.deep_link
+    assert stats.source == "kiwi"
 
 
 def test_stats_for_route_without_history(tmp_path: Path):
@@ -238,8 +238,8 @@ def test_audit_links_clean_when_all_actionable(tmp_path: Path):
         "destination": "MIA",
         "departure_date": "2026-06-15",
         "return_date": "2026-06-22",
-        "source": "travelpayouts",
-        "deep_link": build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22"),
+        "source": "kiwi",
+        "deep_link": "https://www.kiwi.com/deep/GRU-MIA-2026-06-15",
         "detected_at": "...",
         "actionable_url": True,
         "cabin": "business",
@@ -321,8 +321,8 @@ def _seed_store(tmp_path: Path) -> Path:
         "destination": "MIA",
         "departure_date": "2026-06-15",
         "return_date": "2026-06-22",
-        "source": "travelpayouts",
-        "deep_link": build_search_url("GRU", "MIA", "2026-06-15", "2026-06-22"),
+        "source": "kiwi",
+        "deep_link": "https://www.kiwi.com/deep/GRU-MIA-2026-06-15",
         "detected_at": "2026-05-12T17:00:00+00:00",
         "actionable_url": True,
         "cabin": "business",
