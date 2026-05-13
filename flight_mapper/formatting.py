@@ -9,6 +9,8 @@ SOURCE_LABELS: dict[str, str] = {
     "travelpayouts": "Travelpayouts (cache)",
     "kiwi": "Kiwi",
     "mock": "Mock",
+    # Composto: preço detectado no radar Travelpayouts, link comercial via Kiwi
+    "travelpayouts+kiwi": "Travelpayouts + Kiwi",
 }
 
 

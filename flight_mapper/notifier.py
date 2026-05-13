@@ -80,6 +80,11 @@ def format_alert(
     source_label = format_source(quote.source)
     if source_label:
         extras.append(f"🛒 Fonte: {source_label}")
+    if quote.source == "travelpayouts+kiwi":
+        extras.append(
+            "ℹ️ Preço detectado no radar Travelpayouts. "
+            "Link de conferência comercial via Kiwi."
+        )
     if is_actionable_url(quote.deep_link):
         extras.append(f'🔎 <a href="{quote.deep_link}">Conferir busca</a>')
     else:

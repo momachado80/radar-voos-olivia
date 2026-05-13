@@ -17,6 +17,7 @@ from .thresholds import HOT_ROUTE_KEYS, levels_for
 
 
 CONFIRMATION_TOLERANCE_PCT = 0.05  # 5%: segunda quote dentro disso ainda confirma
+LINK_PRICE_COMPATIBILITY_RATIO = 1.15  # Kiwi pode ser até 15% mais caro que o primário
 
 
 @dataclass
@@ -55,6 +56,7 @@ class Monitor:
         cycle: CycleState | None = None,
         chunk_size: int = 8,
         confirm_alerts: bool = True,
+        link_provider: FlightProvider | None = None,
     ):
         self.provider = provider
         self.notifier = notifier
@@ -62,6 +64,65 @@ class Monitor:
         self.cycle = cycle
         self.chunk_size = chunk_size
         self.confirm_alerts = confirm_alerts
+        # `link_provider`: provider auxiliar SÓ para validar/obter link comercial
+        # quando o primário não fornece link acionável (caso Travelpayouts).
+        # Quando definido, cross-check é executado antes do envio do alerta.
+        self.link_provider = link_provider
+
+    def _resolve_actionable_link(
+        self, route: Route, primary_quote: Quote
+    ) -> tuple[Quote | None, str]:
+        """Resolve o link comercial do alerta.
+
+        Retorna (quote_para_envio, reason).
+        - quote=primary_quote, reason="primary_link_ok": link primário já é acionável.
+        - quote=composto, reason="cross_checked": cross-check Kiwi forneceu link compatível.
+        - quote=None, reason="link_comercial_indisponivel": sem cross-check viável
+          (sem link_provider, Kiwi retornou None, ou sem deep_link acionável).
+        - quote=None, reason="preco_kiwi_incompativel": Kiwi retornou mas preço acima
+          de tolerância e acima de good_brl.
+        """
+        if is_actionable_url(primary_quote.deep_link):
+            return primary_quote, "primary_link_ok"
+
+        if self.link_provider is None:
+            return None, "link_comercial_indisponivel"
+
+        print(
+            f"cross-checking link via Kiwi for {route.origin}→{route.destination}",
+            flush=True,
+        )
+        kiwi_quote = self.link_provider.quote(route)
+        if kiwi_quote is None or not is_actionable_url(kiwi_quote.deep_link):
+            print("Kiwi unavailable or no actionable link", flush=True)
+            return None, "link_comercial_indisponivel"
+
+        levels = levels_for(route.key) or {}
+        good_brl = levels.get("good_brl")
+        within_ratio = kiwi_quote.price_brl <= primary_quote.price_brl * LINK_PRICE_COMPATIBILITY_RATIO
+        below_good = good_brl is not None and kiwi_quote.price_brl <= good_brl
+        if not (within_ratio or below_good):
+            print(
+                f"Kiwi price incompatible: kiwi={kiwi_quote.price_brl:.0f} "
+                f"primary={primary_quote.price_brl:.0f} good={good_brl}",
+                flush=True,
+            )
+            return None, "preco_kiwi_incompativel"
+
+        # Composto: preço do primário (que disparou o alerta), link do Kiwi
+        composite = Quote(
+            route=route,
+            price_brl=primary_quote.price_brl,
+            deep_link=kiwi_quote.deep_link,
+            departure_date=kiwi_quote.departure_date,
+            return_date=kiwi_quote.return_date,
+            source="travelpayouts+kiwi",
+        )
+        print(
+            f"cross-check OK: kiwi={kiwi_quote.price_brl:.0f} primary={primary_quote.price_brl:.0f}",
+            flush=True,
+        )
+        return composite, "cross_checked"
 
     def _confirm(self, route: Route, first_price: float) -> tuple[bool, Quote | None]:
         """Segunda chamada ao provider para confirmar oportunidade.
@@ -132,14 +193,17 @@ class Monitor:
                     quote_to_send, _now(), provider_note="second-confirmation"
                 )
 
-            actionable = is_actionable_url(quote_to_send.deep_link)
-            if not actionable:
+            resolved_quote, resolve_reason = self._resolve_actionable_link(route, quote_to_send)
+            if resolved_quote is None:
                 non_actionable_links_skipped += 1
-                notes.append(
-                    f"{route.origin}→{route.destination}: alerta descartado — link não acionável"
-                )
+                if resolve_reason == "preco_kiwi_incompativel":
+                    msg = "alerta descartado: preço Kiwi incompatível"
+                else:
+                    msg = "alerta descartado: link comercial indisponível"
+                notes.append(f"{route.origin}→{route.destination}: {msg}")
                 continue
 
+            quote_to_send = resolved_quote
             actionable_links_generated += 1
 
             # Score informativo embutido na decision (não filtra)
@@ -147,7 +211,7 @@ class Monitor:
                 quote_to_send.price_brl,
                 levels_for(route.key),
                 history,
-                actionable_url=actionable,
+                actionable_url=True,
                 confirmed=self.confirm_alerts,
                 is_hot_route=route.key in HOT_ROUTE_KEYS,
             )
