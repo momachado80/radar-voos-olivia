@@ -330,7 +330,7 @@
       2483.0,
       2483.0,
       2483.0,
-      2483.0,
+      2565.0,
       2565.0,
       2565.0,
       2565.0,
@@ -377,7 +377,7 @@
       2565.0,
       2565.0
     ],
-    "last_alert_at": "2026-05-12T20:56:25.155548+00:00",
+    "last_alert_at": "2026-05-13T09:45:00.020770+00:00",
     "last_alert_price": 2565.0,
     "last_quote": {
       "price_brl": 2565.0,
@@ -387,10 +387,10 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=CDG&depart_date=2026-06-15&adults=1&children=0&infants=0&trip_class=1&currency=brl&locale=en&marker_locale=en",
-      "detected_at": "2026-05-13T08:10:28.867041+00:00",
+      "detected_at": "2026-05-13T09:44:59.619599+00:00",
       "actionable_url": true,
       "cabin": "business",
-      "provider_note": null
+      "provider_note": "second-confirmation"
     }
   },
   "GRU-DOH-business": {
@@ -424,6 +424,7 @@
       3571.0,
       3571.0,
       3571.0,
+      3571.0,
       3571.0
     ],
     "last_alert_at": null,
@@ -436,7 +437,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=DOH&depart_date=2026-06-24&adults=1&children=0&infants=0&trip_class=1&currency=brl&locale=en&marker_locale=en",
-      "detected_at": "2026-05-13T03:27:55.180461+00:00",
+      "detected_at": "2026-05-13T09:45:01.487735+00:00",
       "actionable_url": true,
       "cabin": "business",
       "provider_note": null
@@ -473,6 +474,7 @@
       2798.0,
       2827.0,
       2827.0,
+      2827.0,
       2827.0
     ],
     "last_alert_at": null,
@@ -485,7 +487,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=DXB&depart_date=2026-11-28&adults=1&children=0&infants=0&trip_class=1&currency=brl&locale=en&marker_locale=en",
-      "detected_at": "2026-05-13T03:27:55.061042+00:00",
+      "detected_at": "2026-05-13T09:45:01.324069+00:00",
       "actionable_url": true,
       "cabin": "business",
       "provider_note": null
@@ -601,19 +603,20 @@
       4720.0,
       4720.0,
       4720.0,
-      4720.0
+      4720.0,
+      4924.0
     ],
     "last_alert_at": null,
     "last_alert_price": null,
     "last_quote": {
-      "price_brl": 4720.0,
+      "price_brl": 4924.0,
       "origin": "GRU",
       "destination": "HKG",
-      "departure_date": "2026-05-12",
+      "departure_date": "2026-10-07",
       "return_date": null,
       "source": "travelpayouts",
-      "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=HKG&depart_date=2026-05-12&adults=1&children=0&infants=0&trip_class=1&currency=brl&locale=en&marker_locale=en",
-      "detected_at": "2026-05-12T23:35:57.226574+00:00",
+      "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=HKG&depart_date=2026-10-07&adults=1&children=0&infants=0&trip_class=1&currency=brl&locale=en&marker_locale=en",
+      "detected_at": "2026-05-13T09:45:01.231123+00:00",
       "actionable_url": true,
       "cabin": "business",
       "provider_note": null
@@ -726,7 +729,6 @@
       1936.0,
       1936.0,
       1936.0,
-      1936.0,
       2061.0,
       2061.0,
       2061.0,
@@ -739,22 +741,23 @@
       2061.0,
       2033.0,
       2033.0,
-      2033.0
+      2033.0,
+      2025.0
     ],
-    "last_alert_at": "2026-05-12T20:56:27.025264+00:00",
-    "last_alert_price": 2061.0,
+    "last_alert_at": "2026-05-13T09:45:00.621601+00:00",
+    "last_alert_price": 2025.0,
     "last_quote": {
-      "price_brl": 2033.0,
+      "price_brl": 2025.0,
       "origin": "GRU",
       "destination": "JFK",
       "departure_date": "2026-06-19",
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=JFK&depart_date=2026-06-19&adults=1&children=0&infants=0&trip_class=1&currency=brl&locale=en&marker_locale=en",
-      "detected_at": "2026-05-13T08:10:29.227839+00:00",
+      "detected_at": "2026-05-13T09:45:00.220123+00:00",
       "actionable_url": true,
       "cabin": "business",
-      "provider_note": null
+      "provider_note": "second-confirmation"
     }
   },
   "GRU-LAX-business": {
@@ -836,7 +839,6 @@
       2216.0,
       2216.0,
       2216.0,
-      2216.0,
       1873.0,
       1873.0,
       1873.0,
@@ -877,9 +879,10 @@
       1878.0,
       1878.0,
       1878.0,
+      1878.0,
       1878.0
     ],
-    "last_alert_at": "2026-05-12T20:56:24.408302+00:00",
+    "last_alert_at": "2026-05-13T09:44:59.337710+00:00",
     "last_alert_price": 1878.0,
     "last_quote": {
       "price_brl": 1878.0,
@@ -889,10 +892,10 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=LHR&depart_date=2026-11-10&adults=1&children=0&infants=0&trip_class=1&currency=brl&locale=en&marker_locale=en",
-      "detected_at": "2026-05-13T08:10:28.768709+00:00",
+      "detected_at": "2026-05-13T09:44:58.762130+00:00",
       "actionable_url": true,
       "cabin": "business",
-      "provider_note": null
+      "provider_note": "second-confirmation"
     }
   },
   "GRU-LIS-business": {
@@ -1239,7 +1242,7 @@
       1997.0,
       1997.0
     ],
-    "last_alert_at": "2026-05-12T20:56:28.933589+00:00",
+    "last_alert_at": "2026-05-13T09:45:01.177632+00:00",
     "last_alert_price": 1997.0,
     "last_quote": {
       "price_brl": 1997.0,
@@ -1249,10 +1252,10 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=SFO&depart_date=2026-11-12&adults=1&children=0&infants=0&trip_class=1&currency=brl&locale=en&marker_locale=en",
-      "detected_at": "2026-05-13T08:10:29.396511+00:00",
+      "detected_at": "2026-05-13T09:45:00.750522+00:00",
       "actionable_url": true,
       "cabin": "business",
-      "provider_note": null
+      "provider_note": "second-confirmation"
     }
   },
   "GRU-SIN-business": {
