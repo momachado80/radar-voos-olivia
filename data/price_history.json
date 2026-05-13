@@ -211,7 +211,6 @@
       2353.0,
       2353.0,
       2353.0,
-      2353.0,
       2664.0,
       2709.0,
       2709.0,
@@ -256,6 +255,7 @@
       2592.0,
       2592.0,
       2592.0,
+      2592.0,
       2592.0
     ],
     "last_alert_at": null,
@@ -268,7 +268,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=AMS&depart_date=2027-04-01&adults=1&children=0&infants=0&trip_class=1&currency=usd&locale=en-us&marker_locale=en-us",
-      "detected_at": "2026-05-13T17:34:50.095799+00:00",
+      "detected_at": "2026-05-13T17:38:08.738520+00:00",
       "actionable_url": true,
       "cabin": "business",
       "provider_note": null
@@ -387,7 +387,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=CDG&depart_date=2026-06-15&adults=1&children=0&infants=0&trip_class=1&currency=usd&locale=en-us&marker_locale=en-us",
-      "detected_at": "2026-05-13T17:34:49.719121+00:00",
+      "detected_at": "2026-05-13T17:38:08.222108+00:00",
       "actionable_url": true,
       "cabin": "business",
       "provider_note": null
@@ -526,7 +526,6 @@
       2156.0,
       2156.0,
       2156.0,
-      2156.0,
       2376.0,
       2376.0,
       2376.0,
@@ -540,6 +539,7 @@
       2376.0,
       2376.0,
       2376.0,
+      2333.0,
       2333.0,
       2333.0,
       2333.0,
@@ -558,7 +558,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=FCO&depart_date=2026-06-10&adults=1&children=0&infants=0&trip_class=1&currency=usd&locale=en-us&marker_locale=en-us",
-      "detected_at": "2026-05-13T17:34:49.902738+00:00",
+      "detected_at": "2026-05-13T17:38:08.584837+00:00",
       "actionable_url": true,
       "cabin": "business",
       "provider_note": null
@@ -729,7 +729,6 @@
       1936.0,
       1936.0,
       1936.0,
-      1936.0,
       2061.0,
       2061.0,
       2061.0,
@@ -749,6 +748,7 @@
       2026.0,
       2043.0,
       2043.0,
+      2040.0,
       2040.0
     ],
     "last_alert_at": "2026-05-13T09:45:00.621601+00:00",
@@ -761,7 +761,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=JFK&depart_date=2026-06-19&adults=1&children=0&infants=0&trip_class=1&currency=usd&locale=en-us&marker_locale=en-us",
-      "detected_at": "2026-05-13T17:34:49.778959+00:00",
+      "detected_at": "2026-05-13T17:38:08.893951+00:00",
       "actionable_url": true,
       "cabin": "business",
       "provider_note": null
@@ -830,7 +830,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=LAX&depart_date=2026-11-12&adults=1&children=0&infants=0&trip_class=1&currency=usd&locale=en-us&marker_locale=en-us",
-      "detected_at": "2026-05-13T17:34:50.315525+00:00",
+      "detected_at": "2026-05-13T17:38:09.215753+00:00",
       "actionable_url": true,
       "cabin": "business",
       "provider_note": null
@@ -838,7 +838,6 @@
   },
   "GRU-LHR-business": {
     "prices": [
-      2216.0,
       2216.0,
       1873.0,
       1873.0,
@@ -887,6 +886,7 @@
       1878.0,
       1878.0,
       1878.0,
+      1878.0,
       1878.0
     ],
     "last_alert_at": "2026-05-13T09:44:59.337710+00:00",
@@ -899,7 +899,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=LHR&depart_date=2026-11-10&adults=1&children=0&infants=0&trip_class=1&currency=usd&locale=en-us&marker_locale=en-us",
-      "detected_at": "2026-05-13T17:34:49.541991+00:00",
+      "detected_at": "2026-05-13T17:38:08.086791+00:00",
       "actionable_url": true,
       "cabin": "business",
       "provider_note": null
@@ -953,6 +953,7 @@
       1919.0,
       1919.0,
       1919.0,
+      1919.0,
       1919.0
     ],
     "last_alert_at": "2026-05-12T20:56:26.284653+00:00",
@@ -964,8 +965,8 @@
       "departure_date": "2026-10-26",
       "return_date": null,
       "source": "travelpayouts",
-      "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=LIS&depart_date=2026-10-26&adults=1&children=0&infants=0&trip_class=1&currency=brl&locale=en&marker_locale=en",
-      "detected_at": "2026-05-13T15:34:09.065345+00:00",
+      "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=LIS&depart_date=2026-10-26&adults=1&children=0&infants=0&trip_class=1&currency=usd&locale=en-us&marker_locale=en-us",
+      "detected_at": "2026-05-13T17:38:08.465624+00:00",
       "actionable_url": true,
       "cabin": "business",
       "provider_note": null
@@ -1015,6 +1016,7 @@
       2103.0,
       2103.0,
       2103.0,
+      2103.0,
       2103.0
     ],
     "last_alert_at": "2026-05-12T20:56:25.713459+00:00",
@@ -1026,8 +1028,8 @@
       "departure_date": "2026-07-20",
       "return_date": null,
       "source": "travelpayouts",
-      "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=MAD&depart_date=2026-07-20&adults=1&children=0&infants=0&trip_class=1&currency=brl&locale=en&marker_locale=en",
-      "detected_at": "2026-05-13T15:34:08.846940+00:00",
+      "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=MAD&depart_date=2026-07-20&adults=1&children=0&infants=0&trip_class=1&currency=usd&locale=en-us&marker_locale=en-us",
+      "detected_at": "2026-05-13T17:38:08.335024+00:00",
       "actionable_url": true,
       "cabin": "business",
       "provider_note": null
@@ -1083,7 +1085,7 @@
       1234.0,
       1234.0,
       1234.0,
-      1234.0,
+      1410.0,
       1410.0
     ],
     "last_alert_at": "2026-05-12T20:56:27.642688+00:00",
@@ -1096,7 +1098,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=MIA&depart_date=2026-08-07&adults=1&children=0&infants=0&trip_class=1&currency=usd&locale=en-us&marker_locale=en-us",
-      "detected_at": "2026-05-13T17:34:50.265995+00:00",
+      "detected_at": "2026-05-13T17:38:09.098878+00:00",
       "actionable_url": true,
       "cabin": "business",
       "provider_note": null
@@ -1268,7 +1270,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": "https://search.aviasales.com/flights/?origin_iata=GRU&destination_iata=SFO&depart_date=2026-11-12&adults=1&children=0&infants=0&trip_class=1&currency=usd&locale=en-us&marker_locale=en-us",
-      "detected_at": "2026-05-13T17:34:49.856507+00:00",
+      "detected_at": "2026-05-13T17:38:09.319344+00:00",
       "actionable_url": true,
       "cabin": "business",
       "provider_note": null
