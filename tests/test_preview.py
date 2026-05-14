@@ -43,13 +43,18 @@ def test_preview_messages_runs_and_prints_examples(capsys, monkeypatch, tmp_path
     assert "manual_purchase_fallback" in out
     assert "Link comercial automático indisponível." in out
     assert "Pesquise manualmente: GRU → LHR" in out
-    assert "Sugestão: Google Flights, site da companhia aérea ou programa de milhas." in out
-    # alerta manual NÃO contém hyperlink nem aviasales
+    # Disclaimer dos links auxiliares
+    assert "Links auxiliares de pesquisa, não oferta confirmada." in out
+    # alerta manual NÃO contém o hyperlink comercial "Conferir busca" nem aviasales,
+    # mas PODE conter links auxiliares de pesquisa.
     manual_section = out.split("4c.")[1].split("=" * 60)[1].split("=" * 60)[0]
-    assert "🔎" not in manual_section
+    assert "🔎 Conferir busca" not in manual_section
     assert "Conferir busca" not in manual_section
-    assert "<a href" not in manual_section
     assert "aviasales" not in manual_section.lower()
+    # links auxiliares presentes no cenário manual
+    assert "Pesquisar no Google Flights" in manual_section
+    assert "Pesquisar no Kayak" in manual_section
+    assert "Pesquisar na Expedia" in manual_section
     # watchlist substitui "Melhor por região"
     assert "📌 Melhores oportunidades monitoradas" in out
     assert "🌎 Melhor por região" not in out

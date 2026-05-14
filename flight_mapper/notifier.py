@@ -10,6 +10,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from .airports import is_actionable_url, route_airport_label, route_city_label
+from .auxiliary_links import build_auxiliary_links
 from .detector import CRITERION_CEILING, LEVEL_EXCELLENT, LEVEL_GOOD, Decision
 from .formatting import format_brl, format_detection_time, format_source
 from .providers import Quote
@@ -80,20 +81,22 @@ def format_alert(
 
     if quote.source == "manual_purchase":
         # Manual purchase fallback: preço veio do Travelpayouts mas não há
-        # link comercial acionável (Kiwi indisponível). Renderização especial
-        # com instrução de pesquisa manual em vez de hyperlink.
+        # link comercial acionável (Kiwi indisponível, Aviasales bloqueado).
+        # Em vez de hyperlink comercial, oferecemos links auxiliares de
+        # pesquisa (Google Flights, Kayak, Expedia) — clicáveis mas
+        # claramente marcados como NÃO sendo oferta confirmada.
         extras.append("🛒 Fonte: Travelpayouts (cache)")
         dates_label = quote.departure_date + (
             f" → {quote.return_date}" if quote.return_date else ""
         )
         extras.append("⚠️ Link comercial automático indisponível.")
+        extras.append("Links auxiliares de pesquisa, não oferta confirmada.")
         extras.append(
             f"Pesquise manualmente: {quote.route.origin} → {quote.route.destination}, "
             f"{dates_label}, executiva."
         )
-        extras.append(
-            "Sugestão: Google Flights, site da companhia aérea ou programa de milhas."
-        )
+        for label, url in build_auxiliary_links(quote):
+            extras.append(f'🔎 <a href="{url}">{label}</a>')
     else:
         source_label = format_source(quote.source)
         if source_label:
