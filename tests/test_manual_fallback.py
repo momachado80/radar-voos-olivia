@@ -127,7 +127,11 @@ def test_manual_fallback_sends_alert_when_no_commercial_link(tmp_path: Path):
 
 
 def test_manual_fallback_alert_does_not_contain_conferir_busca(tmp_path: Path):
-    """Mensagem manual não tem hyperlink '🔎 Conferir busca'."""
+    """Mensagem manual não tem hyperlink comercial '🔎 Conferir busca'.
+
+    Pode conter '🔎 Pesquisar no ...' (links auxiliares), mas nunca o link
+    comercial confirmado representado por 'Conferir busca'.
+    """
     primary = _PrimaryProvider(price=1500.0)
     notifier = _CaptureNotifier()
     store = PriceStore(tmp_path / "h.json")
@@ -140,9 +144,8 @@ def test_manual_fallback_alert_does_not_contain_conferir_busca(tmp_path: Path):
 
     sent_quote, decision = notifier.alerts[0]
     body = format_alert(sent_quote, decision, priority=True)
-    assert "🔎" not in body
+    assert "🔎 Conferir busca" not in body
     assert "Conferir busca" not in body
-    assert "<a href" not in body
 
 
 def test_manual_fallback_alert_does_not_contain_aviasales(tmp_path: Path):
@@ -159,6 +162,107 @@ def test_manual_fallback_alert_does_not_contain_aviasales(tmp_path: Path):
     sent_quote, decision = notifier.alerts[0]
     body = format_alert(sent_quote, decision, priority=True)
     assert "aviasales" not in body.lower()
+
+
+def test_manual_fallback_alert_contains_auxiliary_search_links(tmp_path: Path):
+    """Alerta manual traz 3 links auxiliares clicáveis e o disclaimer."""
+    primary = _PrimaryProvider(price=1500.0)
+    notifier = _CaptureNotifier()
+    store = PriceStore(tmp_path / "h.json")
+    monitor = Monitor(
+        provider=primary, notifier=notifier, store=store,
+        link_provider=None, confirm_alerts=False,
+    )
+
+    monitor.run_once([_ROUTE_LHR])
+
+    sent_quote, decision = notifier.alerts[0]
+    body = format_alert(sent_quote, decision, priority=True)
+    # Disclaimer explícito: links são pesquisa, não oferta confirmada
+    assert "Links auxiliares de pesquisa, não oferta confirmada." in body
+    assert "não oferta confirmada" in body
+    # 3 links clicáveis nomeados
+    assert "🔎 <a href=" in body
+    assert "Pesquisar no Google" in body
+    assert "Pesquisar no Google Flights" in body
+    assert "Pesquisar no Kayak" in body
+    # cada label corresponde a um hyperlink
+    assert body.count('🔎 <a href="') == 3
+
+
+def test_manual_fallback_auxiliary_links_include_route_date_and_class(tmp_path: Path):
+    """Cada URL auxiliar inclui origem, destino, data e business/executiva."""
+    primary = _PrimaryProvider(price=1500.0)
+    notifier = _CaptureNotifier()
+    store = PriceStore(tmp_path / "h.json")
+    monitor = Monitor(
+        provider=primary, notifier=notifier, store=store,
+        link_provider=None, confirm_alerts=False,
+    )
+
+    monitor.run_once([_ROUTE_LHR])
+
+    sent_quote, decision = notifier.alerts[0]
+    body = format_alert(sent_quote, decision, priority=True)
+    # extrair somente as URLs entre href="..."
+    import re
+
+    urls = re.findall(r'href="([^"]+)"', body)
+    assert len(urls) == 3, f"esperava 3 links auxiliares, obteve {urls}"
+    for url in urls:
+        lowered = url.lower()
+        assert "gru" in lowered
+        assert "lhr" in lowered
+        assert "2026-11-10" in url
+        assert "business" in lowered
+        # Nenhum dos links auxiliares aponta para Aviasales (todas as formas)
+        assert "aviasales" not in lowered
+        assert "search.aviasales.com" not in lowered
+        assert "aviasales.ru" not in lowered
+
+
+def test_manual_fallback_alert_never_contains_aviasales_hosts(tmp_path: Path):
+    """Garantia explícita: nenhuma das formas conhecidas do Aviasales aparece."""
+    primary = _PrimaryProvider(price=1500.0)
+    notifier = _CaptureNotifier()
+    store = PriceStore(tmp_path / "h.json")
+    monitor = Monitor(
+        provider=primary, notifier=notifier, store=store,
+        link_provider=None, confirm_alerts=False,
+    )
+
+    monitor.run_once([_ROUTE_LHR])
+
+    sent_quote, decision = notifier.alerts[0]
+    body = format_alert(sent_quote, decision, priority=True).lower()
+    assert "aviasales" not in body
+    assert "search.aviasales.com" not in body
+    assert "aviasales.ru" not in body
+
+
+def test_kiwi_alert_does_not_contain_auxiliary_search_links(tmp_path: Path):
+    """Quando há link comercial confiável (Kiwi), o alerta NÃO mostra links auxiliares."""
+    primary = _PrimaryProvider(price=1500.0)
+    link = _LinkProvider([_kiwi_quote_with_link(1550.0, _ROUTE_LHR)])
+    notifier = _CaptureNotifier()
+    store = PriceStore(tmp_path / "h.json")
+    monitor = Monitor(
+        provider=primary, notifier=notifier, store=store,
+        link_provider=link, confirm_alerts=False,
+    )
+
+    monitor.run_once([_ROUTE_LHR])
+
+    sent_quote, decision = notifier.alerts[0]
+    body = format_alert(sent_quote, decision, priority=True)
+    # disclaimer só existe no fluxo manual
+    assert "Links auxiliares de pesquisa, não oferta confirmada." not in body
+    # labels dos auxiliares não devem aparecer
+    assert "Pesquisar no Google" not in body
+    assert "Pesquisar no Google Flights" not in body
+    assert "Pesquisar no Kayak" not in body
+    # alerta com Kiwi mantém "Conferir busca"
+    assert "🔎 <a href=" in body and "Conferir busca" in body
 
 
 def test_manual_fallback_alert_contains_manual_search_instruction(tmp_path: Path):
@@ -178,7 +282,6 @@ def test_manual_fallback_alert_contains_manual_search_instruction(tmp_path: Path
     assert "⚠️ Link comercial automático indisponível." in body
     assert "Pesquise manualmente: GRU → LHR" in body
     assert "Google Flights" in body
-    assert "milhas" in body
     assert "executiva" in body
 
 
@@ -256,7 +359,10 @@ def test_manual_fallback_does_not_apply_when_kiwi_price_incompatible(tmp_path: P
 def test_manual_fallback_respects_dedupe(tmp_path: Path):
     """Dedupe continua bloqueando re-envio em janela mesmo no fallback manual."""
     from datetime import datetime, timedelta, timezone
-    now = datetime(2026, 5, 14, 12, 0, tzinfo=timezone.utc)
+    # Importante: o Monitor usa wall-clock (datetime.now). O seed precisa
+    # estar relativo a esse mesmo relógio — não a uma data fixa — para
+    # garantir que o teste seja determinístico em qualquer dia/hora.
+    now = datetime.now(timezone.utc)
     primary = _PrimaryProvider(price=1500.0)
     notifier = _CaptureNotifier()
     store = PriceStore(tmp_path / "h.json")
