@@ -29,6 +29,7 @@ class MonitorResult:
     stale_quotes_skipped: int = 0
     non_actionable_links_skipped: int = 0
     actionable_links_generated: int = 0
+    manual_fallback_alerts_sent: int = 0
 
 
 def _quote_to_dict(quote: Quote, now: datetime, *, provider_note: str | None = None) -> dict:
@@ -57,6 +58,7 @@ class Monitor:
         chunk_size: int = 8,
         confirm_alerts: bool = True,
         link_provider: FlightProvider | None = None,
+        manual_purchase_fallback: bool = True,
     ):
         self.provider = provider
         self.notifier = notifier
@@ -68,6 +70,12 @@ class Monitor:
         # quando o primário não fornece link acionável (caso Travelpayouts).
         # Quando definido, cross-check é executado antes do envio do alerta.
         self.link_provider = link_provider
+        # `manual_purchase_fallback`: quando True (default), oportunidades que
+        # passam todos os filtros (detector + confirmação + dedupe) mas não têm
+        # link comercial acionável ainda geram alerta — sem hyperlink, com
+        # instrução de pesquisa manual (Google Flights / Smiles / cia aérea).
+        # Útil enquanto Kiwi não está aprovado.
+        self.manual_purchase_fallback = manual_purchase_fallback
 
     def _resolve_actionable_link(
         self, route: Route, primary_quote: Quote
@@ -155,6 +163,7 @@ class Monitor:
         stale_quotes_skipped = 0
         non_actionable_links_skipped = 0
         actionable_links_generated = 0
+        manual_fallback_alerts_sent = 0
 
         def _now():
             return datetime.now(timezone.utc)
@@ -194,24 +203,45 @@ class Monitor:
                 )
 
             resolved_quote, resolve_reason = self._resolve_actionable_link(route, quote_to_send)
+            is_manual_fallback = False
             if resolved_quote is None:
-                non_actionable_links_skipped += 1
-                if resolve_reason == "preco_kiwi_incompativel":
-                    msg = "alerta descartado: preço Kiwi incompatível"
+                # Caso 1: preço Kiwi incompatível → diminui confiança no preço; nunca cai em manual
+                # Caso 2: link comercial indisponível + manual_purchase_fallback → envia alerta manual
+                if (
+                    resolve_reason == "link_comercial_indisponivel"
+                    and self.manual_purchase_fallback
+                ):
+                    print(
+                        f"manual purchase fallback alert sent for {route.origin}→{route.destination}",
+                        flush=True,
+                    )
+                    quote_to_send = Quote(
+                        route=route,
+                        price_brl=quote_to_send.price_brl,
+                        deep_link=None,
+                        departure_date=quote_to_send.departure_date,
+                        return_date=quote_to_send.return_date,
+                        source="manual_purchase",
+                    )
+                    is_manual_fallback = True
                 else:
-                    msg = "alerta descartado: link comercial indisponível"
-                notes.append(f"{route.origin}→{route.destination}: {msg}")
-                continue
-
-            quote_to_send = resolved_quote
-            actionable_links_generated += 1
+                    non_actionable_links_skipped += 1
+                    if resolve_reason == "preco_kiwi_incompativel":
+                        msg = "alerta descartado: preço Kiwi incompatível"
+                    else:
+                        msg = "alerta descartado: link comercial indisponível"
+                    notes.append(f"{route.origin}→{route.destination}: {msg}")
+                    continue
+            else:
+                quote_to_send = resolved_quote
+                actionable_links_generated += 1
 
             # Score informativo embutido na decision (não filtra)
             decision.score = compute_opportunity_score(
                 quote_to_send.price_brl,
                 levels_for(route.key),
                 history,
-                actionable_url=True,
+                actionable_url=not is_manual_fallback,
                 confirmed=self.confirm_alerts,
                 is_hot_route=route.key in HOT_ROUTE_KEYS,
             )
@@ -222,9 +252,15 @@ class Monitor:
                     history.last_alert_at = _now().isoformat()
                     history.last_alert_price = quote_to_send.price_brl
                     alerts_sent += 1
-                    notes.append(
-                        f"{route.origin}→{route.destination}: ALERTA {decision.reason}"
-                    )
+                    if is_manual_fallback:
+                        manual_fallback_alerts_sent += 1
+                        notes.append(
+                            f"{route.origin}→{route.destination}: ALERTA MANUAL {decision.reason}"
+                        )
+                    else:
+                        notes.append(
+                            f"{route.origin}→{route.destination}: ALERTA {decision.reason}"
+                        )
                 else:
                     notes.append(
                         f"{route.origin}→{route.destination}: alerta falhou no envio"
@@ -243,6 +279,7 @@ class Monitor:
             stale_quotes_skipped=stale_quotes_skipped,
             non_actionable_links_skipped=non_actionable_links_skipped,
             actionable_links_generated=actionable_links_generated,
+            manual_fallback_alerts_sent=manual_fallback_alerts_sent,
         )
 
     def run_cycle(self) -> MonitorResult:

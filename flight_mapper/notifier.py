@@ -77,21 +77,39 @@ def format_alert(
     extras: list[str] = [detection_line, criterion_line]
     if is_ceiling:
         extras.append("⚠️ Preço pode mudar rápido. Conferir agora.")
-    source_label = format_source(quote.source)
-    if source_label:
-        extras.append(f"🛒 Fonte: {source_label}")
-    if quote.source == "travelpayouts+kiwi":
-        extras.append(
-            "ℹ️ Preço detectado no radar Travelpayouts. "
-            "Link de conferência comercial via Kiwi."
+
+    if quote.source == "manual_purchase":
+        # Manual purchase fallback: preço veio do Travelpayouts mas não há
+        # link comercial acionável (Kiwi indisponível). Renderização especial
+        # com instrução de pesquisa manual em vez de hyperlink.
+        extras.append("🛒 Fonte: Travelpayouts (cache)")
+        dates_label = quote.departure_date + (
+            f" → {quote.return_date}" if quote.return_date else ""
         )
-    if is_actionable_url(quote.deep_link):
-        extras.append(f'🔎 <a href="{quote.deep_link}">Conferir busca</a>')
+        extras.append("⚠️ Link comercial automático indisponível.")
+        extras.append(
+            f"Pesquise manualmente: {quote.route.origin} → {quote.route.destination}, "
+            f"{dates_label}, executiva."
+        )
+        extras.append(
+            "Sugestão: Google Flights, site da companhia aérea ou programa de milhas."
+        )
     else:
-        extras.append(
-            "⚠️ Link direto indisponível. Conferir manualmente na fonte pela rota "
-            f"{quote.route.origin} → {quote.route.destination}."
-        )
+        source_label = format_source(quote.source)
+        if source_label:
+            extras.append(f"🛒 Fonte: {source_label}")
+        if quote.source == "travelpayouts+kiwi":
+            extras.append(
+                "ℹ️ Preço detectado no radar Travelpayouts. "
+                "Link de conferência comercial via Kiwi."
+            )
+        if is_actionable_url(quote.deep_link):
+            extras.append(f'🔎 <a href="{quote.deep_link}">Conferir busca</a>')
+        else:
+            extras.append(
+                "⚠️ Link direto indisponível. Conferir manualmente na fonte pela rota "
+                f"{quote.route.origin} → {quote.route.destination}."
+            )
 
     return (
         f"✈️ <b>{flag}{level_prefix}Business em promoção</b>\n"

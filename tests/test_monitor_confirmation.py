@@ -144,7 +144,8 @@ def test_confirmation_bypassed_when_flag_off(tmp_path: Path):
 
 
 def test_actionable_link_check_blocks_alert(tmp_path: Path):
-    """Mesmo confirmado, se link não for acionável → não envia, conta non_actionable."""
+    """Mesmo confirmado, se link não for acionável E manual_purchase_fallback=False
+    → não envia, conta non_actionable."""
     bad_quote = Quote(
         route=_ROUTE_LHR,
         price_brl=1500.0,
@@ -156,7 +157,10 @@ def test_actionable_link_check_blocks_alert(tmp_path: Path):
     provider = _ScriptedProvider([bad_quote, bad_quote])
     notifier = _StubNotifier()
     store = PriceStore(tmp_path / "h.json")
-    monitor = Monitor(provider=provider, notifier=notifier, store=store)
+    monitor = Monitor(
+        provider=provider, notifier=notifier, store=store,
+        manual_purchase_fallback=False,
+    )
 
     result = monitor.run_once([_ROUTE_LHR])
 
