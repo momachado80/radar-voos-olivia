@@ -208,7 +208,6 @@
   "GRU-AMS-business": {
     "prices": [
       2709.0,
-      2709.0,
       2585.0,
       2591.0,
       2596.0,
@@ -256,19 +255,20 @@
       2650.0,
       2647.0,
       2653.0,
-      2652.0
+      2652.0,
+      2641.0
     ],
     "last_alert_at": null,
     "last_alert_price": null,
     "last_quote": {
-      "price_brl": 2652.0,
+      "price_brl": 2641.0,
       "origin": "GRU",
       "destination": "AMS",
       "departure_date": "2027-04-01",
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-14T20:43:02.034804+00:00",
+      "detected_at": "2026-05-14T21:49:40.989926+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
@@ -367,7 +367,7 @@
       2565.0,
       2565.0,
       2565.0,
-      2565.0,
+      2736.0,
       2736.0,
       2736.0,
       2736.0,
@@ -392,7 +392,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-14T21:44:03.193434+00:00",
+      "detected_at": "2026-05-14T21:49:39.646797+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
@@ -526,7 +526,6 @@
       2156.0,
       2156.0,
       2156.0,
-      2156.0,
       2376.0,
       2376.0,
       2376.0,
@@ -540,6 +539,7 @@
       2376.0,
       2376.0,
       2376.0,
+      2333.0,
       2333.0,
       2333.0,
       2333.0,
@@ -575,7 +575,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-14T20:43:01.984227+00:00",
+      "detected_at": "2026-05-14T21:49:40.885581+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
@@ -745,7 +745,6 @@
     "prices": [
       1936.0,
       1936.0,
-      1936.0,
       2061.0,
       2061.0,
       2061.0,
@@ -792,6 +791,7 @@
       2079.0,
       2079.0,
       2079.0,
+      2079.0,
       2079.0
     ],
     "last_alert_at": "2026-05-14T10:39:34.839759+00:00",
@@ -804,7 +804,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-14T21:44:03.284571+00:00",
+      "detected_at": "2026-05-14T21:49:41.074776+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
@@ -859,7 +859,7 @@
       1822.0,
       1822.0,
       1822.0,
-      1822.0,
+      1917.0,
       1917.0,
       1917.0
     ],
@@ -873,10 +873,10 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-14T21:44:03.898671+00:00",
+      "detected_at": "2026-05-14T21:49:41.243516+00:00",
       "actionable_url": false,
       "cabin": "business",
-      "provider_note": "second-confirmation"
+      "provider_note": null
     }
   },
   "GRU-LHR-business": {
@@ -942,7 +942,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-14T21:44:02.994809+00:00",
+      "detected_at": "2026-05-14T21:49:39.551494+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
@@ -1001,7 +1001,7 @@
       1919.0,
       1919.0
     ],
-    "last_alert_at": "2026-05-13T21:02:13.156589+00:00",
+    "last_alert_at": "2026-05-14T21:49:40.789108+00:00",
     "last_alert_price": 1919.0,
     "last_quote": {
       "price_brl": 1919.0,
@@ -1011,15 +1011,14 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-14T20:43:01.926849+00:00",
+      "detected_at": "2026-05-14T21:49:40.158100+00:00",
       "actionable_url": false,
       "cabin": "business",
-      "provider_note": null
+      "provider_note": "second-confirmation"
     }
   },
   "GRU-MAD-business": {
     "prices": [
-      2057.0,
       2057.0,
       2057.0,
       2057.0,
@@ -1068,19 +1067,20 @@
       2103.0,
       1941.0,
       1945.0,
-      1944.0
+      1944.0,
+      1936.0
     ],
     "last_alert_at": "2026-05-14T17:07:21.330860+00:00",
     "last_alert_price": 1941.0,
     "last_quote": {
-      "price_brl": 1944.0,
+      "price_brl": 1936.0,
       "origin": "GRU",
       "destination": "MAD",
       "departure_date": "2026-07-18",
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-14T20:43:01.801096+00:00",
+      "detected_at": "2026-05-14T21:49:39.866518+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
@@ -1088,7 +1088,6 @@
   },
   "GRU-MIA-business": {
     "prices": [
-      1234.0,
       1234.0,
       1234.0,
       1234.0,
@@ -1137,6 +1136,7 @@
       1437.0,
       1437.0,
       1437.0,
+      1437.0,
       1437.0
     ],
     "last_alert_at": "2026-05-12T20:56:27.642688+00:00",
@@ -1149,7 +1149,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-14T21:44:03.682575+00:00",
+      "detected_at": "2026-05-14T21:49:41.163245+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
@@ -1318,7 +1318,7 @@
       1997.0,
       1997.0,
       1997.0,
-      1997.0,
+      2251.0,
       2251.0,
       2251.0,
       2251.0,
@@ -1334,7 +1334,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-14T21:44:03.467914+00:00",
+      "detected_at": "2026-05-14T21:49:41.322011+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
