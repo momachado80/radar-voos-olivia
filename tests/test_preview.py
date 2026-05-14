@@ -38,6 +38,18 @@ def test_preview_messages_runs_and_prints_examples(capsys, monkeypatch, tmp_path
     # cenário explícito mostra Aviasales sendo rejeitado
     assert "4b. ALERTA com link Aviasales" in out
     assert "bloqueado pelo is_actionable_url" in out
+    # cenário 4c: alerta manual sem link comercial
+    assert "4c. ALERTA MANUAL SEM LINK COMERCIAL" in out
+    assert "manual_purchase_fallback" in out
+    assert "Link comercial automático indisponível." in out
+    assert "Pesquise manualmente: GRU → LHR" in out
+    assert "Sugestão: Google Flights, site da companhia aérea ou programa de milhas." in out
+    # alerta manual NÃO contém hyperlink nem aviasales
+    manual_section = out.split("4c.")[1].split("=" * 60)[1].split("=" * 60)[0]
+    assert "🔎" not in manual_section
+    assert "Conferir busca" not in manual_section
+    assert "<a href" not in manual_section
+    assert "aviasales" not in manual_section.lower()
     # watchlist substitui "Melhor por região"
     assert "📌 Melhores oportunidades monitoradas" in out
     assert "🌎 Melhor por região" not in out
