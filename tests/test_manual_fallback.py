@@ -359,7 +359,10 @@ def test_manual_fallback_does_not_apply_when_kiwi_price_incompatible(tmp_path: P
 def test_manual_fallback_respects_dedupe(tmp_path: Path):
     """Dedupe continua bloqueando re-envio em janela mesmo no fallback manual."""
     from datetime import datetime, timedelta, timezone
-    now = datetime(2026, 5, 14, 12, 0, tzinfo=timezone.utc)
+    # Importante: o Monitor usa wall-clock (datetime.now). O seed precisa
+    # estar relativo a esse mesmo relógio — não a uma data fixa — para
+    # garantir que o teste seja determinístico em qualquer dia/hora.
+    now = datetime.now(timezone.utc)
     primary = _PrimaryProvider(price=1500.0)
     notifier = _CaptureNotifier()
     store = PriceStore(tmp_path / "h.json")
