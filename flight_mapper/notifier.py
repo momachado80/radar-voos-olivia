@@ -10,7 +10,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from .airports import is_actionable_url, route_airport_label, route_city_label
-from .auxiliary_links import build_auxiliary_links
+from .auxiliary_links import build_auxiliary_search_links
 from .detector import CRITERION_CEILING, LEVEL_EXCELLENT, LEVEL_GOOD, Decision
 from .formatting import format_brl, format_detection_time, format_source
 from .providers import Quote
@@ -95,7 +95,7 @@ def format_alert(
             f"Pesquise manualmente: {quote.route.origin} → {quote.route.destination}, "
             f"{dates_label}, executiva."
         )
-        for label, url in build_auxiliary_links(quote):
+        for label, url in build_auxiliary_search_links(quote):
             extras.append(f'🔎 <a href="{url}">{label}</a>')
     else:
         source_label = format_source(quote.source)

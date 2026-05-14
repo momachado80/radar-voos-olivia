@@ -52,9 +52,12 @@ def test_preview_messages_runs_and_prints_examples(capsys, monkeypatch, tmp_path
     assert "Conferir busca" not in manual_section
     assert "aviasales" not in manual_section.lower()
     # links auxiliares presentes no cenário manual
+    assert "Pesquisar no Google" in manual_section
     assert "Pesquisar no Google Flights" in manual_section
     assert "Pesquisar no Kayak" in manual_section
-    assert "Pesquisar na Expedia" in manual_section
+    # bloqueio explícito de hosts do Aviasales
+    assert "search.aviasales.com" not in manual_section.lower()
+    assert "aviasales.ru" not in manual_section.lower()
     # watchlist substitui "Melhor por região"
     assert "📌 Melhores oportunidades monitoradas" in out
     assert "🌎 Melhor por região" not in out

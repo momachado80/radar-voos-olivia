@@ -180,11 +180,12 @@ def test_manual_fallback_alert_contains_auxiliary_search_links(tmp_path: Path):
     body = format_alert(sent_quote, decision, priority=True)
     # Disclaimer explícito: links são pesquisa, não oferta confirmada
     assert "Links auxiliares de pesquisa, não oferta confirmada." in body
+    assert "não oferta confirmada" in body
     # 3 links clicáveis nomeados
     assert "🔎 <a href=" in body
+    assert "Pesquisar no Google" in body
     assert "Pesquisar no Google Flights" in body
     assert "Pesquisar no Kayak" in body
-    assert "Pesquisar na Expedia" in body
     # cada label corresponde a um hyperlink
     assert body.count('🔎 <a href="') == 3
 
@@ -209,14 +210,34 @@ def test_manual_fallback_auxiliary_links_include_route_date_and_class(tmp_path: 
     urls = re.findall(r'href="([^"]+)"', body)
     assert len(urls) == 3, f"esperava 3 links auxiliares, obteve {urls}"
     for url in urls:
-        # business/executiva pode aparecer codificado (business+class) ou literal
         lowered = url.lower()
         assert "gru" in lowered
         assert "lhr" in lowered
         assert "2026-11-10" in url
         assert "business" in lowered
-        # Nenhum dos links auxiliares aponta para Aviasales
+        # Nenhum dos links auxiliares aponta para Aviasales (todas as formas)
         assert "aviasales" not in lowered
+        assert "search.aviasales.com" not in lowered
+        assert "aviasales.ru" not in lowered
+
+
+def test_manual_fallback_alert_never_contains_aviasales_hosts(tmp_path: Path):
+    """Garantia explícita: nenhuma das formas conhecidas do Aviasales aparece."""
+    primary = _PrimaryProvider(price=1500.0)
+    notifier = _CaptureNotifier()
+    store = PriceStore(tmp_path / "h.json")
+    monitor = Monitor(
+        provider=primary, notifier=notifier, store=store,
+        link_provider=None, confirm_alerts=False,
+    )
+
+    monitor.run_once([_ROUTE_LHR])
+
+    sent_quote, decision = notifier.alerts[0]
+    body = format_alert(sent_quote, decision, priority=True).lower()
+    assert "aviasales" not in body
+    assert "search.aviasales.com" not in body
+    assert "aviasales.ru" not in body
 
 
 def test_kiwi_alert_does_not_contain_auxiliary_search_links(tmp_path: Path):
@@ -237,9 +258,9 @@ def test_kiwi_alert_does_not_contain_auxiliary_search_links(tmp_path: Path):
     # disclaimer só existe no fluxo manual
     assert "Links auxiliares de pesquisa, não oferta confirmada." not in body
     # labels dos auxiliares não devem aparecer
+    assert "Pesquisar no Google" not in body
     assert "Pesquisar no Google Flights" not in body
     assert "Pesquisar no Kayak" not in body
-    assert "Pesquisar na Expedia" not in body
     # alerta com Kiwi mantém "Conferir busca"
     assert "🔎 <a href=" in body and "Conferir busca" in body
 
