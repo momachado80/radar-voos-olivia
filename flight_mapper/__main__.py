@@ -255,6 +255,34 @@ def cmd_preview(args: argparse.Namespace) -> int:
 
     print()
     print("=" * 60)
+    print("4c. ALERTA MANUAL SEM LINK COMERCIAL (manual_purchase_fallback)")
+    print("=" * 60)
+    print(
+        "Quando Travelpayouts detecta oportunidade mas Kiwi não está disponível\n"
+        "(KIWI_API_KEY ausente ou Kiwi sem cobertura para a rota), o Monitor\n"
+        "envia alerta manual sem hyperlink, com instrução de pesquisa manual."
+    )
+    print()
+    quote_manual = Quote(
+        route=Route("GRU", "LHR", "Europa"),
+        price_brl=1878.0,
+        deep_link=None,
+        departure_date="2026-11-10",
+        return_date="2026-11-17",
+        source="manual_purchase",
+    )
+    decision_manual = Decision(
+        alert=True,
+        reason="preço R$ 1878 <= alvo R$ 2000 (nível good)",
+        criterion=CRITERION_CEILING,
+        threshold=2000.0,
+        level=LEVEL_GOOD,
+        score=65,
+    )
+    print(format_alert(quote_manual, decision_manual, priority=True))
+
+    print()
+    print("=" * 60)
     print("5. OPERATIONAL SUMMARY (FASE 3 — preview do PR seguinte)")
     print("=" * 60)
     print(
