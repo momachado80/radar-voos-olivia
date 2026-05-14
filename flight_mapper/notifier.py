@@ -15,6 +15,31 @@ from .formatting import format_brl, format_detection_time, format_source
 from .providers import Quote
 
 
+# Sugestões de busca manual por região da rota.
+# Mantém ordem da especificação: companhias relevantes + Google Flights + milhas.
+MANUAL_REGIONAL_SUGGESTIONS: dict[str, str] = {
+    "EUA": (
+        "Google Flights, Latam, American Airlines, United, Delta, "
+        "programas de milhas"
+    ),
+    "Europa": (
+        "Google Flights, Latam, Iberia, Air France/KLM, TAP, "
+        "programas de milhas"
+    ),
+    "Ásia": (
+        "Google Flights, Emirates, Qatar, Turkish, "
+        "programas de milhas"
+    ),
+}
+
+
+def _manual_suggestions_for(region: str) -> str:
+    return MANUAL_REGIONAL_SUGGESTIONS.get(
+        region,
+        "Google Flights, site da companhia aérea ou programa de milhas",
+    )
+
+
 def _level_title(level: str | None, score: int | None = None) -> str:
     """Marcador de nível no título do alerta, com score informativo opcional."""
     score_suffix = f" — Score {score}/100" if score is not None else ""
@@ -80,19 +105,20 @@ def format_alert(
 
     if quote.source == "manual_purchase":
         # Manual purchase fallback: preço veio do Travelpayouts mas não há
-        # link comercial acionável (Kiwi indisponível). Renderização especial
-        # com instrução de pesquisa manual em vez de hyperlink.
+        # link comercial acionável (Kiwi indisponível ou Aviasales bloqueado).
+        # Renderização especial com instrução de pesquisa manual em vez de hyperlink.
         extras.append("🛒 Fonte: Travelpayouts (cache)")
         dates_label = quote.departure_date + (
             f" → {quote.return_date}" if quote.return_date else ""
         )
-        extras.append("⚠️ Link comercial automático indisponível.")
+        extras.append("⚠️ Link de compra confiável indisponível.")
+        extras.append("Aviasales foi bloqueado porque abriu experiência inadequada.")
         extras.append(
             f"Pesquise manualmente: {quote.route.origin} → {quote.route.destination}, "
             f"{dates_label}, executiva."
         )
         extras.append(
-            "Sugestão: Google Flights, site da companhia aérea ou programa de milhas."
+            f"Sugestões: {_manual_suggestions_for(quote.route.region)}."
         )
     else:
         source_label = format_source(quote.source)

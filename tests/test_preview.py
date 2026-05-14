@@ -41,15 +41,23 @@ def test_preview_messages_runs_and_prints_examples(capsys, monkeypatch, tmp_path
     # cenário 4c: alerta manual sem link comercial
     assert "4c. ALERTA MANUAL SEM LINK COMERCIAL" in out
     assert "manual_purchase_fallback" in out
-    assert "Link comercial automático indisponível." in out
+    assert "Link de compra confiável indisponível." in out
+    assert "Aviasales foi bloqueado porque abriu experiência inadequada." in out
     assert "Pesquise manualmente: GRU → LHR" in out
-    assert "Sugestão: Google Flights, site da companhia aérea ou programa de milhas." in out
-    # alerta manual NÃO contém hyperlink nem aviasales
+    # cenário 4c usa rota Europa (GRU → LHR): deve listar sugestões europeias
+    assert (
+        "Sugestões: Google Flights, Latam, Iberia, Air France/KLM, TAP, "
+        "programas de milhas."
+    ) in out
+    # alerta manual NÃO contém hyperlink nem URL do aviasales
     manual_section = out.split("4c.")[1].split("=" * 60)[1].split("=" * 60)[0]
     assert "🔎" not in manual_section
     assert "Conferir busca" not in manual_section
     assert "<a href" not in manual_section
-    assert "aviasales" not in manual_section.lower()
+    assert "aviasales.com" not in manual_section.lower()
+    assert "aviasales.ru" not in manual_section.lower()
+    assert "https://" not in manual_section
+    assert "http://" not in manual_section
     # watchlist substitui "Melhor por região"
     assert "📌 Melhores oportunidades monitoradas" in out
     assert "🌎 Melhor por região" not in out

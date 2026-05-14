@@ -145,7 +145,8 @@ def test_manual_fallback_alert_does_not_contain_conferir_busca(tmp_path: Path):
     assert "<a href" not in body
 
 
-def test_manual_fallback_alert_does_not_contain_aviasales(tmp_path: Path):
+def test_manual_fallback_alert_does_not_contain_aviasales_as_link(tmp_path: Path):
+    """Aviasales pode ser citado no texto explicativo, mas NUNCA como URL/link clicável."""
     primary = _PrimaryProvider(price=1500.0)
     notifier = _CaptureNotifier()
     store = PriceStore(tmp_path / "h.json")
@@ -158,7 +159,14 @@ def test_manual_fallback_alert_does_not_contain_aviasales(tmp_path: Path):
 
     sent_quote, decision = notifier.alerts[0]
     body = format_alert(sent_quote, decision, priority=True)
-    assert "aviasales" not in body.lower()
+    # Nunca como URL/hyperlink
+    assert "aviasales.com" not in body.lower()
+    assert "aviasales.ru" not in body.lower()
+    assert "search.aviasales" not in body.lower()
+    assert "<a href" not in body
+    assert "🔎" not in body
+    # Mas a menção como texto explicativo é permitida (e desejada)
+    assert "Aviasales foi bloqueado" in body
 
 
 def test_manual_fallback_alert_contains_manual_search_instruction(tmp_path: Path):
@@ -175,11 +183,75 @@ def test_manual_fallback_alert_contains_manual_search_instruction(tmp_path: Path
 
     sent_quote, decision = notifier.alerts[0]
     body = format_alert(sent_quote, decision, priority=True)
-    assert "⚠️ Link comercial automático indisponível." in body
+    # Texto novo
+    assert "⚠️ Link de compra confiável indisponível." in body
+    assert "Aviasales foi bloqueado porque abriu experiência inadequada." in body
     assert "Pesquise manualmente: GRU → LHR" in body
     assert "Google Flights" in body
     assert "milhas" in body
     assert "executiva" in body
+
+
+# ---------- Sugestões regionais (EUA / Europa / Ásia) ----------
+
+def _build_manual_alert_text(route, price=1500.0):
+    """Helper: monta alerta manual diretamente via format_alert."""
+    from flight_mapper.detector import CRITERION_CEILING, LEVEL_GOOD, Decision
+    q = Quote(
+        route=route,
+        price_brl=price,
+        deep_link=None,
+        departure_date="2026-11-10",
+        return_date="2026-11-17",
+        source="manual_purchase",
+    )
+    d = Decision(
+        alert=True, reason="...",
+        criterion=CRITERION_CEILING, threshold=2000.0,
+        level=LEVEL_GOOD, score=65,
+    )
+    return format_alert(q, d, priority=True)
+
+
+def test_manual_fallback_eua_route_lists_us_airlines():
+    body = _build_manual_alert_text(Route("GRU", "MIA", "EUA"))
+    assert "American Airlines" in body
+    assert "United" in body
+    assert "Delta" in body
+    assert "Latam" in body
+    assert "Google Flights" in body
+    assert "programas de milhas" in body
+
+
+def test_manual_fallback_europa_route_lists_european_airlines():
+    body = _build_manual_alert_text(Route("GRU", "LHR", "Europa"))
+    assert "Iberia" in body
+    assert "Air France/KLM" in body
+    assert "TAP" in body
+    assert "Latam" in body
+    assert "Google Flights" in body
+    assert "programas de milhas" in body
+    # Não vaza sugestões de outras regiões
+    assert "American Airlines" not in body
+    assert "Emirates" not in body
+
+
+def test_manual_fallback_asia_route_lists_asian_carriers():
+    body = _build_manual_alert_text(Route("GRU", "DXB", "Ásia"))
+    assert "Emirates" in body
+    assert "Qatar" in body
+    assert "Turkish" in body
+    assert "Google Flights" in body
+    assert "programas de milhas" in body
+    assert "American Airlines" not in body
+    assert "Iberia" not in body
+
+
+def test_manual_fallback_unknown_region_uses_generic_suggestion():
+    """Rota em região fora do mapa cai em sugestão genérica, sem crash."""
+    body = _build_manual_alert_text(Route("GRU", "XXX", "Oceania"))
+    assert "Google Flights" in body
+    assert "programa de milhas" in body  # versão singular do fallback
 
 
 def test_manual_fallback_alert_contains_route_dates_price_class(tmp_path: Path):
