@@ -140,7 +140,7 @@ def test_travelpayouts_alert_with_compatible_kiwi_sends_alert(tmp_path: Path):
 
 
 def test_travelpayouts_alert_with_kiwi_none_is_discarded(tmp_path: Path):
-    """Travelpayouts alerta mas Kiwi devolve None → descarta."""
+    """Travelpayouts alerta mas Kiwi devolve None → descarta (manual fallback OFF)."""
     primary = _PrimaryProvider(price=1500.0)
     link = _LinkProvider([None])  # Kiwi não disponível
     notifier = _CaptureNotifier()
@@ -148,6 +148,7 @@ def test_travelpayouts_alert_with_kiwi_none_is_discarded(tmp_path: Path):
     monitor = Monitor(
         provider=primary, notifier=notifier, store=store,
         link_provider=link, confirm_alerts=False,
+        manual_purchase_fallback=False,
     )
 
     result = monitor.run_once([_ROUTE_LHR])
@@ -181,7 +182,7 @@ def test_travelpayouts_alert_with_kiwi_price_30pct_higher_is_discarded(tmp_path:
 
 
 def test_travelpayouts_alert_with_kiwi_no_deep_link_is_discarded(tmp_path: Path):
-    """Kiwi devolve quote mas com deep_link=None → descarta."""
+    """Kiwi devolve quote mas com deep_link=None → descarta (manual fallback OFF)."""
     primary = _PrimaryProvider(price=1500.0)
     link = _LinkProvider([_kiwi_quote(1550.0, _ROUTE_LHR, deep_link=None)])
     notifier = _CaptureNotifier()
@@ -189,6 +190,7 @@ def test_travelpayouts_alert_with_kiwi_no_deep_link_is_discarded(tmp_path: Path)
     monitor = Monitor(
         provider=primary, notifier=notifier, store=store,
         link_provider=link, confirm_alerts=False,
+        manual_purchase_fallback=False,
     )
 
     result = monitor.run_once([_ROUTE_LHR])
@@ -218,13 +220,14 @@ def test_kiwi_as_primary_still_works_without_cross_check(tmp_path: Path):
 
 
 def test_travelpayouts_without_link_provider_is_silenced(tmp_path: Path):
-    """Sem KIWI_API_KEY → sem link_provider → alerta descartado."""
+    """Sem KIWI_API_KEY E sem manual_purchase_fallback → alerta descartado."""
     primary = _PrimaryProvider(price=1500.0)
     notifier = _CaptureNotifier()
     store = PriceStore(tmp_path / "h.json")
     monitor = Monitor(
         provider=primary, notifier=notifier, store=store,
         link_provider=None, confirm_alerts=False,
+        manual_purchase_fallback=False,
     )
 
     result = monitor.run_once([_ROUTE_LHR])
