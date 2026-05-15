@@ -228,7 +228,6 @@
       2592.0,
       2592.0,
       2592.0,
-      2592.0,
       2662.0,
       2662.0,
       2662.0,
@@ -256,6 +255,7 @@
       2648.0,
       2648.0,
       2648.0,
+      2648.0,
       2648.0
     ],
     "last_alert_at": null,
@@ -268,7 +268,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-15T21:40:03.389527+00:00",
+      "detected_at": "2026-05-15T21:59:52.395745+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
@@ -348,7 +348,6 @@
       2565.0,
       2565.0,
       2565.0,
-      2565.0,
       2736.0,
       2736.0,
       2736.0,
@@ -384,6 +383,7 @@
       2959.0,
       2959.0,
       2951.0,
+      2958.0,
       2958.0
     ],
     "last_alert_at": "2026-05-15T12:17:13.682298+00:00",
@@ -396,7 +396,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-15T21:40:02.900091+00:00",
+      "detected_at": "2026-05-15T21:59:51.283727+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
@@ -536,7 +536,6 @@
       2376.0,
       2376.0,
       2376.0,
-      2376.0,
       2333.0,
       2333.0,
       2333.0,
@@ -571,6 +570,7 @@
       2333.0,
       2333.0,
       2333.0,
+      2431.0,
       2431.0,
       2431.0,
       2431.0,
@@ -589,7 +589,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-15T21:40:03.302123+00:00",
+      "detected_at": "2026-05-15T21:59:52.330485+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
@@ -603,6 +603,7 @@
       2467.0,
       2380.0,
       2378.0,
+      2378.0,
       2378.0
     ],
     "last_alert_at": null,
@@ -615,7 +616,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-14T07:28:24.062008+00:00",
+      "detected_at": "2026-05-15T21:59:51.448669+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
@@ -779,11 +780,11 @@
   },
   "GRU-JFK-business": {
     "prices": [
-      2040.0,
       2038.0,
       2038.0,
       2054.0,
       2072.0,
+      2079.0,
       2079.0,
       2079.0,
       2079.0,
@@ -840,7 +841,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-15T21:40:03.544801+00:00",
+      "detected_at": "2026-05-15T21:59:51.337100+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
@@ -877,7 +878,7 @@
       1822.0,
       1822.0,
       1822.0,
-      1822.0,
+      1917.0,
       1917.0,
       1917.0,
       1917.0,
@@ -899,7 +900,7 @@
       1917.0,
       1917.0
     ],
-    "last_alert_at": "2026-05-14T21:44:04.592714+00:00",
+    "last_alert_at": "2026-05-15T21:59:53.259571+00:00",
     "last_alert_price": 1917.0,
     "last_quote": {
       "price_brl": 1917.0,
@@ -909,10 +910,10 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-15T21:40:03.746205+00:00",
+      "detected_at": "2026-05-15T21:59:52.848431+00:00",
       "actionable_url": false,
       "cabin": "business",
-      "provider_note": null
+      "provider_note": "second-confirmation"
     }
   },
   "GRU-LHR-business": {
@@ -978,7 +979,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-15T21:40:02.743554+00:00",
+      "detected_at": "2026-05-15T21:59:51.202909+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
@@ -1037,7 +1038,7 @@
       1919.0,
       1919.0
     ],
-    "last_alert_at": "2026-05-14T21:49:40.789108+00:00",
+    "last_alert_at": "2026-05-15T21:59:52.208131+00:00",
     "last_alert_price": 1919.0,
     "last_quote": {
       "price_brl": 1919.0,
@@ -1047,15 +1048,14 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-15T21:40:03.116354+00:00",
+      "detected_at": "2026-05-15T21:59:51.722099+00:00",
       "actionable_url": false,
       "cabin": "business",
-      "provider_note": null
+      "provider_note": "second-confirmation"
     }
   },
   "GRU-MAD-business": {
     "prices": [
-      2057.0,
       2057.0,
       2057.0,
       2057.0,
@@ -1104,6 +1104,7 @@
       1941.0,
       1941.0,
       1941.0,
+      1941.0,
       1941.0
     ],
     "last_alert_at": "2026-05-15T17:09:11.799782+00:00",
@@ -1116,7 +1117,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-15T21:40:03.019877+00:00",
+      "detected_at": "2026-05-15T21:59:51.506113+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
@@ -1124,7 +1125,6 @@
   },
   "GRU-MIA-business": {
     "prices": [
-      1234.0,
       1234.0,
       1234.0,
       1234.0,
@@ -1173,6 +1173,7 @@
       1437.0,
       1437.0,
       1437.0,
+      1437.0,
       1437.0
     ],
     "last_alert_at": "2026-05-12T20:56:27.642688+00:00",
@@ -1185,7 +1186,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-15T21:40:03.674413+00:00",
+      "detected_at": "2026-05-15T21:59:52.762454+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
@@ -1339,7 +1340,6 @@
       1997.0,
       1997.0,
       1997.0,
-      1997.0,
       2251.0,
       2251.0,
       2251.0,
@@ -1350,6 +1350,7 @@
       2251.0,
       2251.0,
       2251.0,
+      2636.0,
       2636.0,
       2636.0,
       2636.0,
@@ -1378,7 +1379,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-15T21:40:03.829943+00:00",
+      "detected_at": "2026-05-15T21:59:51.385136+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
@@ -1445,6 +1446,7 @@
       2598.0,
       2598.0,
       2598.0,
+      2598.0,
       2598.0
     ],
     "last_alert_at": null,
@@ -1457,7 +1459,7 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-15T17:09:12.213900+00:00",
+      "detected_at": "2026-05-15T21:59:52.545968+00:00",
       "actionable_url": false,
       "cabin": "business",
       "provider_note": null
