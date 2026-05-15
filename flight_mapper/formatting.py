@@ -20,6 +20,34 @@ def format_brl(value: float) -> str:
     return f"R$ {raw.replace(',', '.')}"
 
 
+def format_usd(value: float) -> str:
+    """Formata `2079.0` -> `US$ 2,079` (separador de milhar US)."""
+    return f"US$ {value:,.0f}"
+
+
+def format_price(
+    amount: float, currency: str, amount_brl_estimated: float | None
+) -> str:
+    """Exibe o preço sem nunca mostrar `R$` sem certeza.
+
+    - BRL confirmado: `R$ 1.207`.
+    - USD: `US$ 2,079 (≈ R$ 11.227 — conversão estimada)`. O valor em
+      USD é o número primário; o BRL aparece só como estimativa rotulada.
+    """
+    cur = (currency or "").strip().upper()
+    if cur == "BRL":
+        return format_brl(amount)
+    if cur == "USD":
+        usd = format_usd(amount)
+        if amount_brl_estimated is not None:
+            return (
+                f"{usd} (≈ {format_brl(amount_brl_estimated)} "
+                f"— conversão estimada)"
+            )
+        return f"{usd} (conversão BRL indisponível)"
+    return f"{amount:,.0f} {cur or '?'} (moeda não confirmada)"
+
+
 def format_source(source: str | None) -> str | None:
     """Mapeia o source do provider para label humano. None => None (chamador omite linha)."""
     if not source:

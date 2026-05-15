@@ -1,10 +1,15 @@
-"""Tetos de preço absoluto por rota.
+"""Tetos de preço por rota.
 
-Valores iniciais calibrados ~5-10% abaixo dos preços observados em
-`data/price_history.json` no momento da configuração. Não disparam
-alerta nos preços atuais — só em queda real.
+ATENÇÃO — moeda: estes valores foram calibrados contra
+`data/price_history.json`, que continha preços do Travelpayouts em
+**USD** (o endpoint ignora `currency=brl`). Portanto os números abaixo
+estão em **USD**, não em BRL, apesar do sufixo `_brl` mantido por
+compatibilidade de schema.
 
-Ajuste manualmente conforme acompanhar o histórico real das rotas.
+A correção de moeda normaliza o preço da cotação para BRL e escala
+estes tetos por `USD_BRL_RATE` (ver `scaled_levels`), preservando
+exatamente o comportamento de disparo original — só tornando a moeda
+honesta. Não disparam alerta nos preços atuais — só em queda real.
 """
 
 from __future__ import annotations
@@ -70,6 +75,22 @@ def levels_for(route_key: str) -> dict | None:
     if route_key in ABSOLUTE_CEILING_BRL:
         return {"excellent_brl": None, "good_brl": ABSOLUTE_CEILING_BRL[route_key]}
     return None
+
+
+def scaled_levels(levels: dict | None, rate: float | None) -> dict | None:
+    """Escala tetos USD→BRL multiplicando por `rate`.
+
+    Os valores em ROUTE_THRESHOLDS/ABSOLUTE_CEILING_BRL são USD (ver
+    docstring do módulo). Para comparar com preço já normalizado em BRL,
+    multiplicamos por `rate`. Sem `rate` confiável devolvemos `None` —
+    o chamador deve bloquear o alerta.
+    """
+    if levels is None or rate is None:
+        return None
+    out: dict = {}
+    for key, value in levels.items():
+        out[key] = None if value is None else round(float(value) * rate, 2)
+    return out
 
 
 def hot_routes() -> list[Route]:

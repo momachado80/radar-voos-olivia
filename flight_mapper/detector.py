@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from .state import RouteHistory
-from .thresholds import levels_for
+from .thresholds import levels_for, scaled_levels
 
 
 LEVEL_EXCELLENT = "excellent"
@@ -133,13 +133,20 @@ def evaluate_ceiling(
     now: datetime | None = None,
     *,
     priority: bool = False,
+    brl_rate: float | None = None,
 ) -> Decision:
     """Alerta com nível Excelente ou Bom conforme `ROUTE_THRESHOLDS`.
 
     Compat: rotas só em `ABSOLUTE_CEILING_BRL` viram nível Bom usando o teto antigo.
+
+    `current_price` chega normalizado em BRL. Os tetos configurados são
+    USD (ver thresholds.py); quando `brl_rate` é informado eles são
+    escalados USD→BRL para a comparação ser na mesma moeda.
     """
     now = now or datetime.now(timezone.utc)
     levels = levels_for(route_key)
+    if brl_rate is not None:
+        levels = scaled_levels(levels, brl_rate)
     if levels is None:
         return Decision(
             alert=False,

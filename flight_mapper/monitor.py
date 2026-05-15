@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from .airports import is_actionable_url
+from .currency import get_usd_brl_rate
 from .cycle_state import CycleState
 from .detector import evaluate, evaluate_ceiling
 from .notifier import TelegramNotifier
@@ -13,7 +14,7 @@ from .providers import FlightProvider, Quote
 from .regions import Route, all_routes, is_priority
 from .score import compute_opportunity_score
 from .state import PriceStore
-from .thresholds import HOT_ROUTE_KEYS, levels_for
+from .thresholds import HOT_ROUTE_KEYS, levels_for, scaled_levels
 
 
 CONFIRMATION_TOLERANCE_PCT = 0.05  # 5%: segunda quote dentro disso ainda confirma
@@ -30,11 +31,16 @@ class MonitorResult:
     non_actionable_links_skipped: int = 0
     actionable_links_generated: int = 0
     manual_fallback_alerts_sent: int = 0
+    currency_blocked: int = 0
 
 
 def _quote_to_dict(quote: Quote, now: datetime, *, provider_note: str | None = None) -> dict:
     return {
         "price_brl": quote.price_brl,
+        "amount": quote.amount,
+        "currency": quote.currency,
+        "amount_brl_estimated": quote.amount_brl_estimated,
+        "fx_rate": quote.fx_rate,
         "origin": quote.route.origin,
         "destination": quote.route.destination,
         "departure_date": quote.departure_date,
@@ -164,9 +170,12 @@ class Monitor:
         non_actionable_links_skipped = 0
         actionable_links_generated = 0
         manual_fallback_alerts_sent = 0
+        currency_blocked = 0
 
         def _now():
             return datetime.now(timezone.utc)
+
+        brl_rate = get_usd_brl_rate()
 
         for route in routes:
             priority = is_priority(route)
@@ -177,7 +186,34 @@ class Monitor:
             quotes_received += 1
             history = self.store.get(route.key)
 
-            ceiling_decision = evaluate_ceiling(history, quote.price_brl, route.key, priority=priority)
+            # GATE DE MOEDA: sem BRL confiável, NÃO avaliamos, NÃO empurramos
+            # para o histórico e NUNCA enviamos Telegram. Evita o bug de
+            # tratar USD como BRL e mandar "R$ 2.079" para tarifa US$ 2.079.
+            # Cotações já em BRL (Kiwi/Mock) têm amount_brl_estimated setado
+            # e passam direto — só USD sem câmbio confiável é bloqueado.
+            if quote.amount_brl_estimated is None:
+                currency_blocked += 1
+                notes.append(
+                    f"{route.origin}→{route.destination}: ALERTA BLOQUEADO — "
+                    f"moeda não confiável (currency={quote.currency}, "
+                    f"USD_BRL_RATE ausente/inválido). Nenhum alerta enviado."
+                )
+                continue
+
+            # Normaliza a cotação para BRL antes de qualquer comparação.
+            quote.price_brl = quote.amount_brl_estimated
+
+            # Só escalamos tetos USD→BRL quando houve conversão de moeda.
+            # Cotação nativa em BRL usa os tetos como estão (comportamento
+            # legado preservado).
+            effective_rate = (
+                brl_rate if quote.currency.upper() != "BRL" else None
+            )
+
+            ceiling_decision = evaluate_ceiling(
+                history, quote.price_brl, route.key,
+                priority=priority, brl_rate=effective_rate,
+            )
             legacy_decision = evaluate(history, quote.price_brl, priority=priority)
             decision = ceiling_decision if ceiling_decision.alert else legacy_decision
 
@@ -222,6 +258,10 @@ class Monitor:
                         departure_date=quote_to_send.departure_date,
                         return_date=quote_to_send.return_date,
                         source="manual_purchase",
+                        amount=quote_to_send.amount,
+                        currency=quote_to_send.currency,
+                        amount_brl_estimated=quote_to_send.amount_brl_estimated,
+                        fx_rate=quote_to_send.fx_rate,
                     )
                     is_manual_fallback = True
                 else:
@@ -237,9 +277,12 @@ class Monitor:
                 actionable_links_generated += 1
 
             # Score informativo embutido na decision (não filtra)
+            score_levels = levels_for(route.key)
+            if effective_rate is not None:
+                score_levels = scaled_levels(score_levels, effective_rate)
             decision.score = compute_opportunity_score(
                 quote_to_send.price_brl,
-                levels_for(route.key),
+                score_levels,
                 history,
                 actionable_url=not is_manual_fallback,
                 confirmed=self.confirm_alerts,
@@ -280,6 +323,7 @@ class Monitor:
             non_actionable_links_skipped=non_actionable_links_skipped,
             actionable_links_generated=actionable_links_generated,
             manual_fallback_alerts_sent=manual_fallback_alerts_sent,
+            currency_blocked=currency_blocked,
         )
 
     def run_cycle(self) -> MonitorResult:
