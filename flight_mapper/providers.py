@@ -11,6 +11,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from .airports import build_search_url
+from .currency import CURRENCY_BRL, CURRENCY_USD, get_usd_brl_rate, to_brl
 from .regions import Route
 
 
@@ -22,6 +23,24 @@ class Quote:
     departure_date: str
     return_date: str | None
     source: str | None = None
+    # Campos explícitos de moeda. `amount` é o valor cru da API na moeda
+    # `currency`. `amount_brl_estimated` é a conversão para BRL (ou None
+    # quando não confiável → Monitor bloqueia o alerta).
+    amount: float | None = None
+    currency: str = CURRENCY_BRL
+    amount_brl_estimated: float | None = None
+    fx_rate: float | None = None
+
+    def __post_init__(self) -> None:
+        # Caminho legado/testes: só `price_brl` informado → assume BRL
+        # confirmado (Kiwi honra curr=BRL; Mock é sintético em BRL).
+        if self.amount is None:
+            self.amount = self.price_brl
+        if (
+            self.currency == CURRENCY_BRL
+            and self.amount_brl_estimated is None
+        ):
+            self.amount_brl_estimated = float(self.amount)
 
 
 class FlightProvider(Protocol):
@@ -92,11 +111,18 @@ class TravelpayoutsProvider:
     def __init__(self, token: str):
         self.token = token
 
+    # Evidência real: o endpoint ignora currency=brl e devolve USD
+    # (valores batem com Kayak em US$ e ~6x menores que o BRL real do
+    # Google Flights). Pedimos `usd` explicitamente e rotulamos a moeda
+    # honestamente como USD; a conversão para BRL é feita aqui via câmbio
+    # de runtime (sem rede).
+    API_CURRENCY = CURRENCY_USD
+
     def quote(self, route: Route) -> Quote | None:
         params = {
             "origin": route.origin,
             "destination": route.destination,
-            "currency": "brl",
+            "currency": "usd",
             "trip_class": 1,
             "sorting": "price",
             "direct": "false",
@@ -127,13 +153,23 @@ class TravelpayoutsProvider:
         # Alerta só sai se outra fonte (Kiwi) fornecer deep_link acionável
         # (cross-fetch fica para PR seguinte; por hora, deep_link=None força
         # o monitor a contar non_actionable_links_skipped e não enviar Telegram).
+        amount = float(item["price"])
+        rate = get_usd_brl_rate()
+        brl_estimated = to_brl(amount, self.API_CURRENCY, rate)
         return Quote(
             route=route,
-            price_brl=float(item["price"]),
+            # price_brl mantém compat de tipo (float). Quando a moeda não
+            # é confiável (brl_estimated is None) o Monitor bloqueia antes
+            # de qualquer uso, então este placeholder nunca chega ao alerta.
+            price_brl=brl_estimated if brl_estimated is not None else amount,
             deep_link=None,
             departure_date=departure,
             return_date=return_date,
             source="travelpayouts",
+            amount=amount,
+            currency=self.API_CURRENCY,
+            amount_brl_estimated=brl_estimated,
+            fx_rate=rate,
         )
 
 

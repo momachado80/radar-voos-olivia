@@ -12,7 +12,13 @@ from urllib.request import Request, urlopen
 from .airports import is_actionable_url, route_airport_label, route_city_label
 from .auxiliary_links import build_auxiliary_search_links
 from .detector import CRITERION_CEILING, LEVEL_EXCELLENT, LEVEL_GOOD, Decision
-from .formatting import format_brl, format_detection_time, format_source
+from .formatting import (
+    format_brl,
+    format_detection_time,
+    format_fx_line,
+    format_price,
+    format_source,
+)
 from .providers import Quote
 
 
@@ -51,20 +57,36 @@ def format_alert(
     city_line = route_city_label(quote.route.origin, quote.route.destination)
     iata_line = route_airport_label(quote.route.origin, quote.route.destination)
 
+    price_display = format_price(
+        quote.amount if quote.amount is not None else quote.price_brl,
+        quote.currency,
+        quote.amount_brl_estimated,
+        quote.fx_rate,
+    )
     is_ceiling = decision.criterion == CRITERION_CEILING and decision.threshold is not None
     if is_ceiling:
         price_line = (
-            f"💰 {format_brl(quote.price_brl)} "
+            f"💰 {price_display} "
             f"(alvo {format_brl(decision.threshold)})"
         )
     else:
         if decision.average is not None and decision.drop_pct is not None:
             price_line = (
-                f"💰 {format_brl(quote.price_brl)} "
+                f"💰 {price_display} "
                 f"(média {format_brl(decision.average)}, queda {decision.drop_pct:.0%})"
             )
         else:
-            price_line = f"💰 {format_brl(quote.price_brl)}"
+            price_line = f"💰 {price_display}"
+
+    # Regra 6/7: câmbio em linha própria sempre que houve conversão USD→BRL
+    # (vale também p/ manual fallback, que preserva currency/fx_rate).
+    fx_line = (
+        format_fx_line(quote.fx_rate)
+        if quote.currency.upper() == "USD"
+        else None
+    )
+    if fx_line:
+        price_line = f"{price_line}\n{fx_line}"
 
     criterion_line = _level_criterion_line(decision)
     dates = quote.departure_date + (f" → {quote.return_date}" if quote.return_date else "")

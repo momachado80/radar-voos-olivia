@@ -379,6 +379,17 @@ def test_regional_section_renames_asia_for_display(tmp_path: Path):
 def test_status_uses_brl_with_dot_separator(tmp_path: Path):
     store = PriceStore(tmp_path / "h.json")
     _populate(store, {"GRU-MIA-business": [10000.0]})
+    # Moeda comprovadamente BRL (Kiwi) → relatório pode exibir R$.
+    h = store.get("GRU-MIA-business")
+    h.last_quote = {
+        "origin": "GRU",
+        "destination": "MIA",
+        "currency": "BRL",
+        "amount": 10000.0,
+        "amount_brl_estimated": 10000.0,
+        "departure_date": "2026-11-10",
+    }
+    store.save()
     notifier = _StubNotifier()
 
     maybe_send_status(
@@ -392,6 +403,25 @@ def test_status_uses_brl_with_dot_separator(tmp_path: Path):
     body = notifier.sent[0]
     assert "R$ 10.000" in body
     assert "R$ 10,000" not in body
+
+
+def test_status_does_not_show_plain_brl_for_unproven_currency(tmp_path: Path):
+    """Test 7: histórico legado (sem moeda comprovada) NÃO vira R$ enganoso."""
+    store = PriceStore(tmp_path / "h.json")
+    _populate(store, {"GRU-MIA-business": [1919.0]})  # valor "USD" do bug
+    notifier = _StubNotifier()
+
+    maybe_send_status(
+        result=_result(),
+        store=store,
+        state=StatusState(),
+        notifier=notifier,
+        state_path=tmp_path / "status.json",
+    )
+
+    body = notifier.sent[0]
+    assert "R$ 1.919" not in body
+    assert "moeda não confirmada" in body
 
 
 def test_top3_handles_unknown_airport(tmp_path: Path):
