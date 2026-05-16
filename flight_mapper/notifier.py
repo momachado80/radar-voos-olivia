@@ -12,7 +12,13 @@ from urllib.request import Request, urlopen
 from .airports import is_actionable_url, route_airport_label, route_city_label
 from .auxiliary_links import build_auxiliary_search_links
 from .detector import CRITERION_CEILING, LEVEL_EXCELLENT, LEVEL_GOOD, Decision
-from .formatting import format_brl, format_detection_time, format_price, format_source
+from .formatting import (
+    format_brl,
+    format_detection_time,
+    format_fx_line,
+    format_price,
+    format_source,
+)
 from .providers import Quote
 
 
@@ -71,6 +77,16 @@ def format_alert(
             )
         else:
             price_line = f"💰 {price_display}"
+
+    # Regra 6/7: câmbio em linha própria sempre que houve conversão USD→BRL
+    # (vale também p/ manual fallback, que preserva currency/fx_rate).
+    fx_line = (
+        format_fx_line(quote.fx_rate)
+        if quote.currency.upper() == "USD"
+        else None
+    )
+    if fx_line:
+        price_line = f"{price_line}\n{fx_line}"
 
     criterion_line = _level_criterion_line(decision)
     dates = quote.departure_date + (f" → {quote.return_date}" if quote.return_date else "")

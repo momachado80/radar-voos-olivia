@@ -21,13 +21,21 @@ def format_brl(value: float) -> str:
 
 
 def format_usd(value: float) -> str:
-    """Formata `2079.0` -> `US$ 2,079` (separador de milhar US)."""
-    return f"US$ {value:,.0f}"
+    """Formata `1878.0` -> `US$ 1.878` (separador de milhar BR p/ leitura)."""
+    raw = f"{value:,.0f}"
+    return f"US$ {raw.replace(',', '.')}"
 
 
-def _fmt_rate(rate: float) -> str:
-    """`5.4` -> `5,40` (vírgula decimal BR)."""
-    return f"{rate:.2f}".replace(".", ",")
+def format_rate(rate: float) -> str:
+    """`5.5` -> `5.50` (ponto decimal, como no env USD_BRL_RATE)."""
+    return f"{rate:.2f}"
+
+
+def format_fx_line(fx_rate: float | None) -> str | None:
+    """Linha de câmbio do alerta: `Câmbio usado: USD_BRL_RATE=5.50`."""
+    if fx_rate is None:
+        return None
+    return f"Câmbio usado: USD_BRL_RATE={format_rate(fx_rate)}"
 
 
 def format_price(
@@ -39,9 +47,9 @@ def format_price(
     """Exibe o preço sem nunca mostrar `R$` sem certeza.
 
     - BRL confirmado: `R$ 1.207`.
-    - USD: `US$ 2,079 (≈ R$ 11.227 · câmbio USD_BRL_RATE=5,40)`. O valor
-      em USD é o número primário; o BRL aparece só como estimativa
-      rotulada com o câmbio usado.
+    - USD: `US$ 1.878 ≈ R$ 10.329` (valor USD primário; BRL só como
+      estimativa). O câmbio usado vai em linha própria via
+      `format_fx_line` (Regra 6).
     - Moeda não comprovada: nunca em R$.
     """
     cur = (currency or "").strip().upper()
@@ -50,12 +58,7 @@ def format_price(
     if cur == "USD":
         usd = format_usd(amount)
         if amount_brl_estimated is not None:
-            tail = f"≈ {format_brl(amount_brl_estimated)}"
-            if fx_rate is not None:
-                tail += f" · câmbio USD_BRL_RATE={_fmt_rate(fx_rate)}"
-            else:
-                tail += " — conversão estimada"
-            return f"{usd} ({tail})"
+            return f"{usd} ≈ {format_brl(amount_brl_estimated)}"
         return f"{usd} (conversão BRL indisponível — USD_BRL_RATE ausente)"
     return f"{amount:,.0f} {cur or '?'} (moeda não confirmada)"
 

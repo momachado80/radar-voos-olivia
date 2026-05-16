@@ -72,11 +72,10 @@ def _monitor(provider, notifier, store):
 # ---------- USD nunca é formatado como R$ ----------
 
 def test_usd_price_never_rendered_as_plain_brl():
-    rendered = format_price(2079.0, CURRENCY_USD, 11226.6)
-    assert rendered.startswith("US$ 2,079")
-    assert "conversão estimada" in rendered
-    # Não pode haver "R$" sem o qualificador de estimativa
-    assert "R$" in rendered  # aparece, mas só dentro de "≈ ... estimada"
+    rendered = format_price(2079.0, CURRENCY_USD, 11226.6, 5.4)
+    assert rendered == "US$ 2.079 ≈ R$ 11.227"
+    # nunca o número USD cru como "R$ 2.079"
+    assert "R$ 2.079" not in rendered
     assert "≈ R$" in rendered
 
 
@@ -88,10 +87,9 @@ def test_usd_alert_message_shows_usd_and_estimated_brl(monkeypatch, tmp_path: Pa
         threshold=2100.0 * 5.4, level=LEVEL_GOOD, score=70,
     )
     body = format_alert(quote, decision, priority=True)
-    # Rule 6: valor original US$ + estimativa ≈ R$ + câmbio usado
-    assert "US$ 2,079" in body
-    assert "≈ R$" in body
-    assert "câmbio USD_BRL_RATE=5,40" in body
+    # Rule 6: valor original US$ + estimativa ≈ R$ + linha de câmbio
+    assert "US$ 2.079 ≈ R$ 11.227" in body
+    assert "Câmbio usado: USD_BRL_RATE=5.40" in body
     # jamais "R$ 2.079" cru (o bug original)
     assert "R$ 2.079" not in body.replace("≈ R$", "")
 
@@ -140,7 +138,10 @@ def test_alert_blocked_when_no_fx_rate(monkeypatch, tmp_path: Path):
     assert result.currency_blocked == 1
     assert result.alerts_sent == 0
     assert notifier.alerts == []
-    assert any("ALERTA BLOQUEADO" in n for n in result.notes)
+    assert any(
+        "alerta bloqueado: câmbio USD_BRL_RATE ausente ou inválido" in n
+        for n in result.notes
+    )
     # nada empurrado para o histórico
     assert store.get("GRU-JFK-business").prices == []
 
@@ -175,10 +176,28 @@ def test_no_misleading_brl_ever_sent_for_usd(monkeypatch, tmp_path: Path):
     _monitor(provider, notifier, store).run_once([_ROUTE])
     sent_quote, decision = notifier.alerts[0]
     body = format_alert(sent_quote, decision, priority=True)
-    assert "US$ 1,500" in body
-    assert "câmbio USD_BRL_RATE=5,40" in body
+    assert "US$ 1.500 ≈ R$ 8.100" in body
+    assert "Câmbio usado: USD_BRL_RATE=5.40" in body
     # o número USD cru jamais aparece como "R$ 1.500"
     assert "R$ 1.500" not in body
+
+
+def test_manual_fallback_shows_usd_and_estimated_brl(monkeypatch, tmp_path: Path):
+    """Test 9 / Regra 7: manual fallback (sem link comercial) também mostra
+    US$ + ≈ R$ + linha de câmbio, nunca R$ enganoso."""
+    monkeypatch.setenv(USD_BRL_RATE_ENV, "5.5")
+    provider = _UsdProvider(1878.0)  # GRU→LHR business do bug real
+    notifier = _CaptureNotifier()
+    store = PriceStore(tmp_path / "h.json")
+    _monitor(provider, notifier, store).run_once([_ROUTE])
+
+    sent_quote, decision = notifier.alerts[0]
+    assert sent_quote.source == "manual_purchase"
+    assert sent_quote.currency == CURRENCY_USD
+    body = format_alert(sent_quote, decision, priority=True)
+    assert "US$ 1.878 ≈ R$ 10.329" in body
+    assert "Câmbio usado: USD_BRL_RATE=5.50" in body
+    assert "R$ 1.878" not in body  # nunca o USD cru como R$
 
 
 def test_old_price_history_without_currency_loads(monkeypatch, tmp_path: Path):

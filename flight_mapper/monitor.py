@@ -194,9 +194,9 @@ class Monitor:
             if quote.amount_brl_estimated is None:
                 currency_blocked += 1
                 notes.append(
-                    f"{route.origin}→{route.destination}: ALERTA BLOQUEADO — "
-                    f"moeda não confiável (currency={quote.currency}, "
-                    f"USD_BRL_RATE ausente/inválido). Nenhum alerta enviado."
+                    f"{route.origin}→{route.destination}: "
+                    f"alerta bloqueado: câmbio USD_BRL_RATE ausente ou inválido "
+                    f"(currency={quote.currency})"
                 )
                 continue
 
