@@ -12,7 +12,7 @@ from urllib.request import Request, urlopen
 
 from .airports import build_search_url
 from .currency import CURRENCY_BRL, CURRENCY_USD, get_usd_brl_rate, to_brl
-from .regions import Route
+from .regions import Cabin, Route, TripType
 
 
 @dataclass
@@ -30,6 +30,14 @@ class Quote:
     currency: str = CURRENCY_BRL
     amount_brl_estimated: float | None = None
     fx_rate: float | None = None
+    # Cabine/trip honestos. Default `UNKNOWN`/`ROUND_TRIP` + `cabin_confirmed
+    # =False`: ainda não consumidos nesta fase (zero mudança de comportamento);
+    # providers passam a preenchê-los nas fases seguintes. `suspicious`
+    # sinaliza preço economicamente improvável (piso de sanidade, fase D).
+    cabin: Cabin = Cabin.UNKNOWN
+    trip_type: TripType = TripType.ROUND_TRIP
+    cabin_confirmed: bool = False
+    suspicious: bool = False
 
     def __post_init__(self) -> None:
         # Caminho legado/testes: só `price_brl` informado → assume BRL
