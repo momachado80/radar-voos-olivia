@@ -31,6 +31,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TRAVELPAYOUTS_TOKEN: ${{ secrets.TRAVELPAYOUTS_TOKEN }}
           KIWI_API_KEY: ${{ secrets.KIWI_API_KEY }}
+          USD_BRL_RATE: ${{ vars.USD_BRL_RATE }}
         run: python -m flight_mapper cycle
 
       - name: Commit state
