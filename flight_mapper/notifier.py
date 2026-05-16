@@ -55,6 +55,7 @@ def format_alert(
         quote.amount if quote.amount is not None else quote.price_brl,
         quote.currency,
         quote.amount_brl_estimated,
+        quote.fx_rate,
     )
     is_ceiling = decision.criterion == CRITERION_CEILING and decision.threshold is not None
     if is_ceiling:

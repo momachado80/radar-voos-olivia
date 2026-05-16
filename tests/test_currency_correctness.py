@@ -88,9 +88,10 @@ def test_usd_alert_message_shows_usd_and_estimated_brl(monkeypatch, tmp_path: Pa
         threshold=2100.0 * 5.4, level=LEVEL_GOOD, score=70,
     )
     body = format_alert(quote, decision, priority=True)
+    # Rule 6: valor original US$ + estimativa ≈ R$ + câmbio usado
     assert "US$ 2,079" in body
     assert "≈ R$" in body
-    assert "conversão estimada" in body
+    assert "câmbio USD_BRL_RATE=5,40" in body
     # jamais "R$ 2.079" cru (o bug original)
     assert "R$ 2.079" not in body.replace("≈ R$", "")
 
@@ -142,6 +143,95 @@ def test_alert_blocked_when_no_fx_rate(monkeypatch, tmp_path: Path):
     assert any("ALERTA BLOQUEADO" in n for n in result.notes)
     # nada empurrado para o histórico
     assert store.get("GRU-JFK-business").prices == []
+
+
+def test_alert_blocked_when_rate_invalid(monkeypatch, tmp_path: Path):
+    monkeypatch.setenv(USD_BRL_RATE_ENV, "abc")
+    notifier = _CaptureNotifier()
+    store = PriceStore(tmp_path / "h.json")
+    result = _monitor(_UsdProvider(1500.0), notifier, store).run_once([_ROUTE])
+    assert result.currency_blocked == 1
+    assert result.alerts_sent == 0
+    assert notifier.alerts == []
+
+
+def test_alert_blocked_when_rate_zero_or_negative(monkeypatch, tmp_path: Path):
+    for bad in ("0", "0.0", "-5.4"):
+        monkeypatch.setenv(USD_BRL_RATE_ENV, bad)
+        notifier = _CaptureNotifier()
+        store = PriceStore(tmp_path / f"h_{bad}.json")
+        result = _monitor(_UsdProvider(1500.0), notifier, store).run_once([_ROUTE])
+        assert result.currency_blocked == 1, bad
+        assert result.alerts_sent == 0, bad
+        assert notifier.alerts == [], bad
+
+
+def test_no_misleading_brl_ever_sent_for_usd(monkeypatch, tmp_path: Path):
+    """Test 9: alerta de preço USD nunca sai com R$ cru do valor USD."""
+    monkeypatch.setenv(USD_BRL_RATE_ENV, "5.4")
+    provider = _UsdProvider(1500.0)
+    notifier = _CaptureNotifier()
+    store = PriceStore(tmp_path / "h.json")
+    _monitor(provider, notifier, store).run_once([_ROUTE])
+    sent_quote, decision = notifier.alerts[0]
+    body = format_alert(sent_quote, decision, priority=True)
+    assert "US$ 1,500" in body
+    assert "câmbio USD_BRL_RATE=5,40" in body
+    # o número USD cru jamais aparece como "R$ 1.500"
+    assert "R$ 1.500" not in body
+
+
+def test_old_price_history_without_currency_loads(monkeypatch, tmp_path: Path):
+    """Test 8: price_history.json no schema antigo (sem campos de moeda)
+    carrega e o relatório diário não mostra R$ enganoso."""
+    import json
+
+    from flight_mapper.status import StatusState, maybe_send_status
+
+    hist = tmp_path / "price_history.json"
+    hist.write_text(
+        json.dumps(
+            {
+                "GRU-JFK-business": {
+                    "prices": [1919.0, 1917.0],
+                    "last_alert_at": None,
+                    "last_alert_price": None,
+                    "last_quote": {
+                        "origin": "GRU",
+                        "destination": "JFK",
+                        "price_brl": 1917.0,
+                        "departure_date": "2026-11-10",
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    store = PriceStore(hist)
+    assert store.get("GRU-JFK-business").prices == [1919.0, 1917.0]
+
+    class _Stub:
+        def __init__(self):
+            self.sent = []
+
+        def send(self, text):
+            self.sent.append(text)
+            return True
+
+    notifier = _Stub()
+    from flight_mapper.monitor import MonitorResult
+
+    maybe_send_status(
+        result=MonitorResult(scanned=10, quotes_received=5, alerts_sent=0),
+        store=store,
+        state=StatusState(),
+        notifier=notifier,
+        state_path=tmp_path / "status.json",
+    )
+    body = notifier.sent[0]
+    assert "R$ 1.917" not in body
+    assert "R$ 1.919" not in body
+    assert "moeda não confirmada" in body
 
 
 def test_alert_blocked_when_currency_unknown(monkeypatch, tmp_path: Path):

@@ -8,12 +8,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .airports import humanize_route, is_actionable_url
-from .formatting import format_brl
+from .formatting import format_brl, format_price
 from .monitor import MonitorResult
 from .notifier import TelegramNotifier
 from .score import compute_opportunity_score
 from .state import PriceStore, RouteHistory
-from .thresholds import HOT_ROUTE_KEYS, levels_for
+from .thresholds import HOT_ROUTE_KEYS, levels_for, scaled_levels
 from .watchlists import Watchlist, best_per_watchlist
 
 
@@ -77,9 +77,34 @@ def _actionable_link_from_history(history: RouteHistory, origin: str, destinatio
     return None
 
 
-def _format_top3_line(index: int, key: str, price: float, link: str | None = None) -> str:
+def _price_label(history: RouteHistory, fallback_price: float) -> str:
+    """Rótulo de preço honesto p/ relatório.
+
+    Usa a moeda registrada em `last_quote`. Nunca exibe `R$` cru quando
+    a moeda não é comprovadamente BRL (entradas legadas sem metadados de
+    moeda eram USD rotulado como BRL — o bug que estamos corrigindo).
+    """
+    lq = history.last_quote if isinstance(history.last_quote, dict) else None
+    if not lq or not lq.get("currency"):
+        # Histórico legado: moeda não comprovada → não exibir como R$.
+        return f"{fallback_price:,.0f} (moeda não confirmada)"
+    currency = str(lq.get("currency"))
+    amount = lq.get("amount")
+    if amount is None:
+        amount = fallback_price
+    return format_price(
+        float(amount),
+        currency,
+        lq.get("amount_brl_estimated"),
+        lq.get("fx_rate"),
+    )
+
+
+def _format_top3_line(
+    index: int, key: str, history: RouteHistory, price: float, link: str | None = None
+) -> str:
     parts = _split_route_key(key)
-    price_str = format_brl(price)
+    price_str = _price_label(history, price)
     if parts is None:
         return f"{index}. {key} — {price_str}"
     origin, destination = parts
@@ -90,9 +115,15 @@ def _format_top3_line(index: int, key: str, price: float, link: str | None = Non
     return base
 
 
-def _format_watchlist_line(watchlist: Watchlist, key: str, price: float, link: str | None = None) -> str:
+def _format_watchlist_line(
+    watchlist: Watchlist,
+    key: str,
+    history: RouteHistory,
+    price: float,
+    link: str | None = None,
+) -> str:
     parts = _split_route_key(key)
-    price_str = format_brl(price)
+    price_str = _price_label(history, price)
     if parts is None:
         return f"• {watchlist.label}: {key} — {price_str}"
     origin, destination = parts
@@ -113,10 +144,14 @@ def _compute_average_score(store: PriceStore, keys: list[str]) -> int | None:
         price = history.prices[-1]
         lq = history.last_quote if isinstance(history.last_quote, dict) else None
         actionable = bool(lq.get("actionable_url")) if lq else False
+        levels = levels_for(key)
+        # Preço convertido de USD → tetos USD precisam escalar p/ BRL.
+        if lq and str(lq.get("currency", "")).upper() == "USD" and lq.get("fx_rate"):
+            levels = scaled_levels(levels, lq.get("fx_rate"))
         scores.append(
             compute_opportunity_score(
                 price,
-                levels_for(key),
+                levels,
                 history,
                 actionable_url=actionable,
                 confirmed=False,  # heartbeat não confirma; usa flag conservadora
@@ -147,6 +182,7 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
             _format_top3_line(
                 i + 1,
                 key,
+                store.get(key),
                 price,
                 link=_actionable_link_from_history(
                     store.get(key), *(_split_route_key(key) or ("", ""))
@@ -169,6 +205,7 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
             _format_watchlist_line(
                 wl,
                 key,
+                store.get(key),
                 price,
                 link=_actionable_link_from_history(
                     store.get(key), *(_split_route_key(key) or ("", ""))

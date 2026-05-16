@@ -25,14 +25,24 @@ def format_usd(value: float) -> str:
     return f"US$ {value:,.0f}"
 
 
+def _fmt_rate(rate: float) -> str:
+    """`5.4` -> `5,40` (vírgula decimal BR)."""
+    return f"{rate:.2f}".replace(".", ",")
+
+
 def format_price(
-    amount: float, currency: str, amount_brl_estimated: float | None
+    amount: float,
+    currency: str,
+    amount_brl_estimated: float | None,
+    fx_rate: float | None = None,
 ) -> str:
     """Exibe o preço sem nunca mostrar `R$` sem certeza.
 
     - BRL confirmado: `R$ 1.207`.
-    - USD: `US$ 2,079 (≈ R$ 11.227 — conversão estimada)`. O valor em
-      USD é o número primário; o BRL aparece só como estimativa rotulada.
+    - USD: `US$ 2,079 (≈ R$ 11.227 · câmbio USD_BRL_RATE=5,40)`. O valor
+      em USD é o número primário; o BRL aparece só como estimativa
+      rotulada com o câmbio usado.
+    - Moeda não comprovada: nunca em R$.
     """
     cur = (currency or "").strip().upper()
     if cur == "BRL":
@@ -40,11 +50,13 @@ def format_price(
     if cur == "USD":
         usd = format_usd(amount)
         if amount_brl_estimated is not None:
-            return (
-                f"{usd} (≈ {format_brl(amount_brl_estimated)} "
-                f"— conversão estimada)"
-            )
-        return f"{usd} (conversão BRL indisponível)"
+            tail = f"≈ {format_brl(amount_brl_estimated)}"
+            if fx_rate is not None:
+                tail += f" · câmbio USD_BRL_RATE={_fmt_rate(fx_rate)}"
+            else:
+                tail += " — conversão estimada"
+            return f"{usd} ({tail})"
+        return f"{usd} (conversão BRL indisponível — USD_BRL_RATE ausente)"
     return f"{amount:,.0f} {cur or '?'} (moeda não confirmada)"
 
 

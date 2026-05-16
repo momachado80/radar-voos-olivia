@@ -381,12 +381,27 @@ def cmd_preview_links(args: argparse.Namespace) -> int:
 # ============================================================
 
 
+_CURRENCY_DISCLAIMER = (
+    "⚠️ MOEDA: valores refletem a moeda de origem registrada no histórico. "
+    "Entradas legadas (anteriores à correção de moeda) vêm do Travelpayouts "
+    "em USD e NÃO são BRL comprovado — trate como estimativa. "
+    "Após a correção, cada cotação registra currency/amount_brl_estimated/"
+    "fx_rate; defina USD_BRL_RATE para conversão confiável."
+)
+
+
+def _print_currency_disclaimer() -> None:
+    print(_CURRENCY_DISCLAIMER)
+    print()
+
+
 def _load_diag_store() -> "PriceStore | None":
     """Carrega o store. Devolve None se vazio (sem rotas no histórico)."""
     config = Config.from_env()
     store = PriceStore(config.history_path)
     if not list(store.keys()):
         return None
+    _print_currency_disclaimer()
     return store
 
 

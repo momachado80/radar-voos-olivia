@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from .currency import get_usd_brl_rate
+
 
 @dataclass
 class Config:
@@ -15,6 +17,9 @@ class Config:
     kiwi_api_key: str | None
     data_dir: Path
     status_throttle_hours: int = 24
+    # Câmbio USD→BRL obrigatório p/ converter preços Travelpayouts (USD).
+    # None ⇒ alertas com preço USD são bloqueados (ver Monitor).
+    usd_brl_rate: float | None = None
 
     @classmethod
     def from_env(cls, repo_root: Path | None = None) -> "Config":
@@ -31,6 +36,7 @@ class Config:
             kiwi_api_key=os.environ.get("KIWI_API_KEY"),
             data_dir=root / "data",
             status_throttle_hours=throttle,
+            usd_brl_rate=get_usd_brl_rate(),
         )
 
     @property
