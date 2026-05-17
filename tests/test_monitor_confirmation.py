@@ -13,7 +13,7 @@ from flight_mapper.detector import (
 )
 from flight_mapper.monitor import Monitor
 from flight_mapper.providers import Quote
-from flight_mapper.regions import Route
+from flight_mapper.regions import Cabin, Route
 from flight_mapper.state import PriceStore
 
 
@@ -52,6 +52,8 @@ def _quote(price: float, route: Route) -> Quote:
         departure_date="2026-06-15",
         return_date="2026-06-22",
         source="travelpayouts",
+        cabin=Cabin.BUSINESS,
+        cabin_confirmed=True,
     )
 
 
@@ -153,6 +155,8 @@ def test_actionable_link_check_blocks_alert(tmp_path: Path):
         departure_date="2026-06-15",
         return_date="2026-06-22",
         source="travelpayouts",
+        cabin=Cabin.BUSINESS,
+        cabin_confirmed=True,
     )
     provider = _ScriptedProvider([bad_quote, bad_quote])
     notifier = _StubNotifier()

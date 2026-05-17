@@ -20,6 +20,7 @@ from .formatting import (
     format_source,
 )
 from .providers import Quote
+from .regions import Cabin
 
 
 def _level_title(level: str | None, score: int | None = None) -> str:
@@ -53,7 +54,20 @@ def format_alert(
     """Monta o texto HTML do alerta. Função pura, sem efeitos colaterais."""
     now = now or datetime.now(timezone.utc)
     flag = "🔥 " if priority else ""
-    level_prefix = _level_title(decision.level, decision.score)
+    # Guarda defensiva (Regra 5 do PR C): só rotulamos "Business em
+    # promoção" + nível EXCELENTE/BOM quando a cabine foi confirmada como
+    # executiva. Caso contrário, título honesto e sem nível forte. Em
+    # produção o Monitor já bloqueia antes do notifier; isto garante que
+    # nenhum caminho (preview/manual) renderize "Business" sem confirmação.
+    cabin_confirmed_business = (
+        quote.cabin == Cabin.BUSINESS and quote.cabin_confirmed
+    )
+    if cabin_confirmed_business:
+        level_prefix = _level_title(decision.level, decision.score)
+        headline = "Business em promoção"
+    else:
+        level_prefix = ""
+        headline = "⚠️ Cabine não confirmada — verificar"
     city_line = route_city_label(quote.route.origin, quote.route.destination)
     iata_line = route_airport_label(quote.route.origin, quote.route.destination)
 
@@ -137,7 +151,7 @@ def format_alert(
             )
 
     return (
-        f"✈️ <b>{flag}{level_prefix}Business em promoção</b>\n"
+        f"✈️ <b>{flag}{level_prefix}{headline}</b>\n"
         + "\n".join(head_lines)
         + f"\n{price_line}\n"
         + f"📅 {dates}\n"

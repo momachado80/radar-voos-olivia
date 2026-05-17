@@ -21,7 +21,7 @@ from flight_mapper.detector import LEVEL_EXCELLENT, LEVEL_GOOD
 from flight_mapper.monitor import Monitor
 from flight_mapper.notifier import format_alert
 from flight_mapper.providers import Quote
-from flight_mapper.regions import Route
+from flight_mapper.regions import Cabin, Route
 from flight_mapper.state import PriceStore
 
 
@@ -45,6 +45,8 @@ class _PrimaryProvider:
             departure_date="2026-06-15",
             return_date="2026-06-22",
             source="travelpayouts",
+            cabin=Cabin.BUSINESS,
+            cabin_confirmed=True,
         )
 
 
@@ -79,6 +81,8 @@ class _KiwiPrimary:
             departure_date="2026-06-15",
             return_date="2026-06-22",
             source="kiwi",
+            cabin=Cabin.BUSINESS,
+            cabin_confirmed=True,
         )
 
 
@@ -108,6 +112,8 @@ def _kiwi_quote(price: float, route: Route, deep_link=_UNSET) -> Quote:
         departure_date="2026-06-15",
         return_date="2026-06-22",
         source="kiwi",
+        cabin=Cabin.BUSINESS,
+        cabin_confirmed=True,
     )
 
 
