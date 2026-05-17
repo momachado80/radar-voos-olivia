@@ -9,6 +9,7 @@ from .airports import is_actionable_url
 from .currency import get_usd_brl_rate
 from .cycle_state import CycleState
 from .detector import evaluate, evaluate_ceiling
+from .formatting import trip_label_pt
 from .notifier import TelegramNotifier
 from .providers import FlightProvider, Quote
 from .regions import Cabin, Route, all_routes, is_priority
@@ -35,6 +36,16 @@ class MonitorResult:
     currency_blocked: int = 0
     cabin_blocked: int = 0
     suspicious_blocked: int = 0
+
+
+def _route_note(route: Route) -> str:
+    """Prefixo trip-aware das notas/logs do scan, ex.:
+    `GRU→MIA [ida e volta]` / `GRU→MIA [somente ida]`. Só formatação —
+    não altera nenhuma decisão de alerta."""
+    return (
+        f"{route.origin}→{route.destination} "
+        f"[{trip_label_pt(route.trip_type)}]"
+    )
 
 
 def _quote_to_dict(quote: Quote, now: datetime, *, provider_note: str | None = None) -> dict:
@@ -188,7 +199,7 @@ class Monitor:
             priority = is_priority(route)
             quote = self.provider.quote(route)
             if quote is None:
-                notes.append(f"{route.origin}→{route.destination}: sem cotação")
+                notes.append(f"{_route_note(route)}: sem cotação")
                 continue
             quotes_received += 1
             history = self.store.get(route.key)
@@ -201,7 +212,7 @@ class Monitor:
             if quote.amount_brl_estimated is None:
                 currency_blocked += 1
                 notes.append(
-                    f"{route.origin}→{route.destination}: "
+                    f"{_route_note(route)}: "
                     f"alerta bloqueado: câmbio USD_BRL_RATE ausente ou inválido "
                     f"(currency={quote.currency})"
                 )
@@ -227,7 +238,7 @@ class Monitor:
                 history.last_quote = _quote_to_dict(quote, _now())
                 cabin_blocked += 1
                 notes.append(
-                    f"{route.origin}→{route.destination}: "
+                    f"{_route_note(route)}: "
                     f"alerta bloqueado: cabine não confirmada "
                     f"(cabin={quote.cabin.value})"
                 )
@@ -248,7 +259,7 @@ class Monitor:
                     route, quote, quote.amount_brl_estimated
                 )
                 notes.append(
-                    f"{route.origin}→{route.destination}: "
+                    f"{_route_note(route)}: "
                     f"alerta bloqueado: preço economicamente suspeito "
                     f"({reason})"
                 )
@@ -272,7 +283,7 @@ class Monitor:
             history.last_quote = _quote_to_dict(quote, _now())
 
             if not decision.alert:
-                notes.append(f"{route.origin}→{route.destination}: {decision.reason}")
+                notes.append(f"{_route_note(route)}: {decision.reason}")
                 continue
 
             quote_to_send = quote
@@ -281,7 +292,7 @@ class Monitor:
                 if not confirmed:
                     stale_quotes_skipped += 1
                     notes.append(
-                        f"{route.origin}→{route.destination}: stale_quote_skipped ({decision.reason})"
+                        f"{_route_note(route)}: stale_quote_skipped ({decision.reason})"
                     )
                     continue
                 quote_to_send = second_quote or quote
@@ -329,7 +340,7 @@ class Monitor:
                         msg = "alerta descartado: preço Kiwi incompatível"
                     else:
                         msg = "alerta descartado: link comercial indisponível"
-                    notes.append(f"{route.origin}→{route.destination}: {msg}")
+                    notes.append(f"{_route_note(route)}: {msg}")
                     continue
             else:
                 quote_to_send = resolved_quote
@@ -357,19 +368,19 @@ class Monitor:
                     if is_manual_fallback:
                         manual_fallback_alerts_sent += 1
                         notes.append(
-                            f"{route.origin}→{route.destination}: ALERTA MANUAL {decision.reason}"
+                            f"{_route_note(route)}: ALERTA MANUAL {decision.reason}"
                         )
                     else:
                         notes.append(
-                            f"{route.origin}→{route.destination}: ALERTA {decision.reason}"
+                            f"{_route_note(route)}: ALERTA {decision.reason}"
                         )
                 else:
                     notes.append(
-                        f"{route.origin}→{route.destination}: alerta falhou no envio"
+                        f"{_route_note(route)}: alerta falhou no envio"
                     )
             else:
                 notes.append(
-                    f"{route.origin}→{route.destination}: {decision.reason} (notifier ausente)"
+                    f"{_route_note(route)}: {decision.reason} (notifier ausente)"
                 )
 
         self.store.save()
