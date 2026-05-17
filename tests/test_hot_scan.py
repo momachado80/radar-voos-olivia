@@ -6,6 +6,7 @@ from pathlib import Path
 from flight_mapper.__main__ import main
 from flight_mapper.config import Config
 from flight_mapper.thresholds import (
+    HOT_ONE_WAY_ROUTE_KEYS,
     HOT_ROUTE_KEYS,
     hot_routes,
     one_way_hot_routes,
@@ -58,14 +59,25 @@ def test_hot_scan_uses_only_hot_routes(tmp_path, monkeypatch, capsys):
     assert rc == 0
 
     out = capsys.readouterr().out
-    # Cada nota começa com "  origem→destino:" — extrai os pares e confere
+    # Notas trip-aware: "  GRU→MIA [ida e volta]: ..." /
+    # "  GRU→MIA [somente ida]: ...". Reconstrói a chave conforme o trip.
     note_lines = [line for line in out.splitlines() if line.startswith("  ")]
-    seen_keys = {
-        f"{line.strip().split('→')[0]}-{line.split('→')[1].split(':')[0].strip()}-business"
-        for line in note_lines
-    }
-    # todas as chaves nas notas devem ser hot routes
-    assert seen_keys.issubset(set(HOT_ROUTE_KEYS))
+    seen_keys = set()
+    seen_tags = set()
+    for line in note_lines:
+        origin = line.strip().split("→")[0]
+        rest = line.split("→")[1].split(":")[0].strip()  # "MIA [ida e volta]"
+        dest, _, tag = rest.partition(" [")
+        tag = tag.rstrip("]")
+        seen_tags.add(tag)
+        if tag == "somente ida":
+            seen_keys.add(f"{origin}-{dest}-one_way-business")
+        else:
+            seen_keys.add(f"{origin}-{dest}-business")
+    # notas carregam o trip explícito
+    assert seen_tags == {"ida e volta", "somente ida"}
+    # todas as chaves nas notas são rotas quentes (RT ∪ one-way)
+    assert seen_keys.issubset(set(HOT_ROUTE_KEYS) | set(HOT_ONE_WAY_ROUTE_KEYS))
 
 
 def test_hot_scan_persists_history_in_configured_data_dir(tmp_path, monkeypatch):
