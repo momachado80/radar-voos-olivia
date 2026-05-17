@@ -320,6 +320,7 @@ class Monitor:
                         cabin=quote_to_send.cabin,
                         cabin_confirmed=quote_to_send.cabin_confirmed,
                         trip_type=quote_to_send.trip_type,
+                        suspicious=quote_to_send.suspicious,
                     )
                     is_manual_fallback = True
                 else:
