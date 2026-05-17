@@ -321,6 +321,7 @@
       2606.0,
       2606.0,
       2606.0,
+      2717.0,
       2717.0
     ],
     "last_alert_at": null,
@@ -337,15 +338,16 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-16T22:44:52.700267+00:00",
+      "detected_at": "2026-05-17T03:28:23.148180+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
   "GRU-CDG-business": {
     "prices": [
-      2736.0,
       2736.0,
       2736.0,
       2736.0,
@@ -394,6 +396,7 @@
       2541.0,
       2541.0,
       2541.0,
+      2541.0,
       2541.0
     ],
     "last_alert_at": "2026-05-16T21:07:17.846414+00:00",
@@ -410,9 +413,11 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-17T00:09:07.930578+00:00",
+      "detected_at": "2026-05-17T03:28:22.829415+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
@@ -530,25 +535,28 @@
       2827.0,
       2827.0,
       2827.0,
-      3168.0
+      3168.0,
+      3179.0
     ],
     "last_alert_at": null,
     "last_alert_price": null,
     "last_quote": {
-      "price_brl": 3168.0,
-      "amount": 576.0,
+      "price_brl": 3179.0,
+      "amount": 578.0,
       "currency": "USD",
-      "amount_brl_estimated": 3168.0,
+      "amount_brl_estimated": 3179.0,
       "fx_rate": 5.5,
       "origin": "GRU",
       "destination": "DXB",
-      "departure_date": "2026-11-28",
+      "departure_date": "2026-12-05",
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-16T22:44:52.948012+00:00",
+      "detected_at": "2026-05-17T03:28:23.501425+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
@@ -703,6 +711,7 @@
       4983.0,
       4983.0,
       4983.0,
+      5483.5,
       5483.5
     ],
     "last_alert_at": null,
@@ -719,9 +728,11 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-16T22:44:52.831595+00:00",
+      "detected_at": "2026-05-17T03:28:23.330815+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
@@ -741,6 +752,7 @@
       2470.0,
       2846.0,
       2839.0,
+      3074.5,
       3074.5
     ],
     "last_alert_at": null,
@@ -757,9 +769,11 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-16T22:44:52.632572+00:00",
+      "detected_at": "2026-05-17T03:28:23.073600+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
@@ -809,6 +823,7 @@
       4543.0,
       4543.0,
       4543.0,
+      5087.5,
       5087.5
     ],
     "last_alert_at": null,
@@ -825,9 +840,11 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-16T22:44:52.784386+00:00",
+      "detected_at": "2026-05-17T03:28:23.271054+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
@@ -874,7 +891,7 @@
       2079.0,
       2079.0,
       2079.0,
-      2079.0,
+      2244.0,
       2244.0,
       2244.0,
       2244.0,
@@ -898,9 +915,11 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-17T00:09:08.557530+00:00",
+      "detected_at": "2026-05-17T03:28:22.892132+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
@@ -1020,7 +1039,7 @@
       1878.0,
       1878.0,
       1878.0,
-      1878.0,
+      2167.0,
       2167.0,
       2167.0,
       2167.0,
@@ -1044,9 +1063,11 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-17T00:09:07.828232+00:00",
+      "detected_at": "2026-05-17T03:28:22.700775+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
@@ -1315,6 +1336,7 @@
       4018.0,
       4018.0,
       4018.0,
+      4900.5,
       4900.5
     ],
     "last_alert_at": null,
@@ -1331,9 +1353,11 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-16T22:44:52.741175+00:00",
+      "detected_at": "2026-05-17T03:28:23.223774+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
@@ -1383,6 +1407,7 @@
       1709.0,
       1709.0,
       1757.0,
+      1903.0,
       1903.0
     ],
     "last_alert_at": null,
@@ -1399,9 +1424,11 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-16T21:50:10.468139+00:00",
+      "detected_at": "2026-05-17T03:28:23.029793+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
@@ -1415,7 +1442,6 @@
       1997.0,
       1997.0,
       1997.0,
-      1997.0,
       2251.0,
       2251.0,
       2251.0,
@@ -1449,6 +1475,7 @@
       2636.0,
       2636.0,
       2636.0,
+      2953.5,
       2953.5,
       2953.5,
       2953.5,
@@ -1472,9 +1499,11 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-17T00:09:08.895202+00:00",
+      "detected_at": "2026-05-17T03:28:22.972516+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
@@ -1500,6 +1529,7 @@
       4772.0,
       4772.0,
       4772.0,
+      5368.0,
       5368.0
     ],
     "last_alert_at": null,
@@ -1516,9 +1546,11 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-16T22:44:52.898001+00:00",
+      "detected_at": "2026-05-17T03:28:23.404126+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
