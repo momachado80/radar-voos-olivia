@@ -22,7 +22,7 @@ from .formatting import format_brl
 from .monitor import Monitor, MonitorResult
 from .notifier import TelegramNotifier, format_alert
 from .providers import KiwiTequilaProvider, MockProvider, Quote, TravelpayoutsProvider
-from .regions import Cabin, Route
+from .regions import Cabin, Route, TripType
 from .sanity import is_suspicious_price, suspicious_reason
 from .state import PriceStore
 from .status import StatusState, _build_message, maybe_send_status
@@ -359,6 +359,72 @@ def cmd_preview(args: argparse.Namespace) -> int:
     )
     print(f"→ suspicious={is_suspicious_price(quote_suspicious.route, quote_suspicious, 1276.0)}")
     print(f"→ motivo: {_reason}")
+
+    print()
+    print("=" * 60)
+    print("4f. BUSINESS ONE-WAY confirmado (Kiwi, somente ida)")
+    print("=" * 60)
+    quote_b_ow = Quote(
+        route=Route("GRU", "LIS", "Europa"),
+        price_brl=9500.0,
+        deep_link="https://www.kiwi.com/deep/GRU-LIS-2026-09-10",
+        departure_date="2026-09-10",
+        return_date=None,
+        source="kiwi",
+        cabin=Cabin.BUSINESS,
+        cabin_confirmed=True,
+        trip_type=TripType.ONE_WAY,
+    )
+    print(format_alert(
+        quote_b_ow,
+        Decision(alert=True, reason="", criterion=CRITERION_CEILING,
+                 threshold=11000.0, level=LEVEL_GOOD, score=78),
+        priority=True,
+    ))
+
+    print()
+    print("=" * 60)
+    print("4g. ECONÔMICA ONE-WAY confirmada (Kiwi, somente ida)")
+    print("=" * 60)
+    quote_e_ow = Quote(
+        route=Route("GRU", "MAD", "Europa"),
+        price_brl=2100.0,
+        deep_link="https://www.kiwi.com/deep/GRU-MAD-2026-09-12",
+        departure_date="2026-09-12",
+        return_date=None,
+        source="kiwi",
+        cabin=Cabin.ECONOMY,
+        cabin_confirmed=True,
+        trip_type=TripType.ONE_WAY,
+    )
+    print(format_alert(
+        quote_e_ow,
+        Decision(alert=True, reason="", criterion=CRITERION_CEILING,
+                 threshold=2500.0, level=LEVEL_GOOD, score=72),
+        priority=False,
+    ))
+
+    print()
+    print("=" * 60)
+    print("4h. MANUAL FALLBACK one-way econômica (links auxiliares)")
+    print("=" * 60)
+    quote_manual_e_ow = Quote(
+        route=Route("GRU", "MAD", "Europa"),
+        price_brl=2100.0,
+        deep_link=None,
+        departure_date="2026-09-12",
+        return_date=None,
+        source="manual_purchase",
+        cabin=Cabin.ECONOMY,
+        cabin_confirmed=True,
+        trip_type=TripType.ONE_WAY,
+    )
+    print(format_alert(
+        quote_manual_e_ow,
+        Decision(alert=True, reason="", criterion=CRITERION_CEILING,
+                 threshold=2500.0, level=LEVEL_GOOD, score=66),
+        priority=True,
+    ))
 
     print()
     print("=" * 60)

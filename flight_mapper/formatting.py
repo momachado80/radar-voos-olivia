@@ -4,6 +4,41 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from .regions import Cabin, TripType
+
+
+def cabin_search_term(cabin: Cabin) -> str:
+    """Termo de classe para URLs de busca auxiliar.
+
+    economy → "economy"; business/unknown → "business". `unknown` cai em
+    "business" de forma defensiva: em produção o alerta manual só ocorre
+    com cabine business confirmada (o gate de cabine bloqueia unknown
+    antes), então este fallback nunca aparece no caminho real.
+    """
+    return "economy" if cabin == Cabin.ECONOMY else "business"
+
+
+def cabin_label_pt(cabin: Cabin, cabin_confirmed: bool) -> str:
+    """Rótulo PT da classe para a linha de pesquisa manual.
+
+    business confirmado → "executiva"; economy confirmado → "econômica";
+    qualquer outro (unknown / não confirmado) → "cabine não confirmada".
+    """
+    if cabin_confirmed and cabin == Cabin.BUSINESS:
+        return "executiva"
+    if cabin_confirmed and cabin == Cabin.ECONOMY:
+        return "econômica"
+    return "cabine não confirmada"
+
+
+def trip_label_pt(trip_type: TripType) -> str:
+    """Rótulo PT do tipo de viagem para o título da mensagem."""
+    if trip_type == TripType.ONE_WAY:
+        return "somente ida"
+    if trip_type == TripType.OPEN_JAW_CANDIDATE:
+        return "multicidade candidata"
+    return "ida e volta"
+
 
 SOURCE_LABELS: dict[str, str] = {
     "travelpayouts": "Travelpayouts (cache)",

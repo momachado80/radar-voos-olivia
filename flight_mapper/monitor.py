@@ -313,6 +313,14 @@ class Monitor:
                         currency=quote_to_send.currency,
                         amount_brl_estimated=quote_to_send.amount_brl_estimated,
                         fx_rate=quote_to_send.fx_rate,
+                        # Preserva cabine/trip já confirmados pela cotação
+                        # de origem — senão o alerta manual renderiza
+                        # "cabine não confirmada" para uma tarifa que JÁ
+                        # passou o gate de cabine como business confirmado.
+                        cabin=quote_to_send.cabin,
+                        cabin_confirmed=quote_to_send.cabin_confirmed,
+                        trip_type=quote_to_send.trip_type,
+                        suspicious=quote_to_send.suspicious,
                     )
                     is_manual_fallback = True
                 else:
