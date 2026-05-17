@@ -217,7 +217,6 @@
       2592.0,
       2592.0,
       2592.0,
-      2592.0,
       2662.0,
       2662.0,
       2662.0,
@@ -256,6 +255,7 @@
       2915.0,
       2915.0,
       2915.0,
+      2915.0,
       2915.0
     ],
     "last_alert_at": "2026-05-16T21:07:19.714751+00:00",
@@ -272,9 +272,37 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-17T00:09:08.466989+00:00",
+      "detected_at": "2026-05-17T04:18:48.477660+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
+      "provider_note": null
+    }
+  },
+  "GRU-AMS-one_way-business": {
+    "prices": [
+      2915.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 2915.0,
+      "amount": 530.0,
+      "currency": "USD",
+      "amount_brl_estimated": 2915.0,
+      "fx_rate": 5.5,
+      "origin": "GRU",
+      "destination": "AMS",
+      "departure_date": "2027-04-01",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": null,
+      "detected_at": "2026-05-17T04:18:49.913643+00:00",
+      "actionable_url": false,
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
@@ -375,7 +403,6 @@
       2736.0,
       2736.0,
       2736.0,
-      2736.0,
       2956.0,
       2956.0,
       2956.0,
@@ -389,6 +416,7 @@
       2952.0,
       2952.0,
       2952.0,
+      2541.0,
       2541.0,
       2541.0,
       2541.0,
@@ -413,7 +441,33 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-17T03:28:22.829415+00:00",
+      "detected_at": "2026-05-17T04:18:47.899523+00:00",
+      "actionable_url": false,
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
+      "provider_note": null
+    }
+  },
+  "GRU-CDG-one_way-business": {
+    "prices": [
+      2541.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 2541.0,
+      "amount": 462.0,
+      "currency": "USD",
+      "amount_brl_estimated": 2541.0,
+      "fx_rate": 5.5,
+      "origin": "GRU",
+      "destination": "CDG",
+      "departure_date": "2026-11-13",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": null,
+      "detected_at": "2026-05-17T04:18:49.659487+00:00",
       "actionable_url": false,
       "cabin": "unknown",
       "cabin_confirmed": false,
@@ -593,7 +647,6 @@
       2333.0,
       2333.0,
       2333.0,
-      2333.0,
       2431.0,
       2431.0,
       2431.0,
@@ -605,6 +658,7 @@
       2431.0,
       2431.0,
       2431.0,
+      2722.5,
       2722.5,
       2722.5,
       2722.5,
@@ -627,9 +681,37 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-17T00:09:08.319191+00:00",
+      "detected_at": "2026-05-17T04:18:48.305090+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
+      "provider_note": null
+    }
+  },
+  "GRU-FCO-one_way-business": {
+    "prices": [
+      2722.5
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 2722.5,
+      "amount": 495.0,
+      "currency": "USD",
+      "amount_brl_estimated": 2722.5,
+      "fx_rate": 5.5,
+      "origin": "GRU",
+      "destination": "FCO",
+      "departure_date": "2026-11-28",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": null,
+      "detected_at": "2026-05-17T04:18:49.973522+00:00",
+      "actionable_url": false,
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
@@ -890,7 +972,7 @@
       2079.0,
       2079.0,
       2079.0,
-      2079.0,
+      2244.0,
       2244.0,
       2244.0,
       2244.0,
@@ -915,7 +997,33 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-17T03:28:22.892132+00:00",
+      "detected_at": "2026-05-17T04:18:48.591194+00:00",
+      "actionable_url": false,
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
+      "provider_note": null
+    }
+  },
+  "GRU-JFK-one_way-business": {
+    "prices": [
+      2244.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 2244.0,
+      "amount": 408.0,
+      "currency": "USD",
+      "amount_brl_estimated": 2244.0,
+      "fx_rate": 5.5,
+      "origin": "GRU",
+      "destination": "JFK",
+      "departure_date": "2026-06-10",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": null,
+      "detected_at": "2026-05-17T04:18:49.225245+00:00",
       "actionable_url": false,
       "cabin": "unknown",
       "cabin_confirmed": false,
@@ -943,7 +1051,6 @@
       1822.0,
       1822.0,
       1822.0,
-      1822.0,
       1917.0,
       1917.0,
       1917.0,
@@ -968,6 +1075,7 @@
       1917.0,
       1917.0,
       1917.0,
+      2145.0,
       2145.0,
       2145.0,
       2145.0,
@@ -990,9 +1098,37 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-17T00:09:08.801924+00:00",
+      "detected_at": "2026-05-17T04:18:48.863831+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
+      "provider_note": null
+    }
+  },
+  "GRU-LAX-one_way-business": {
+    "prices": [
+      2145.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 2145.0,
+      "amount": 390.0,
+      "currency": "USD",
+      "amount_brl_estimated": 2145.0,
+      "fx_rate": 5.5,
+      "origin": "GRU",
+      "destination": "LAX",
+      "departure_date": "2026-07-09",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": null,
+      "detected_at": "2026-05-17T04:18:49.369460+00:00",
+      "actionable_url": false,
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
@@ -1038,7 +1174,7 @@
       1878.0,
       1878.0,
       1878.0,
-      1878.0,
+      2167.0,
       2167.0,
       2167.0,
       2167.0,
@@ -1063,7 +1199,33 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-17T03:28:22.700775+00:00",
+      "detected_at": "2026-05-17T04:18:47.686706+00:00",
+      "actionable_url": false,
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
+      "provider_note": null
+    }
+  },
+  "GRU-LHR-one_way-business": {
+    "prices": [
+      2167.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 2167.0,
+      "amount": 394.0,
+      "currency": "USD",
+      "amount_brl_estimated": 2167.0,
+      "fx_rate": 5.5,
+      "origin": "GRU",
+      "destination": "LHR",
+      "departure_date": "2026-11-10",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": null,
+      "detected_at": "2026-05-17T04:18:49.567033+00:00",
       "actionable_url": false,
       "cabin": "unknown",
       "cabin_confirmed": false,
@@ -1115,7 +1277,7 @@
       1919.0,
       1919.0,
       1919.0,
-      1919.0,
+      2260.5,
       2260.5,
       2260.5,
       2260.5,
@@ -1138,15 +1300,42 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-17T00:09:08.155312+00:00",
+      "detected_at": "2026-05-17T04:18:48.181536+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
+      "provider_note": null
+    }
+  },
+  "GRU-LIS-one_way-business": {
+    "prices": [
+      2260.5
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 2260.5,
+      "amount": 411.0,
+      "currency": "USD",
+      "amount_brl_estimated": 2260.5,
+      "fx_rate": 5.5,
+      "origin": "GRU",
+      "destination": "LIS",
+      "departure_date": "2026-06-17",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": null,
+      "detected_at": "2026-05-17T04:18:49.780495+00:00",
+      "actionable_url": false,
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
   "GRU-MAD-business": {
     "prices": [
-      2103.0,
       2103.0,
       2103.0,
       2103.0,
@@ -1195,6 +1384,7 @@
       2134.0,
       2134.0,
       2134.0,
+      2134.0,
       2134.0
     ],
     "last_alert_at": "2026-05-16T21:07:18.398667+00:00",
@@ -1211,15 +1401,42 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-17T00:09:08.049486+00:00",
+      "detected_at": "2026-05-17T04:18:48.029404+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
+      "provider_note": null
+    }
+  },
+  "GRU-MAD-one_way-business": {
+    "prices": [
+      2134.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 2134.0,
+      "amount": 388.0,
+      "currency": "USD",
+      "amount_brl_estimated": 2134.0,
+      "fx_rate": 5.5,
+      "origin": "GRU",
+      "destination": "MAD",
+      "departure_date": "2026-07-18",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": null,
+      "detected_at": "2026-05-17T04:18:49.847402+00:00",
+      "actionable_url": false,
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
   "GRU-MIA-business": {
     "prices": [
-      1234.0,
       1410.0,
       1410.0,
       1409.0,
@@ -1268,6 +1485,7 @@
       1276.0,
       1276.0,
       1276.0,
+      1276.0,
       1276.0
     ],
     "last_alert_at": "2026-05-16T21:07:20.797549+00:00",
@@ -1284,9 +1502,37 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-17T00:09:08.669520+00:00",
+      "detected_at": "2026-05-17T04:18:48.668411+00:00",
       "actionable_url": false,
-      "cabin": "business",
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
+      "provider_note": null
+    }
+  },
+  "GRU-MIA-one_way-business": {
+    "prices": [
+      1276.0
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 1276.0,
+      "amount": 232.0,
+      "currency": "USD",
+      "amount_brl_estimated": 1276.0,
+      "fx_rate": 5.5,
+      "origin": "GRU",
+      "destination": "MIA",
+      "departure_date": "2026-06-16",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": null,
+      "detected_at": "2026-05-17T04:18:49.164645+00:00",
+      "actionable_url": false,
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
       "provider_note": null
     }
   },
@@ -1441,7 +1687,6 @@
       1997.0,
       1997.0,
       1997.0,
-      1997.0,
       2251.0,
       2251.0,
       2251.0,
@@ -1475,6 +1720,7 @@
       2636.0,
       2636.0,
       2636.0,
+      2953.5,
       2953.5,
       2953.5,
       2953.5,
@@ -1499,7 +1745,33 @@
       "return_date": null,
       "source": "travelpayouts",
       "deep_link": null,
-      "detected_at": "2026-05-17T03:28:22.972516+00:00",
+      "detected_at": "2026-05-17T04:18:49.052418+00:00",
+      "actionable_url": false,
+      "cabin": "unknown",
+      "cabin_confirmed": false,
+      "trip_type": "one_way",
+      "provider_note": null
+    }
+  },
+  "GRU-SFO-one_way-business": {
+    "prices": [
+      2953.5
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 2953.5,
+      "amount": 537.0,
+      "currency": "USD",
+      "amount_brl_estimated": 2953.5,
+      "fx_rate": 5.5,
+      "origin": "GRU",
+      "destination": "SFO",
+      "departure_date": "2026-08-17",
+      "return_date": null,
+      "source": "travelpayouts",
+      "deep_link": null,
+      "detected_at": "2026-05-17T04:18:49.437689+00:00",
       "actionable_url": false,
       "cabin": "unknown",
       "cabin_confirmed": false,
