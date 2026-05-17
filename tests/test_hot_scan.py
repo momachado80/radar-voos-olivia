@@ -5,7 +5,11 @@ from pathlib import Path
 
 from flight_mapper.__main__ import main
 from flight_mapper.config import Config
-from flight_mapper.thresholds import HOT_ROUTE_KEYS, hot_routes
+from flight_mapper.thresholds import (
+    HOT_ROUTE_KEYS,
+    hot_routes,
+    one_way_hot_routes,
+)
 
 
 def _install_safe_config(monkeypatch, tmp_path: Path):
@@ -36,8 +40,10 @@ def test_hot_scan_returns_zero_and_emits_log(tmp_path, monkeypatch, capsys):
 
     assert rc == 0
     out = capsys.readouterr().out
-    expected_n = len(hot_routes())
+    # PR F1: hot-scan agora compõe round_trip + one_way hot routes.
+    expected_n = len(hot_routes()) + len(one_way_hot_routes())
     assert expected_n > 0
+    assert len(one_way_hot_routes()) == 10
     assert f"hot-scan scanned={expected_n}" in out
     # MockProvider sempre devolve cotação, então quotes == scanned
     assert f"quotes={expected_n}" in out

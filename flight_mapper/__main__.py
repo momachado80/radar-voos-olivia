@@ -26,7 +26,7 @@ from .regions import Cabin, Route, TripType
 from .sanity import is_suspicious_price, suspicious_reason
 from .state import PriceStore
 from .status import StatusState, _build_message, maybe_send_status
-from .thresholds import hot_routes
+from .thresholds import hot_routes, one_way_hot_routes
 
 
 def _make_provider(config: Config, use_mock: bool):
@@ -118,7 +118,9 @@ def cmd_hot_scan(args: argparse.Namespace) -> int:
     provider = _make_provider(config, args.mock)
     notifier = _make_notifier(config)
     store = PriceStore(config.history_path)
-    routes = hot_routes()
+    # round_trip hot (legado, inalterado) + one-way hot (PR F1). Chaves
+    # em namespaces distintos → históricos/thresholds separados.
+    routes = hot_routes() + one_way_hot_routes()
     link_provider = _make_link_provider(config, provider)
     monitor = Monitor(
         provider=provider, notifier=notifier, store=store, link_provider=link_provider,

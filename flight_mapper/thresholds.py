@@ -14,7 +14,7 @@ honesta. Não disparam alerta nos preços atuais — só em queda real.
 
 from __future__ import annotations
 
-from .regions import Route, all_routes
+from .regions import REGIONS, Route, TripType, all_routes
 
 
 ABSOLUTE_CEILING_BRL: dict[str, float] = {
@@ -56,6 +56,34 @@ ROUTE_THRESHOLDS: dict[str, dict[str, float]] = {
 HOT_ROUTE_KEYS: frozenset[str] = frozenset(ABSOLUTE_CEILING_BRL.keys())
 
 
+# Thresholds one-way business (PR F1). Mesma convenção do ROUTE_THRESHOLDS:
+# valores armazenados em **USD** (apesar do sufixo `_brl`, mantido por
+# compat de schema) e escalados USD→BRL em runtime via `scaled_levels`.
+# Chaves no namespace one-way (`GRU-XX-one_way-business`), isolado do
+# round_trip — sem mistura de histórico nem de teto.
+ONE_WAY_ROUTE_THRESHOLDS: dict[str, dict[str, float]] = {
+    "GRU-MIA-one_way-business": {"excellent_brl": 700, "good_brl": 1000},
+    "GRU-JFK-one_way-business": {"excellent_brl": 900, "good_brl": 1300},
+    "GRU-LAX-one_way-business": {"excellent_brl": 1100, "good_brl": 1600},
+    "GRU-SFO-one_way-business": {"excellent_brl": 1100, "good_brl": 1600},
+    "GRU-LHR-one_way-business": {"excellent_brl": 1100, "good_brl": 1500},
+    "GRU-CDG-one_way-business": {"excellent_brl": 1100, "good_brl": 1500},
+    "GRU-LIS-one_way-business": {"excellent_brl": 1100, "good_brl": 1500},
+    "GRU-MAD-one_way-business": {"excellent_brl": 1100, "good_brl": 1500},
+    "GRU-AMS-one_way-business": {"excellent_brl": 1100, "good_brl": 1500},
+    "GRU-FCO-one_way-business": {"excellent_brl": 1100, "good_brl": 1500},
+}
+
+# Destinos one-way iniciais (ordem estável p/ testes/preview).
+ONE_WAY_HOT_DESTINATIONS: list[str] = [
+    "MIA", "JFK", "LAX", "SFO", "LHR", "CDG", "LIS", "MAD", "AMS", "FCO",
+]
+
+HOT_ONE_WAY_ROUTE_KEYS: frozenset[str] = frozenset(
+    ONE_WAY_ROUTE_THRESHOLDS.keys()
+)
+
+
 def ceiling_for(route_key: str) -> float | None:
     """Compat com camada antiga: usa good_brl do ROUTE_THRESHOLDS se houver,
     senão cai no ABSOLUTE_CEILING_BRL."""
@@ -72,6 +100,8 @@ def levels_for(route_key: str) -> dict | None:
     """
     if route_key in ROUTE_THRESHOLDS:
         return dict(ROUTE_THRESHOLDS[route_key])
+    if route_key in ONE_WAY_ROUTE_THRESHOLDS:
+        return dict(ONE_WAY_ROUTE_THRESHOLDS[route_key])
     if route_key in ABSOLUTE_CEILING_BRL:
         return {"excellent_brl": None, "good_brl": ABSOLUTE_CEILING_BRL[route_key]}
     return None
@@ -96,4 +126,29 @@ def scaled_levels(levels: dict | None, rate: float | None) -> dict | None:
 def hot_routes() -> list[Route]:
     """Filtra `all_routes()` para apenas as rotas em `HOT_ROUTE_KEYS`."""
     return [r for r in all_routes() if r.key in HOT_ROUTE_KEYS]
+
+
+def _region_for(destination: str) -> str:
+    for region, dests in REGIONS.items():
+        if destination in dests:
+            return region
+    return ""
+
+
+def one_way_hot_routes() -> list[Route]:
+    """Rotas one-way business quentes (PR F1).
+
+    Construídas com `trip_type=ONE_WAY` → `Route.key` no namespace
+    `GRU-XX-one_way-business`, isolado do round_trip. Não usa a chave
+    canônica do PR A. Round_trip (`hot_routes`) permanece inalterado.
+    """
+    return [
+        Route(
+            origin="GRU",
+            destination=d,
+            region=_region_for(d),
+            trip_type=TripType.ONE_WAY,
+        )
+        for d in ONE_WAY_HOT_DESTINATIONS
+    ]
 

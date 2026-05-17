@@ -26,6 +26,17 @@ def _make_keys(destinations: list[str], origin: str = "GRU", cabin: str = "busin
     return frozenset(f"{origin}-{dest}-{cabin}" for dest in destinations)
 
 
+def _make_one_way_keys(destinations: list[str], origin: str = "GRU") -> frozenset[str]:
+    """Chaves no namespace one-way business (`GRU-XX-one_way-business`),
+    casando com `Route(trip_type=ONE_WAY).key`. Separado do round_trip."""
+    return frozenset(f"{origin}-{dest}-one_way-business" for dest in destinations)
+
+
+# Destinos one-way iniciais por região (PR F1).
+_ONE_WAY_EUROPA = ["LHR", "CDG", "LIS", "MAD", "AMS", "FCO"]
+_ONE_WAY_EUA = ["MIA", "JFK", "LAX", "SFO"]
+
+
 WATCHLISTS: list[Watchlist] = [
     Watchlist(
         name="europa_executiva",
@@ -44,6 +55,20 @@ WATCHLISTS: list[Watchlist] = [
         label="Ásia/Oriente Médio Executiva",
         route_keys=_make_keys(REGIONS["Ásia"]),
         priority=2,
+    ),
+    # One-way business (PR F1) — watchlists separadas, não misturam com
+    # round_trip (chaves em namespace próprio).
+    Watchlist(
+        name="europa_executiva_ida",
+        label="Europa Executiva (somente ida)",
+        route_keys=_make_one_way_keys(_ONE_WAY_EUROPA),
+        priority=3,
+    ),
+    Watchlist(
+        name="eua_executiva_ida",
+        label="EUA Executiva (somente ida)",
+        route_keys=_make_one_way_keys(_ONE_WAY_EUA),
+        priority=4,
     ),
 ]
 

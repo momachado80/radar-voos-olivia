@@ -77,13 +77,18 @@ class KiwiTequilaProvider:
             "fly_to": route.destination,
             "date_from": date_from.strftime("%d/%m/%Y"),
             "date_to": date_to.strftime("%d/%m/%Y"),
-            "nights_in_dst_from": self.trip_length,
-            "nights_in_dst_to": self.trip_length,
             "selected_cabins": "C",
             "curr": "BRL",
             "limit": 1,
             "sort": "price",
         }
+        # one_way (PR F1): sem perna de volta → omitir nights_in_dst e
+        # pedir flight_type=oneway. round_trip mantém comportamento atual.
+        if route.trip_type == TripType.ONE_WAY:
+            params["flight_type"] = "oneway"
+        else:
+            params["nights_in_dst_from"] = self.trip_length
+            params["nights_in_dst_to"] = self.trip_length
         url = f"{self.BASE_URL}?{urlencode(params)}"
         request = Request(url, headers={"apikey": self.api_key, "accept": "application/json"})
         try:
@@ -144,6 +149,11 @@ class TravelpayoutsProvider:
             "limit": 1,
             "token": self.token,
         }
+        # one_way (PR F1): pede só ida. Cabine segue NÃO confirmada
+        # (endpoint ignora trip_class) ⇒ o gate de cabine do Monitor
+        # continua bloqueando — comportamento esperado e seguro.
+        if route.trip_type == TripType.ONE_WAY:
+            params["one_way"] = "true"
         url = f"{self.BASE_URL}?{urlencode(params)}"
         request = Request(url, headers={"accept": "application/json"})
         try:
@@ -170,7 +180,15 @@ class TravelpayoutsProvider:
         # Política honesta: NUNCA assumir business só porque pedimos
         # trip_class=1. Cabine fica `unknown`/não confirmada e o Monitor
         # bloqueia o alerta forte. trip_type derivado de return_at.
-        trip_type = TripType.ROUND_TRIP if return_date else TripType.ONE_WAY
+        # one_way solicitado ⇒ trip_type=ONE_WAY (independe do payload);
+        # senão deriva de return_at.
+        if route.trip_type == TripType.ONE_WAY:
+            trip_type = TripType.ONE_WAY
+            return_date = None
+        else:
+            trip_type = (
+                TripType.ROUND_TRIP if return_date else TripType.ONE_WAY
+            )
 
         # Travelpayouts vira fonte de PREÇO. Não geramos mais link Aviasales
         # porque o endpoint redireciona para russo mesmo com locale=en-us.

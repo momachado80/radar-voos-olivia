@@ -53,6 +53,19 @@ class Route:
 
     @property
     def key(self) -> str:
+        """Chave usada pelo pipeline (PriceStore/thresholds).
+
+        - round_trip → formato legado `GRU-MIA-business` (byte a byte
+          igual a hoje; histórico/thresholds/PRIORITY/HOT intactos).
+        - one_way → namespace próprio `GRU-MIA-one_way-business`,
+          isolando histórico e thresholds do round_trip.
+
+        NÃO é a propriedade `canonical_key` (PR A): esta extensão é
+        cirúrgica e específica do one_way; `canonical_key` permanece
+        não consumida no pipeline.
+        """
+        if self.trip_type == TripType.ONE_WAY:
+            return f"{self.origin}-{self.destination}-one_way-business"
         return self.legacy_key
 
     @property
