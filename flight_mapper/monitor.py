@@ -12,6 +12,7 @@ from .detector import evaluate, evaluate_ceiling
 from .notifier import TelegramNotifier
 from .providers import FlightProvider, Quote
 from .regions import Cabin, Route, all_routes, is_priority
+from .sanity import is_suspicious_price, suspicious_reason
 from .score import compute_opportunity_score
 from .state import PriceStore
 from .thresholds import HOT_ROUTE_KEYS, levels_for, scaled_levels
@@ -33,6 +34,7 @@ class MonitorResult:
     manual_fallback_alerts_sent: int = 0
     currency_blocked: int = 0
     cabin_blocked: int = 0
+    suspicious_blocked: int = 0
 
 
 def _quote_to_dict(quote: Quote, now: datetime, *, provider_note: str | None = None) -> dict:
@@ -175,6 +177,7 @@ class Monitor:
         manual_fallback_alerts_sent = 0
         currency_blocked = 0
         cabin_blocked = 0
+        suspicious_blocked = 0
 
         def _now():
             return datetime.now(timezone.utc)
@@ -227,6 +230,27 @@ class Monitor:
                     f"{route.origin}→{route.destination}: "
                     f"alerta bloqueado: cabine não confirmada "
                     f"(cabin={quote.cabin.value})"
+                )
+                continue
+
+            # GATE DE SANIDADE: mesmo com cabine confirmada, um preço
+            # economicamente implausível (ex.: US$ 232 ≈ R$ 1.276 em
+            # business internacional) não pode virar EXCELENTE/BOM. Só
+            # se aplica a cotações não-BRL-nativas/USD (superfície real
+            # do bug, cache Travelpayouts); `quote.suspicious=True` do
+            # provider bloqueia em qualquer moeda. Preservamos o
+            # histórico e NUNCA chamamos o notifier.
+            if is_suspicious_price(route, quote, quote.amount_brl_estimated):
+                history.push(quote.price_brl)
+                history.last_quote = _quote_to_dict(quote, _now())
+                suspicious_blocked += 1
+                reason = suspicious_reason(
+                    route, quote, quote.amount_brl_estimated
+                )
+                notes.append(
+                    f"{route.origin}→{route.destination}: "
+                    f"alerta bloqueado: preço economicamente suspeito "
+                    f"({reason})"
                 )
                 continue
 
@@ -352,6 +376,7 @@ class Monitor:
             manual_fallback_alerts_sent=manual_fallback_alerts_sent,
             currency_blocked=currency_blocked,
             cabin_blocked=cabin_blocked,
+            suspicious_blocked=suspicious_blocked,
         )
 
     def run_cycle(self) -> MonitorResult:
