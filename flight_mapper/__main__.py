@@ -23,6 +23,7 @@ from .monitor import Monitor, MonitorResult
 from .notifier import TelegramNotifier, format_alert
 from .providers import KiwiTequilaProvider, MockProvider, Quote, TravelpayoutsProvider
 from .regions import Cabin, Route
+from .sanity import is_suspicious_price, suspicious_reason
 from .state import PriceStore
 from .status import StatusState, _build_message, maybe_send_status
 from .thresholds import hot_routes
@@ -326,6 +327,38 @@ def cmd_preview(args: argparse.Namespace) -> int:
         "→ Titulo honesto: sem nivel forte e sem rotulo de classe. "
         "O suspeito 'US$ 232 GRU-MIA' nao passa como oportunidade executiva."
     )
+
+    print()
+    print("=" * 60)
+    print("4e. ALERTA BLOQUEADO — preço economicamente suspeito")
+    print("=" * 60)
+    print(
+        "Mesmo com cabine confirmada (cenário futuro), um preço absurdo\n"
+        "para business internacional não vira EXCELENTE/BOM. Piso business\n"
+        "round_trip = R$ 4.000; US$ 232 ≈ R$ 1.276 fica muito abaixo.\n"
+        "O Monitor BLOQUEIA e NÃO envia Telegram. Nota gerada:\n"
+        "  GRU→MIA: alerta bloqueado: preço economicamente suspeito (...)"
+    )
+    print()
+    quote_suspicious = Quote(
+        route=Route("GRU", "MIA", "EUA"),
+        price_brl=1276.0,
+        deep_link="https://www.kiwi.com/deep/GRU-MIA-2026-06-15",
+        departure_date="2026-06-15",
+        return_date="2026-06-22",
+        source="travelpayouts",
+        amount=232.0,
+        currency="USD",
+        amount_brl_estimated=1276.0,
+        fx_rate=5.5,
+        cabin=Cabin.BUSINESS,
+        cabin_confirmed=True,
+    )
+    _reason = suspicious_reason(
+        quote_suspicious.route, quote_suspicious, 1276.0
+    )
+    print(f"→ suspicious={is_suspicious_price(quote_suspicious.route, quote_suspicious, 1276.0)}")
+    print(f"→ motivo: {_reason}")
 
     print()
     print("=" * 60)
