@@ -96,13 +96,20 @@ class KiwiTequilaProvider:
         if not items:
             return None
         item = items[0]
+        ret = (item.get("route", [{}])[-1].get("local_departure", "") or "")[:10] or None
+        # Kiwi Tequila filtra `selected_cabins="C"` no servidor: o response
+        # só contém itinerários executivos. Logo a cabine é confirmada por
+        # construção da requisição (≠ Travelpayouts, que ignora trip_class).
         return Quote(
             route=route,
             price_brl=float(item["price"]),
             deep_link=item.get("deep_link"),
             departure_date=item.get("local_departure", "")[:10],
-            return_date=(item.get("route", [{}])[-1].get("local_departure", "") or "")[:10] or None,
+            return_date=ret,
             source="kiwi",
+            cabin=Cabin.BUSINESS,
+            cabin_confirmed=True,
+            trip_type=TripType.ROUND_TRIP if ret else TripType.ONE_WAY,
         )
 
 
@@ -156,6 +163,15 @@ class TravelpayoutsProvider:
         return_raw = item.get("return_at")
         return_date = return_raw[:10] if return_raw else None
 
+        # Cabine: o endpoint aviasales/v3/prices_for_dates é documentado
+        # (módulo currency / comentário acima) como ignorando parâmetros —
+        # ignora `currency=brl`, logo `trip_class=1` é igualmente NÃO
+        # confiável e o payload não traz campo de classe verificável.
+        # Política honesta: NUNCA assumir business só porque pedimos
+        # trip_class=1. Cabine fica `unknown`/não confirmada e o Monitor
+        # bloqueia o alerta forte. trip_type derivado de return_at.
+        trip_type = TripType.ROUND_TRIP if return_date else TripType.ONE_WAY
+
         # Travelpayouts vira fonte de PREÇO. Não geramos mais link Aviasales
         # porque o endpoint redireciona para russo mesmo com locale=en-us.
         # Alerta só sai se outra fonte (Kiwi) fornecer deep_link acionável
@@ -178,6 +194,9 @@ class TravelpayoutsProvider:
             currency=self.API_CURRENCY,
             amount_brl_estimated=brl_estimated,
             fx_rate=rate,
+            cabin=Cabin.UNKNOWN,
+            cabin_confirmed=False,
+            trip_type=trip_type,
         )
 
 
@@ -198,6 +217,8 @@ class MockProvider:
         price = self.baseline * (1 + self._rng.uniform(-self.jitter, self.jitter))
         departure = "2026-06-01"
         return_date = "2026-06-08"
+        # Sintético/determinístico: tratado como business confirmado
+        # (preserva o caminho "alerta business" exercitado pelos testes).
         return Quote(
             route=route,
             price_brl=round(price, 2),
@@ -205,4 +226,7 @@ class MockProvider:
             departure_date=departure,
             return_date=return_date,
             source="mock",
+            cabin=Cabin.BUSINESS,
+            cabin_confirmed=True,
+            trip_type=TripType.ROUND_TRIP,
         )

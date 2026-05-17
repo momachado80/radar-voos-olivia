@@ -22,7 +22,7 @@ from .formatting import format_brl
 from .monitor import Monitor, MonitorResult
 from .notifier import TelegramNotifier, format_alert
 from .providers import KiwiTequilaProvider, MockProvider, Quote, TravelpayoutsProvider
-from .regions import Route
+from .regions import Cabin, Route
 from .state import PriceStore
 from .status import StatusState, _build_message, maybe_send_status
 from .thresholds import hot_routes
@@ -150,6 +150,8 @@ def cmd_preview(args: argparse.Namespace) -> int:
         departure_date="2026-06-15",
         return_date="2026-06-22",
         source="kiwi",
+        cabin=Cabin.BUSINESS,
+        cabin_confirmed=True,
     )
     decision_excellent = Decision(
         alert=True,
@@ -172,6 +174,8 @@ def cmd_preview(args: argparse.Namespace) -> int:
         departure_date="2026-07-10",
         return_date="2026-07-17",
         source="kiwi",
+        cabin=Cabin.BUSINESS,
+        cabin_confirmed=True,
     )
     decision_good = Decision(
         alert=True,
@@ -270,6 +274,8 @@ def cmd_preview(args: argparse.Namespace) -> int:
         departure_date="2026-11-10",
         return_date="2026-11-17",
         source="manual_purchase",
+        cabin=Cabin.BUSINESS,
+        cabin_confirmed=True,
     )
     decision_manual = Decision(
         alert=True,
@@ -280,6 +286,46 @@ def cmd_preview(args: argparse.Namespace) -> int:
         score=65,
     )
     print(format_alert(quote_manual, decision_manual, priority=True))
+
+    print()
+    print("=" * 60)
+    print("4d. ALERTA BLOQUEADO — cabine não confirmada")
+    print("=" * 60)
+    print(
+        "Travelpayouts não confirma a classe (o endpoint ignora trip_class).\n"
+        "O Monitor BLOQUEIA o alerta forte e NÃO envia Telegram. Nota gerada:\n"
+        "  GRU→MIA: alerta bloqueado: cabine não confirmada (cabin=unknown)\n"
+        "Mesmo se o notifier fosse chamado (não é), o título seria honesto:"
+    )
+    print()
+    quote_unconfirmed = Quote(
+        route=Route("GRU", "MIA", "EUA"),
+        price_brl=1276.0,
+        deep_link=None,
+        departure_date="2026-06-15",
+        return_date="2026-06-22",
+        source="travelpayouts",
+        amount=232.0,
+        currency="USD",
+        amount_brl_estimated=1276.0,
+        fx_rate=5.5,
+        cabin=Cabin.UNKNOWN,
+        cabin_confirmed=False,
+    )
+    decision_unconfirmed = Decision(
+        alert=True,
+        reason="preço R$ 1276 <= alvo (nível excellent)",
+        criterion=CRITERION_CEILING,
+        threshold=1300.0,
+        level=LEVEL_EXCELLENT,
+        score=90,
+    )
+    print(format_alert(quote_unconfirmed, decision_unconfirmed, priority=True))
+    print()
+    print(
+        "→ Titulo honesto: sem nivel forte e sem rotulo de classe. "
+        "O suspeito 'US$ 232 GRU-MIA' nao passa como oportunidade executiva."
+    )
 
     print()
     print("=" * 60)

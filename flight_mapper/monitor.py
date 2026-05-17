@@ -11,7 +11,7 @@ from .cycle_state import CycleState
 from .detector import evaluate, evaluate_ceiling
 from .notifier import TelegramNotifier
 from .providers import FlightProvider, Quote
-from .regions import Route, all_routes, is_priority
+from .regions import Cabin, Route, all_routes, is_priority
 from .score import compute_opportunity_score
 from .state import PriceStore
 from .thresholds import HOT_ROUTE_KEYS, levels_for, scaled_levels
@@ -32,6 +32,7 @@ class MonitorResult:
     actionable_links_generated: int = 0
     manual_fallback_alerts_sent: int = 0
     currency_blocked: int = 0
+    cabin_blocked: int = 0
 
 
 def _quote_to_dict(quote: Quote, now: datetime, *, provider_note: str | None = None) -> dict:
@@ -49,7 +50,9 @@ def _quote_to_dict(quote: Quote, now: datetime, *, provider_note: str | None = N
         "deep_link": quote.deep_link,
         "detected_at": now.isoformat(),
         "actionable_url": is_actionable_url(quote.deep_link),
-        "cabin": "business",
+        "cabin": quote.cabin.value,
+        "cabin_confirmed": quote.cabin_confirmed,
+        "trip_type": quote.trip_type.value,
         "provider_note": provider_note,
     }
 
@@ -171,6 +174,7 @@ class Monitor:
         actionable_links_generated = 0
         manual_fallback_alerts_sent = 0
         currency_blocked = 0
+        cabin_blocked = 0
 
         def _now():
             return datetime.now(timezone.utc)
@@ -202,6 +206,29 @@ class Monitor:
 
             # Normaliza a cotação para BRL antes de qualquer comparação.
             quote.price_brl = quote.amount_brl_estimated
+
+            # GATE DE CABINE: a rota é monitorada como executiva
+            # (route.cabin=business). Só seguimos para alerta se a cotação
+            # confirmar a classe executiva (cabin=business E
+            # cabin_confirmed=True). Travelpayouts não confirma cabine
+            # (endpoint ignora trip_class) ⇒ cabin=unknown ⇒ bloqueado.
+            # Evita o bug de chamar "Business em promoção" / "EXCELENTE"
+            # uma tarifa cuja classe o provedor nunca confirmou (ex.: o
+            # suspeito "US$ 232 Business GRU-MIA"). Preservamos o histórico
+            # (continuidade da série) e NUNCA chamamos o notifier.
+            cabin_confirmed_business = (
+                quote.cabin == Cabin.BUSINESS and quote.cabin_confirmed
+            )
+            if route.cabin == Cabin.BUSINESS and not cabin_confirmed_business:
+                history.push(quote.price_brl)
+                history.last_quote = _quote_to_dict(quote, _now())
+                cabin_blocked += 1
+                notes.append(
+                    f"{route.origin}→{route.destination}: "
+                    f"alerta bloqueado: cabine não confirmada "
+                    f"(cabin={quote.cabin.value})"
+                )
+                continue
 
             # Só escalamos tetos USD→BRL quando houve conversão de moeda.
             # Cotação nativa em BRL usa os tetos como estão (comportamento
@@ -324,6 +351,7 @@ class Monitor:
             actionable_links_generated=actionable_links_generated,
             manual_fallback_alerts_sent=manual_fallback_alerts_sent,
             currency_blocked=currency_blocked,
+            cabin_blocked=cabin_blocked,
         )
 
     def run_cycle(self) -> MonitorResult:

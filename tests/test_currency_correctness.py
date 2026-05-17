@@ -18,7 +18,7 @@ from flight_mapper.detector import CRITERION_CEILING, LEVEL_GOOD, Decision
 from flight_mapper.formatting import format_price
 from flight_mapper.notifier import format_alert
 from flight_mapper.providers import Quote
-from flight_mapper.regions import Route
+from flight_mapper.regions import Cabin, Route
 from flight_mapper.state import PriceStore
 
 _ROUTE = Route("GRU", "JFK", "EUA")
@@ -44,6 +44,8 @@ class _UsdProvider:
             currency=CURRENCY_USD,
             amount_brl_estimated=brl,
             fx_rate=rate,
+            cabin=Cabin.BUSINESS,
+            cabin_confirmed=True,
         )
 
 

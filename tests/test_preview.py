@@ -38,6 +38,13 @@ def test_preview_messages_runs_and_prints_examples(capsys, monkeypatch, tmp_path
     # cenário explícito mostra Aviasales sendo rejeitado
     assert "4b. ALERTA com link Aviasales" in out
     assert "bloqueado pelo is_actionable_url" in out
+    # cenário 4d (PR C): alerta bloqueado por cabine não confirmada
+    assert "4d. ALERTA BLOQUEADO — cabine não confirmada" in out
+    assert "alerta bloqueado: cabine não confirmada (cabin=unknown)" in out
+    block_section = out.split("4d.")[1].split("=" * 60)[1]
+    assert "⚠️ Cabine não confirmada — verificar" in block_section
+    assert "🚨 EXCELENTE" not in block_section
+    assert "Business em promoção" not in block_section
     # cenário 4c: alerta manual sem link comercial
     assert "4c. ALERTA MANUAL SEM LINK COMERCIAL" in out
     assert "manual_purchase_fallback" in out

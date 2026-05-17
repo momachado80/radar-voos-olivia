@@ -15,7 +15,7 @@ from typing import Iterator
 from flight_mapper.monitor import Monitor
 from flight_mapper.notifier import format_alert
 from flight_mapper.providers import Quote
-from flight_mapper.regions import Route
+from flight_mapper.regions import Cabin, Route
 from flight_mapper.state import PriceStore
 
 
@@ -38,6 +38,8 @@ class _PrimaryProvider:
             departure_date="2026-11-10",
             return_date="2026-11-17",
             source="travelpayouts",
+            cabin=Cabin.BUSINESS,
+            cabin_confirmed=True,
         )
 
 
@@ -76,6 +78,8 @@ def _kiwi_quote_with_link(price: float, route: Route) -> Quote:
         departure_date="2026-11-10",
         return_date="2026-11-17",
         source="kiwi",
+        cabin=Cabin.BUSINESS,
+        cabin_confirmed=True,
     )
 
 

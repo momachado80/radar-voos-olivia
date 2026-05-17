@@ -11,7 +11,7 @@ from flight_mapper.detector import (
 )
 from flight_mapper.notifier import format_alert
 from flight_mapper.providers import Quote
-from flight_mapper.regions import Route
+from flight_mapper.regions import Cabin, Route
 
 
 _FIXED_NOW = datetime(2026, 5, 10, 10, 43, tzinfo=timezone.utc)
@@ -28,6 +28,8 @@ def _quote(**overrides) -> Quote:
         departure_date="2026-06-15",
         return_date="2026-06-22",
         source="travelpayouts",
+        cabin=Cabin.BUSINESS,
+        cabin_confirmed=True,
     )
     base.update(overrides)
     return Quote(**base)
