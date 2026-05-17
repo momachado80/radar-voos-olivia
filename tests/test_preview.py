@@ -38,6 +38,13 @@ def test_preview_messages_runs_and_prints_examples(capsys, monkeypatch, tmp_path
     # cenário explícito mostra Aviasales sendo rejeitado
     assert "4b. ALERTA com link Aviasales" in out
     assert "bloqueado pelo is_actionable_url" in out
+    # cenários PR E: cabin/trip-aware
+    assert "4f. BUSINESS ONE-WAY confirmado" in out
+    assert "Business em promoção (somente ida)" in out
+    assert "4g. ECONÔMICA ONE-WAY confirmada" in out
+    assert "Econômica em promoção (somente ida)" in out
+    assert "4h. MANUAL FALLBACK one-way econômica" in out
+    assert "2026-09-12, econômica." in out
     # cenário 4e (PR D): alerta bloqueado por preço economicamente suspeito
     assert "4e. ALERTA BLOQUEADO — preço economicamente suspeito" in out
     assert "suspicious=True" in out

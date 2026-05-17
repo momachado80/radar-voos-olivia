@@ -13,14 +13,16 @@ from .airports import is_actionable_url, route_airport_label, route_city_label
 from .auxiliary_links import build_auxiliary_search_links
 from .detector import CRITERION_CEILING, LEVEL_EXCELLENT, LEVEL_GOOD, Decision
 from .formatting import (
+    cabin_label_pt,
     format_brl,
     format_detection_time,
     format_fx_line,
     format_price,
     format_source,
+    trip_label_pt,
 )
 from .providers import Quote
-from .regions import Cabin
+from .regions import Cabin, TripType
 
 
 def _level_title(level: str | None, score: int | None = None) -> str:
@@ -59,15 +61,20 @@ def format_alert(
     # executiva. Caso contrário, título honesto e sem nível forte. Em
     # produção o Monitor já bloqueia antes do notifier; isto garante que
     # nenhum caminho (preview/manual) renderize "Business" sem confirmação.
-    cabin_confirmed_business = (
-        quote.cabin == Cabin.BUSINESS and quote.cabin_confirmed
-    )
-    if cabin_confirmed_business:
+    # Título por cabine (Regra 1 do PR E):
+    # - business confirmado  → "Business em promoção"
+    # - economy  confirmado  → "Econômica em promoção"
+    # - unknown/não confirmado → nunca "Business"; aviso honesto sem nível.
+    trip_suffix = f" ({trip_label_pt(quote.trip_type)})"
+    if quote.cabin_confirmed and quote.cabin == Cabin.BUSINESS:
         level_prefix = _level_title(decision.level, decision.score)
-        headline = "Business em promoção"
+        headline = f"Business em promoção{trip_suffix}"
+    elif quote.cabin_confirmed and quote.cabin == Cabin.ECONOMY:
+        level_prefix = _level_title(decision.level, decision.score)
+        headline = f"Econômica em promoção{trip_suffix}"
     else:
         level_prefix = ""
-        headline = "⚠️ Cabine não confirmada — verificar"
+        headline = f"⚠️ Cabine não confirmada — verificar{trip_suffix}"
     city_line = route_city_label(quote.route.origin, quote.route.destination)
     iata_line = route_airport_label(quote.route.origin, quote.route.destination)
 
@@ -103,7 +110,14 @@ def format_alert(
         price_line = f"{price_line}\n{fx_line}"
 
     criterion_line = _level_criterion_line(decision)
-    dates = quote.departure_date + (f" → {quote.return_date}" if quote.return_date else "")
+    # Datas (Regra 3): seta de volta só em round_trip COM return_date.
+    # one_way / sem retorno ⇒ só a data de ida, sem seta vazia.
+    show_return = (
+        quote.trip_type == TripType.ROUND_TRIP and bool(quote.return_date)
+    )
+    dates = quote.departure_date + (
+        f" → {quote.return_date}" if show_return else ""
+    )
 
     head_lines: list[str] = [f"{city_line} ({quote.route.region})"]
     if iata_line != city_line:
@@ -123,13 +137,14 @@ def format_alert(
         # claramente marcados como NÃO sendo oferta confirmada.
         extras.append("🛒 Fonte: Travelpayouts (cache)")
         dates_label = quote.departure_date + (
-            f" → {quote.return_date}" if quote.return_date else ""
+            f" → {quote.return_date}" if show_return else ""
         )
+        cabin_label = cabin_label_pt(quote.cabin, quote.cabin_confirmed)
         extras.append("⚠️ Link comercial automático indisponível.")
         extras.append("Links auxiliares de pesquisa, não oferta confirmada.")
         extras.append(
             f"Pesquise manualmente: {quote.route.origin} → {quote.route.destination}, "
-            f"{dates_label}, executiva."
+            f"{dates_label}, {cabin_label}."
         )
         for label, url in build_auxiliary_search_links(quote):
             extras.append(f'🔎 <a href="{url}">{label}</a>')

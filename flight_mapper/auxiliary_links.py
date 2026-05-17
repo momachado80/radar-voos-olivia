@@ -17,16 +17,21 @@ from __future__ import annotations
 
 from urllib.parse import quote_plus
 
+from .formatting import cabin_search_term
 from .providers import Quote
-from .regions import Route
+from .regions import Cabin, Route, TripType
 
 
 def build_google_search_url(
-    route: Route, departure_date: str, return_date: str | None = None
+    route: Route,
+    departure_date: str,
+    return_date: str | None = None,
+    cabin: Cabin = Cabin.BUSINESS,
 ) -> str:
     """Busca genérica no Google. Sempre estável — fallback principal.
 
     Formato: `https://www.google.com/search?q=GRU+CDG+2026-06-09+business+class+flights`
+    A classe (`business`/`economy`) reflete `cabin`.
     """
     parts = [
         route.origin,
@@ -35,12 +40,15 @@ def build_google_search_url(
     ]
     if return_date:
         parts.append(return_date)
-    parts.extend(["business", "class", "flights"])
+    parts.extend([cabin_search_term(cabin), "class", "flights"])
     return f"https://www.google.com/search?q={quote_plus(' '.join(parts))}"
 
 
 def build_google_flights_query_url(
-    route: Route, departure_date: str, return_date: str | None = None
+    route: Route,
+    departure_date: str,
+    return_date: str | None = None,
+    cabin: Cabin = Cabin.BUSINESS,
 ) -> str:
     """URL de busca no Google Flights via query parametrizada.
 
@@ -48,31 +56,36 @@ def build_google_flights_query_url(
     nativo (que tem parâmetros frágeis baseados em IDs internos), mas é
     estável: o Google interpreta a query semanticamente.
     """
+    cls = cabin_search_term(cabin)
     if return_date:
         q = (
             f"flights from {route.origin} to {route.destination} "
-            f"{departure_date} return {return_date} business class"
+            f"{departure_date} return {return_date} {cls} class"
         )
     else:
         q = (
             f"flights from {route.origin} to {route.destination} "
-            f"{departure_date} business class"
+            f"{departure_date} {cls} class"
         )
     return f"https://www.google.com/travel/flights?q={quote_plus(q)}"
 
 
 def build_kayak_search_url(
-    route: Route, departure_date: str, return_date: str | None = None
+    route: Route,
+    departure_date: str,
+    return_date: str | None = None,
+    cabin: Cabin = Cabin.BUSINESS,
 ) -> str:
     """URL de busca no Kayak.
 
-    Path estável e bem documentado: `/flights/ORIG-DEST/DEP[/RET]/business`.
-    Mantemos pois Kayak não muda esse esquema há anos.
+    Path estável e bem documentado: `/flights/ORIG-DEST/DEP[/RET]/CLASS`.
+    Mantemos pois Kayak não muda esse esquema há anos. `CLASS` reflete
+    `cabin` (`business`/`economy`).
     """
     path = f"{route.origin}-{route.destination}/{departure_date}"
     if return_date:
         path += f"/{return_date}"
-    return f"https://www.kayak.com/flights/{path}/business"
+    return f"https://www.kayak.com/flights/{path}/{cabin_search_term(cabin)}"
 
 
 def build_auxiliary_search_links(quote: Quote) -> list[tuple[str, str]]:
@@ -82,24 +95,33 @@ def build_auxiliary_search_links(quote: Quote) -> list[tuple[str, str]]:
     1. Google Search — query genérica, sempre funciona.
     2. Google Flights — query semântica, funciona na maioria dos casos.
     3. Kayak — path estável conhecido.
+
+    Reflete cabine e trip_type da cotação: one_way (ou sem retorno) não
+    emite data de volta; round_trip com retorno a inclui.
     """
+    ret = (
+        quote.return_date
+        if quote.trip_type == TripType.ROUND_TRIP
+        else None
+    )
+    cabin = quote.cabin
     return [
         (
             "Pesquisar no Google",
             build_google_search_url(
-                quote.route, quote.departure_date, quote.return_date
+                quote.route, quote.departure_date, ret, cabin
             ),
         ),
         (
             "Pesquisar no Google Flights",
             build_google_flights_query_url(
-                quote.route, quote.departure_date, quote.return_date
+                quote.route, quote.departure_date, ret, cabin
             ),
         ),
         (
             "Pesquisar no Kayak",
             build_kayak_search_url(
-                quote.route, quote.departure_date, quote.return_date
+                quote.route, quote.departure_date, ret, cabin
             ),
         ),
     ]
