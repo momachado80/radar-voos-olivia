@@ -23,11 +23,16 @@ def test_watchlist_labels_use_executiva_terminology():
 
 
 def test_watchlist_route_keys_follow_business_pattern():
+    # PR F1: round_trip = `O-D-business` (3 partes); one_way =
+    # `O-D-one_way-business` (4 partes). Sempre business, origem GRU.
     for wl in WATCHLISTS:
         for key in wl.route_keys:
             parts = key.split("-")
-            assert len(parts) == 3
-            assert parts[2] == "business"
+            assert key.endswith("-business")
+            assert parts[0] == "GRU"
+            assert len(parts) in (3, 4)
+            if len(parts) == 4:
+                assert parts[2] == "one_way"
 
 
 def test_best_per_watchlist_picks_lowest_price(tmp_path: Path):
