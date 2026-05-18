@@ -186,16 +186,20 @@ def test_status_includes_regional_best_section(tmp_path: Path):
     )
 
     body = notifier.sent[0]
-    # Watchlists substituíram "Melhor por região" no heartbeat
-    assert "📌 Melhores oportunidades monitoradas" in body
-    assert "Europa Executiva: São Paulo → Londres (GRU → LHR)" in body
-    assert "EUA Executiva: São Paulo → Miami (GRU → MIA)" in body
-    assert "Ásia/Oriente Médio Executiva: São Paulo → Dubai (GRU → DXB)" in body
-    # Título antigo não aparece mais
+    # Sem last_quote → tudo é sinal bruto (cabine não confirmada).
+    assert "📌 Oportunidades confirmadas" in body
+    assert "• Nenhuma oportunidade confirmada agora." in body
+    assert "💸 Top 3 sinais brutos de menor preço" in body
+    assert "📡 Observação" in body
+    # 3 mais baratas aparecem como sinal bruto: MIA(1207) ORD(1631) LHR(1800)
+    assert "São Paulo → Miami (GRU → MIA)" in body
+    assert "São Paulo → Chicago (GRU → ORD)" in body
+    assert "São Paulo → Londres (GRU → LHR)" in body
+    assert "cabine não confirmada" in body
+    # estrutura antiga aposentada
+    assert "📌 Melhores oportunidades monitoradas" not in body
     assert "🌎 Melhor por região" not in body
-    # rotas não-vencedoras não aparecem como linha de watchlist
-    assert "Europa Executiva: São Paulo → Frankfurt" not in body
-    assert "EUA Executiva: São Paulo → Chicago" not in body
+    assert "Executiva:" not in body
 
 
 def test_daily_report_shows_link_when_last_quote_actionable(tmp_path: Path):
@@ -214,6 +218,11 @@ def test_daily_report_shows_link_when_last_quote_actionable(tmp_path: Path):
         "detected_at": "2026-05-12T17:30:00+00:00",
         "actionable_url": True,
         "cabin": "business",
+        "cabin_confirmed": True,
+        "currency": "BRL",
+        "amount": 1207.0,
+        "amount_brl_estimated": 1207.0,
+        "trip_type": "round_trip",
         "provider_note": None,
     }
     notifier = _StubNotifier()
@@ -227,6 +236,9 @@ def test_daily_report_shows_link_when_last_quote_actionable(tmp_path: Path):
     )
 
     body = notifier.sent[0]
+    # confirmada (Kiwi business BRL) → seção de oportunidades + link
+    assert "📌 Oportunidades confirmadas" in body
+    assert "Executiva" in body
     assert "kiwi.com" in body
     assert "Conferir busca" in body
     # Aviasales jamais aparece
@@ -318,9 +330,19 @@ def test_daily_report_omits_link_when_last_quote_route_mismatch(tmp_path: Path):
 
 
 def test_status_includes_average_score_line(tmp_path: Path):
-    """Quando há Top 3 com histórico, score médio aparece como linha ⭐."""
+    """Score médio só rotula oportunidades CONFIRMADAS (Regra 6)."""
     store = PriceStore(tmp_path / "h.json")
-    _populate(store, {"GRU-MIA-business": [1207.0], "GRU-LHR-business": [1800.0]})
+    h = store.get("GRU-MIA-business")
+    h.push(8000.0)
+    h.last_quote = {
+        "origin": "GRU", "destination": "MIA",
+        "departure_date": "2026-11-10", "return_date": "2026-11-17",
+        "source": "kiwi", "currency": "BRL", "amount": 8000.0,
+        "amount_brl_estimated": 8000.0, "cabin": "business",
+        "cabin_confirmed": True, "trip_type": "round_trip",
+        "actionable_url": False,
+    }
+    store.save()
     notifier = _StubNotifier()
 
     maybe_send_status(
@@ -332,8 +354,10 @@ def test_status_includes_average_score_line(tmp_path: Path):
     )
 
     body = notifier.sent[0]
-    assert "⭐ Score médio do Top 3:" in body
+    assert "⭐ Score médio (oportunidades confirmadas):" in body
     assert "/100" in body
+    # nunca o rótulo antigo (não pode parecer score de Top 3 bruto)
+    assert "⭐ Score médio do Top 3:" not in body
 
 
 def test_status_uses_watchlist_section_title(tmp_path: Path):
@@ -351,8 +375,12 @@ def test_status_uses_watchlist_section_title(tmp_path: Path):
     )
 
     body = notifier.sent[0]
-    assert "📌 Melhores oportunidades monitoradas" in body
-    # nomes técnicos não vazam para o usuário final
+    # novas seções
+    assert "📌 Oportunidades confirmadas" in body
+    assert "💸 Top 3 sinais brutos de menor preço" in body
+    assert "📡 Observação" in body
+    # estrutura/jargão antigos não vazam
+    assert "📌 Melhores oportunidades monitoradas" not in body
     assert "Melhor por watchlist" not in body
     assert "watchlist" not in body.lower()
 
@@ -371,9 +399,11 @@ def test_regional_section_renames_asia_for_display(tmp_path: Path):
     )
 
     body = notifier.sent[0]
-    assert "Ásia/Oriente Médio" in body
-    # nada do display antigo, mesmo como prefixo isolado
+    # rota aparece como sinal bruto, humanizada; sem rótulo regional antigo
+    assert "São Paulo → Dubai (GRU → DXB)" in body
+    assert "cabine não confirmada" in body
     assert "• Ásia:" not in body
+    assert "📌 Melhores oportunidades monitoradas" not in body
 
 
 def test_status_uses_brl_with_dot_separator(tmp_path: Path):
@@ -497,7 +527,9 @@ def test_empty_store_does_not_crash(tmp_path: Path):
     )
 
     assert decision.action == "sent"
-    assert "Sem histórico disponível" in notifier.sent[0]
+    body = notifier.sent[0]
+    assert "• Nenhuma oportunidade confirmada agora." in body
+    assert "• Nenhum sinal bruto de preço no momento." in body
 
 
 def test_no_notifier_skips_cleanly(tmp_path: Path):

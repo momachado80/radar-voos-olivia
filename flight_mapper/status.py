@@ -11,10 +11,11 @@ from .airports import humanize_route, is_actionable_url
 from .formatting import format_brl, format_price
 from .monitor import MonitorResult
 from .notifier import TelegramNotifier
+from .regions import Cabin, TripType
+from .sanity import is_suspicious_price
 from .score import compute_opportunity_score
 from .state import PriceStore, RouteHistory
 from .thresholds import HOT_ROUTE_KEYS, levels_for, scaled_levels
-from .watchlists import Watchlist, best_per_watchlist
 
 
 @dataclass
@@ -100,40 +101,6 @@ def _price_label(history: RouteHistory, fallback_price: float) -> str:
     )
 
 
-def _format_top3_line(
-    index: int, key: str, history: RouteHistory, price: float, link: str | None = None
-) -> str:
-    parts = _split_route_key(key)
-    price_str = _price_label(history, price)
-    if parts is None:
-        return f"{index}. {key} — {price_str}"
-    origin, destination = parts
-    label = humanize_route(origin, destination)
-    base = f"{index}. {label} — {price_str}"
-    if link:
-        return f'{base} — 🔎 <a href="{link}">Conferir busca</a>'
-    return base
-
-
-def _format_watchlist_line(
-    watchlist: Watchlist,
-    key: str,
-    history: RouteHistory,
-    price: float,
-    link: str | None = None,
-) -> str:
-    parts = _split_route_key(key)
-    price_str = _price_label(history, price)
-    if parts is None:
-        return f"• {watchlist.label}: {key} — {price_str}"
-    origin, destination = parts
-    label = humanize_route(origin, destination)
-    base = f"• {watchlist.label}: {label} — {price_str}"
-    if link:
-        return f'{base} — 🔎 <a href="{link}">Conferir busca</a>'
-    return base
-
-
 def _compute_average_score(store: PriceStore, keys: list[str]) -> int | None:
     """Score médio (0-100) das `keys` informadas, usando last_quote quando disponível."""
     scores: list[int] = []
@@ -163,6 +130,79 @@ def _compute_average_score(store: PriceStore, keys: list[str]) -> int | None:
     return round(sum(scores) / len(scores))
 
 
+class _SignalQuote:
+    """Shim mínimo p/ reusar `sanity.is_suspicious_price` a partir de um
+    `last_quote` (dict). Não toca provider/monitor/thresholds."""
+
+    def __init__(self, lq: dict):
+        self.suspicious = bool(lq.get("suspicious", False))
+        self.currency = str(lq.get("currency") or "")
+        try:
+            self.cabin = Cabin(str(lq.get("cabin") or "unknown"))
+        except ValueError:
+            self.cabin = Cabin.UNKNOWN
+        try:
+            self.trip_type = TripType(str(lq.get("trip_type") or "round_trip"))
+        except ValueError:
+            self.trip_type = TripType.ROUND_TRIP
+
+
+def _is_confirmed(history: RouteHistory) -> bool:
+    """Oportunidade confirmada: cabine confirmada (business/economy),
+    moeda correta e preço NÃO suspeito. Travelpayouts (cabin unknown /
+    cabin_confirmed False) nunca conta como confirmada."""
+    lq = history.last_quote if isinstance(history.last_quote, dict) else None
+    if not lq:
+        return False
+    if lq.get("cabin_confirmed") is not True:
+        return False
+    if lq.get("cabin") not in ("business", "economy"):
+        return False
+    currency = str(lq.get("currency") or "").upper()
+    if currency == "USD" and lq.get("amount_brl_estimated") is None:
+        return False
+    if currency not in ("BRL", "USD"):
+        return False
+    amount_brl = lq.get("amount_brl_estimated")
+    if amount_brl is None and currency == "BRL":
+        amount_brl = lq.get("amount")
+    if is_suspicious_price(None, _SignalQuote(lq), amount_brl):
+        return False
+    return True
+
+
+def _cabin_label(history: RouteHistory) -> str:
+    lq = history.last_quote if isinstance(history.last_quote, dict) else {}
+    cabin = (lq or {}).get("cabin")
+    if cabin == "business":
+        return "Executiva"
+    if cabin == "economy":
+        return "Econômica"
+    return "cabine não confirmada"
+
+
+def _format_confirmed_line(
+    index: int, key: str, history: RouteHistory, price: float, link: str | None
+) -> str:
+    parts = _split_route_key(key)
+    price_str = _price_label(history, price)
+    tag = _cabin_label(history)
+    label = humanize_route(*parts) if parts else key
+    base = f"{index}. {label} — {price_str} — {tag}"
+    if link:
+        return f'{base} — 🔎 <a href="{link}">Conferir busca</a>'
+    return base
+
+
+def _format_raw_line(
+    index: int, key: str, history: RouteHistory, price: float
+) -> str:
+    parts = _split_route_key(key)
+    price_str = _price_label(history, price)
+    label = humanize_route(*parts) if parts else key
+    return f"{index}. {label} — {price_str} — cabine não confirmada"
+
+
 def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> str:
     timestamp = now.strftime("%d/%m %H:%M UTC")
 
@@ -176,10 +216,18 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         )
 
     latest = _latest_prices(store)
-    top3 = sorted(latest, key=lambda x: x[1])[:3]
-    if top3:
-        top3_lines = "\n".join(
-            _format_top3_line(
+    confirmed = sorted(
+        (it for it in latest if _is_confirmed(store.get(it[0]))),
+        key=lambda x: x[1],
+    )[:3]
+    raw = sorted(
+        (it for it in latest if not _is_confirmed(store.get(it[0]))),
+        key=lambda x: x[1],
+    )[:3]
+
+    if confirmed:
+        confirmed_lines = "\n".join(
+            _format_confirmed_line(
                 i + 1,
                 key,
                 store.get(key),
@@ -188,32 +236,33 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
                     store.get(key), *(_split_route_key(key) or ("", ""))
                 ),
             )
-            for i, (key, price) in enumerate(top3)
+            for i, (key, price) in enumerate(confirmed)
         )
-        avg_score = _compute_average_score(store, [k for k, _ in top3])
-        avg_score_line = (
-            f"⭐ Score médio do Top 3: {avg_score}/100\n" if avg_score is not None else ""
+        avg_score = _compute_average_score(store, [k for k, _ in confirmed])
+        # Score só rotula oportunidades confirmadas (Regra 6) — nunca
+        # aparece sobre sinais brutos.
+        confirmed_score_line = (
+            f"⭐ Score médio (oportunidades confirmadas): {avg_score}/100\n"
+            if avg_score is not None
+            else ""
         )
     else:
-        top3_lines = "Sem histórico disponível ainda."
-        avg_score_line = ""
+        confirmed_lines = "• Nenhuma oportunidade confirmada agora."
+        confirmed_score_line = ""
 
-    watchlist_best = best_per_watchlist(store)
-    watchlist_block = ""
-    if watchlist_best:
-        watchlist_lines = "\n".join(
-            _format_watchlist_line(
-                wl,
-                key,
-                store.get(key),
-                price,
-                link=_actionable_link_from_history(
-                    store.get(key), *(_split_route_key(key) or ("", ""))
-                ),
-            )
-            for wl, key, price in watchlist_best
+    if raw:
+        raw_lines = "\n".join(
+            _format_raw_line(i + 1, key, store.get(key), price)
+            for i, (key, price) in enumerate(raw)
         )
-        watchlist_block = f"\n\n📌 Melhores oportunidades monitoradas\n{watchlist_lines}"
+    else:
+        raw_lines = "• Nenhum sinal bruto de preço no momento."
+
+    observation = (
+        "📡 Observação\n"
+        "Esses valores podem representar econômica promocional ou tarifa "
+        "sem classe comprovada. O robô não trata como executiva confirmada."
+    )
 
     footer = (
         "ℹ️ Sem oportunidade dentro dos critérios de alerta agora."
@@ -228,10 +277,12 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         f"• Rotas escaneadas: {result.scanned}\n"
         f"• Cotações obtidas: {result.quotes_received}\n"
         f"• Alertas: {result.alerts_sent}\n\n"
-        f"{avg_score_line}"
-        "💸 Top 3 menores preços atuais\n"
-        f"{top3_lines}"
-        f"{watchlist_block}\n\n"
+        "📌 Oportunidades confirmadas\n"
+        f"{confirmed_score_line}"
+        f"{confirmed_lines}\n\n"
+        "💸 Top 3 sinais brutos de menor preço\n"
+        f"{raw_lines}\n\n"
+        f"{observation}\n\n"
         f"{footer}"
     )
 
