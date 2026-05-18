@@ -76,11 +76,15 @@ def test_preview_messages_runs_and_prints_examples(capsys, monkeypatch, tmp_path
     # bloqueio explícito de hosts do Aviasales
     assert "search.aviasales.com" not in manual_section.lower()
     assert "aviasales.ru" not in manual_section.lower()
-    # watchlist substitui "Melhor por região"
-    assert "📌 Melhores oportunidades monitoradas" in out
+    # relatório separa oportunidades confirmadas de sinais brutos
+    assert "📌 Oportunidades confirmadas" in out
+    assert "💸 Top 3 sinais brutos de menor preço" in out
+    assert "📡 Observação" in out
+    assert "cabine não confirmada" in out
+    # estrutura antiga aposentada
+    assert "📌 Melhores oportunidades monitoradas" not in out
     assert "🌎 Melhor por região" not in out
-    # score médio no relatório
-    assert "⭐ Score médio do Top 3:" in out
+    assert "⭐ Score médio do Top 3:" not in out
     # observação FASE 3 deferida
     assert "FASE 3" in out
     assert "deferida" in out
