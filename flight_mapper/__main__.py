@@ -25,7 +25,12 @@ from .providers import KiwiTequilaProvider, MockProvider, Quote, TravelpayoutsPr
 from .regions import Cabin, Route, TripType
 from .sanity import is_suspicious_price, suspicious_reason
 from .state import PriceStore
-from .status import StatusState, _build_message, maybe_send_status
+from .status import (
+    StatusState,
+    _build_message,
+    explain_status,
+    maybe_send_status,
+)
 from .thresholds import hot_routes, one_way_hot_routes
 
 
@@ -709,6 +714,17 @@ def cmd_export_history(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_explain_status(args: argparse.Namespace) -> int:
+    """Read-only: explica fontes, ausência de alerta e gargalos.
+    Sem rede, sem provider, sem Telegram."""
+    store = _load_diag_store()
+    if store is None:
+        print(_empty_history_msg())
+        return 0
+    print(explain_status(store))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="flight_mapper")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -781,6 +797,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_export.add_argument("--out", default=None, help="Caminho do CSV de saída")
     p_export.set_defaults(func=cmd_export_history)
+
+    p_explain = sub.add_parser(
+        "explain-status",
+        help="Explica fontes, ausência de alerta e gargalos (read-only).",
+    )
+    p_explain.set_defaults(func=cmd_explain_status)
 
     args = parser.parse_args(argv)
     return args.func(args)

@@ -73,15 +73,17 @@ def test_unknown_cabin_is_raw_signal_not_executiva(tmp_path: Path):
     store.save()
     body = _send(store, tmp_path)
 
-    # aparece como sinal bruto multilinha (painel de confiança)
+    # R$ 1.166 one_way: incompatível c/ executiva, compatível c/ econômica
+    # → entra em "Possíveis promoções de econômica" (multilinha).
+    assert "💸 Possíveis promoções de econômica" in body
+    eco = body.split("💸 Possíveis promoções de econômica")[1].split("🛡️")[0]
+    assert "São Paulo → Miami (GRU → MIA) — US$ 212 ≈ R$ 1.166" in eco
+    assert "Fonte: Travelpayouts" in eco
+    assert "Cabine: não confirmada" in eco
+    assert "Tipo: somente ida" in eco
+    assert "preço compatível com econômica promocional" in eco
+    # seções de confiança presentes
     assert "📡 Sinais brutos de preço" in body
-    assert "São Paulo → Miami (GRU → MIA) — US$ 212 ≈ R$ 1.166" in body
-    assert "Fonte: Travelpayouts" in body
-    assert "Cabine: não confirmada" in body
-    assert (
-        "Interpretação: pode ser econômica promocional ou tarifa "
-        "sem classe comprovada." in body
-    )
     assert "🧭 Status das fontes" in body
     assert "Travelpayouts: ativo, mas sem cabine confirmada." in body
     # nunca rotulado como executiva/business/confirmada
