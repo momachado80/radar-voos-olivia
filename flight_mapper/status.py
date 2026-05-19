@@ -272,7 +272,7 @@ def _format_raw_block(
     price_str = _price_label(history, price)
     label = humanize_route(*parts) if parts else key
     return (
-        f"{index}. {label} — {price_str}\n"
+        f"{index}. {label} — {price_str} [{_trip_label(history)}]\n"
         f"   Fonte: {_source_name(history)}\n"
         f"   Cabine: não confirmada\n"
         f"   Tipo: {_trip_label(history)}\n"
@@ -290,7 +290,7 @@ def _format_economy_block(
     price_str = _price_label(history, price)
     label = humanize_route(*parts) if parts else key
     return (
-        f"{index}. {label} — {price_str}\n"
+        f"{index}. {label} — {price_str} [{_trip_label(history)}]\n"
         f"   Fonte: {_source_name(history)}\n"
         f"   Cabine: não confirmada\n"
         f"   Tipo: {_trip_label(history)}\n"
@@ -339,7 +339,7 @@ def _no_alert_reason(result: MonitorResult) -> str:
             f"link comercial indisponível ({result.non_actionable_links_skipped})"
         )
     if not motives:
-        return "ℹ️ Sem oportunidade dentro dos critérios de alerta agora."
+        return "ℹ️ Sem oportunidade confirmada agora."
     return "ℹ️ Sem alerta confirmado: " + "; ".join(motives) + "."
 
 
@@ -391,21 +391,38 @@ def _source_status_block(
 def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> str:
     timestamp = now.strftime("%d/%m %H:%M UTC")
 
-    if result.quotes_received == 0:
-        return (
-            "⚠️ <b>Radar de Voos Olivia</b>\n"
-            f"Último ciclo: {timestamp}\n"
-            f"Retornou 0 cotações em {result.scanned} rotas escaneadas. "
-            "Provider possivelmente sem ofertas cacheadas para as rotas/datas atuais. "
-            "Próxima tentativa no próximo ciclo."
-        )
-
+    # Painel SEMPRE renderizado — sem fallback/early-return. Quando
+    # quotes==0 as seções ficam vazias com texto claro e o motivo
+    # explica. Sem template degradado antigo.
     latest = _latest_prices(store)
+
+    # Qualidade: entradas legadas sem moeda comprovada não entram nas
+    # listas principais (eram USD rotulado como BRL — o bug original).
+    quality = [
+        it for it in latest if _amount_brl(store.get(it[0]), it[1]) is not None
+    ]
+    legacy_omitted = len(latest) - len(quality)
+
+    # Dedupe: mesma rota/preço/fonte/cabine/trip aparece uma vez só;
+    # round_trip × one_way da mesma rota ficam diferenciados pelo trip.
+    seen: set[tuple] = set()
+    deduped: list[tuple[str, float]] = []
+    for key, price in quality:
+        lq = _lq(store.get(key))
+        sig = (
+            lq.get("origin"), lq.get("destination"), round(float(price), 2),
+            lq.get("source"), lq.get("cabin"), lq.get("trip_type"),
+        )
+        if sig in seen:
+            continue
+        seen.add(sig)
+        deduped.append((key, price))
+
     confirmed = sorted(
-        (it for it in latest if _is_confirmed(store.get(it[0]))),
+        (it for it in deduped if _is_confirmed(store.get(it[0]))),
         key=lambda x: x[1],
     )[:3]
-    non_conf = [it for it in latest if not _is_confirmed(store.get(it[0]))]
+    non_conf = [it for it in deduped if not _is_confirmed(store.get(it[0]))]
     economy = sorted(
         (it for it in non_conf if _economy_plausible(store.get(it[0]))),
         key=lambda x: x[1],
@@ -459,6 +476,11 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
     sources_block = _source_status_block(store, confirmed, raw + economy)
     security_block = _security_block(result)
     reason = _no_alert_reason(result)
+    legacy_line = (
+        f"• Entradas legadas sem moeda comprovada (omitidas): {legacy_omitted}\n"
+        if legacy_omitted
+        else ""
+    )
 
     return (
         "🛰️ <b>Radar de Voos Olivia — relatório diário</b>\n"
@@ -470,7 +492,8 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         f"• Bloqueados por cabine: {result.cabin_blocked}\n"
         f"• Bloqueados por preço suspeito: {result.suspicious_blocked}\n"
         f"• Bloqueados por câmbio: {result.currency_blocked}\n"
-        f"• Links comerciais indisponíveis: {result.non_actionable_links_skipped}\n\n"
+        f"• Links comerciais indisponíveis: {result.non_actionable_links_skipped}\n"
+        f"{legacy_line}\n"
         "📌 Oportunidades confirmadas\n"
         f"{confirmed_score_line}"
         f"{confirmed_lines}\n\n"

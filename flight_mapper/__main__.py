@@ -233,10 +233,16 @@ def cmd_preview(args: argparse.Namespace) -> int:
                 "departure_date": "2026-06-15",
                 "return_date": "2026-06-22",
                 "source": "travelpayouts",
+                "currency": "USD",
+                "amount": round(price / 5.5, 2),
+                "amount_brl_estimated": price,
+                "fx_rate": 5.5,
                 "deep_link": link,
                 "detected_at": now.isoformat(),
                 "actionable_url": True,
-                "cabin": "business",
+                "cabin": "unknown",
+                "cabin_confirmed": False,
+                "trip_type": "round_trip",
                 "provider_note": None,
             }
         fake_result = MonitorResult(scanned=12, quotes_received=6, alerts_sent=0, notes=[])

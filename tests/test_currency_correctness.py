@@ -250,9 +250,12 @@ def test_old_price_history_without_currency_loads(monkeypatch, tmp_path: Path):
         state_path=tmp_path / "status.json",
     )
     body = notifier.sent[0]
+    # Schema antigo sem moeda comprovada → OMITIDO do painel (não vira
+    # R$ enganoso nem aparece como "moeda não confirmada").
     assert "R$ 1.917" not in body
     assert "R$ 1.919" not in body
-    assert "moeda não confirmada" in body
+    assert "moeda não confirmada" not in body
+    assert "Entradas legadas sem moeda comprovada (omitidas): 1" in body
 
 
 def test_alert_blocked_when_currency_unknown(monkeypatch, tmp_path: Path):

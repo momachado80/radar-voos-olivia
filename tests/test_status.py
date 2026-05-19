@@ -38,6 +38,28 @@ def _populate(store: PriceStore, prices: dict[str, list[float]]) -> None:
     store.save()
 
 
+def _populate_q(store: PriceStore, prices: dict[str, list[float]]) -> None:
+    """Como `_populate`, mas anexa last_quote com moeda comprovada (BRL,
+    cabine não confirmada) — entra no painel como sinal bruto."""
+    for key, values in prices.items():
+        history = store.get(key)
+        for value in values:
+            history.push(value)
+        parts = key.split("-")
+        o, d = (parts[0], parts[1]) if len(parts) >= 2 else ("", "")
+        last = history.prices[-1]
+        history.last_quote = {
+            "origin": o, "destination": d,
+            "departure_date": "2026-09-10", "return_date": "2026-09-17",
+            "source": "travelpayouts", "currency": "BRL",
+            "amount": last, "amount_brl_estimated": last,
+            "cabin": "unknown", "cabin_confirmed": False,
+            "trip_type": "round_trip", "actionable_url": False,
+            "deep_link": None,
+        }
+    store.save()
+
+
 def test_first_run_sends(tmp_path: Path):
     store = PriceStore(tmp_path / "h.json")
     _populate(store, {"GRU-LHR-business": [1800.0]})
@@ -104,15 +126,18 @@ def test_sends_after_window(tmp_path: Path):
 
 
 def test_top3_ordering(tmp_path: Path):
+    # Valores ≥ piso business round_trip (R$ 4.000) → todos caem em
+    # "Sinais brutos de preço" (não econômica, não confirmada). Testa
+    # ordenação por preço e cap de 3 na seção.
     store = PriceStore(tmp_path / "h.json")
-    _populate(
+    _populate_q(
         store,
         {
-            "GRU-LHR-business": [3000.0, 1800.0],
-            "GRU-MIA-business": [1207.0],
-            "GRU-ORD-business": [1631.0],
-            "GRU-FRA-business": [3322.0],
-            "GRU-SFO-business": [1997.0],
+            "GRU-LHR-business": [9000.0, 4500.0],
+            "GRU-MIA-business": [4100.0],
+            "GRU-ORD-business": [4300.0],
+            "GRU-FRA-business": [9000.0],
+            "GRU-SFO-business": [7000.0],
         },
     )
     notifier = _StubNotifier()
@@ -127,15 +152,17 @@ def test_top3_ordering(tmp_path: Path):
 
     assert decision.action == "sent"
     body = notifier.sent[0]
-    miami_idx = body.index("GRU → MIA")
-    ord_idx = body.index("GRU → ORD")
-    lhr_idx = body.index("GRU → LHR")
-    assert miami_idx < ord_idx < lhr_idx
-    assert "GRU → FRA" not in body
-    assert "GRU → SFO" not in body
-    assert "São Paulo → Miami" in body
-    assert "São Paulo → Chicago" in body
-    assert "São Paulo → Londres" in body
+    raw = body.split("📡 Sinais brutos de preço")[1].split("💸")[0]
+    miami_idx = raw.index("GRU → MIA")
+    ord_idx = raw.index("GRU → ORD")
+    lhr_idx = raw.index("GRU → LHR")
+    assert miami_idx < ord_idx < lhr_idx  # 4100 < 4300 < 4500
+    # cap de 3 na seção: as 2 mais caras (SFO 7000, FRA 9000) ficam de fora
+    assert "GRU → FRA" not in raw
+    assert "GRU → SFO" not in raw
+    assert "São Paulo → Miami" in raw
+    assert "São Paulo → Chicago" in raw
+    assert "São Paulo → Londres" in raw
 
 
 def test_daily_report_omits_aviasales_links(tmp_path: Path):
@@ -165,7 +192,7 @@ def test_daily_report_omits_aviasales_links(tmp_path: Path):
 
 def test_status_includes_regional_best_section(tmp_path: Path):
     store = PriceStore(tmp_path / "h.json")
-    _populate(
+    _populate_q(
         store,
         {
             "GRU-LHR-business": [1800.0],
@@ -387,7 +414,7 @@ def test_status_uses_watchlist_section_title(tmp_path: Path):
 
 def test_regional_section_renames_asia_for_display(tmp_path: Path):
     store = PriceStore(tmp_path / "h.json")
-    _populate(store, {"GRU-DXB-business": [2798.0]})
+    _populate_q(store, {"GRU-DXB-business": [2798.0]})
     notifier = _StubNotifier()
 
     maybe_send_status(
@@ -450,13 +477,17 @@ def test_status_does_not_show_plain_brl_for_unproven_currency(tmp_path: Path):
     )
 
     body = notifier.sent[0]
+    # Rule 4: entrada legada sem moeda comprovada é OMITIDA do painel,
+    # não exibida como "moeda não confirmada".
     assert "R$ 1.919" not in body
-    assert "moeda não confirmada" in body
+    assert "moeda não confirmada" not in body
+    assert "Entradas legadas sem moeda comprovada (omitidas): 1" in body
+    assert "• Nenhum sinal bruto de preço no momento." in body
 
 
 def test_top3_handles_unknown_airport(tmp_path: Path):
     store = PriceStore(tmp_path / "h.json")
-    _populate(store, {"XYZ-ABC-business": [999.0]})
+    _populate_q(store, {"XYZ-ABC-business": [999.0]})
     notifier = _StubNotifier()
 
     maybe_send_status(
@@ -495,7 +526,9 @@ def test_does_not_persist_when_send_fails(tmp_path: Path):
     assert not state_path.exists()
 
 
-def test_degraded_template_when_zero_quotes(tmp_path: Path):
+def test_zero_quotes_still_renders_full_panel(tmp_path: Path):
+    """Sem template degradado: mesmo com 0 cotações, o painel completo
+    é renderizado (Rule 1/2)."""
     store = PriceStore(tmp_path / "h.json")
     _populate(store, {"GRU-LHR-business": [1800.0]})
     notifier = _StubNotifier()
@@ -510,7 +543,16 @@ def test_degraded_template_when_zero_quotes(tmp_path: Path):
 
     assert decision.action == "sent"
     body = notifier.sent[0]
-    assert "0 cotações" in body
+    # painel completo sempre
+    assert "📊 Ciclo recente" in body
+    assert "• Cotações obtidas: 0" in body
+    assert "📌 Oportunidades confirmadas" in body
+    assert "📡 Sinais brutos de preço" in body
+    assert "💸 Possíveis promoções de econômica" in body
+    assert "🛡️ Alertas bloqueados por segurança" in body
+    assert "🧭 Status das fontes" in body
+    # fallback antigo eliminado
+    assert "Retornou 0 cotações" not in body
     assert "Top 3" not in body
 
 
