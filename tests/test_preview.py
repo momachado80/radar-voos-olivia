@@ -78,9 +78,9 @@ def test_preview_messages_runs_and_prints_examples(capsys, monkeypatch, tmp_path
     assert "aviasales.ru" not in manual_section.lower()
     # relatório separa oportunidades confirmadas de sinais brutos
     assert "📌 Oportunidades confirmadas" in out
-    assert "💸 Top 3 sinais brutos de menor preço" in out
-    assert "📡 Observação" in out
-    assert "cabine não confirmada" in out
+    assert "📡 Sinais brutos de preço" in out
+    assert "🧭 Status das fontes" in out
+    assert "Cabine: não confirmada" in out
     # estrutura antiga aposentada
     assert "📌 Melhores oportunidades monitoradas" not in out
     assert "🌎 Melhor por região" not in out
