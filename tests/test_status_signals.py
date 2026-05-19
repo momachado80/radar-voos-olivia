@@ -73,9 +73,17 @@ def test_unknown_cabin_is_raw_signal_not_executiva(tmp_path: Path):
     store.save()
     body = _send(store, tmp_path)
 
-    # aparece como sinal bruto, com US$ ≈ R$ e "cabine não confirmada"
-    assert "💸 Top 3 sinais brutos de menor preço" in body
-    assert "US$ 212 ≈ R$ 1.166 — cabine não confirmada" in body
+    # aparece como sinal bruto multilinha (painel de confiança)
+    assert "📡 Sinais brutos de preço" in body
+    assert "São Paulo → Miami (GRU → MIA) — US$ 212 ≈ R$ 1.166" in body
+    assert "Fonte: Travelpayouts" in body
+    assert "Cabine: não confirmada" in body
+    assert (
+        "Interpretação: pode ser econômica promocional ou tarifa "
+        "sem classe comprovada." in body
+    )
+    assert "🧭 Status das fontes" in body
+    assert "Travelpayouts: ativo, mas sem cabine confirmada." in body
     # nunca rotulado como executiva/business/confirmada
     assert "Executiva" not in body
     assert "Business" not in body
@@ -93,7 +101,7 @@ def test_confirmed_business_appears_as_confirmed(tmp_path: Path):
     body = _send(store, tmp_path)
 
     assert "📌 Oportunidades confirmadas" in body
-    conf = body.split("📌 Oportunidades confirmadas")[1].split("💸")[0]
+    conf = body.split("📌 Oportunidades confirmadas")[1].split("📡")[0]
     assert "São Paulo → Paris (GRU → CDG)" in conf
     assert "Executiva" in conf
     assert "Conferir busca" in conf
@@ -109,8 +117,9 @@ def test_raw_signals_not_under_old_watchlist_heading(tmp_path: Path):
 
     assert "📌 Melhores oportunidades monitoradas" not in body
     assert "São Paulo → Madri (GRU → MAD)" in body
-    raw = body.split("💸 Top 3 sinais brutos de menor preço")[1]
-    assert "cabine não confirmada" in raw
+    raw = body.split("📡 Sinais brutos de preço")[1].split("🧭")[0]
+    assert "Cabine: não confirmada" in raw
+    assert "Fonte: Travelpayouts" in raw
 
 
 # mistura: confirmada + bruto coexistindo, cada um na sua seção
@@ -121,12 +130,12 @@ def test_confirmed_and_raw_coexist_in_separate_sections(tmp_path: Path):
     store.save()
     body = _send(store, tmp_path)
 
-    conf = body.split("📌 Oportunidades confirmadas")[1].split("💸")[0]
-    raw = body.split("💸 Top 3 sinais brutos de menor preço")[1]
+    conf = body.split("📌 Oportunidades confirmadas")[1].split("📡")[0]
+    raw = body.split("📡 Sinais brutos de preço")[1].split("🧭")[0]
     assert "São Paulo → Londres (GRU → LHR)" in conf and "Executiva" in conf
     assert "São Paulo → Miami (GRU → MIA)" in raw
-    assert "cabine não confirmada" in raw
-    assert "📡 Observação" in body
+    assert "Cabine: não confirmada" in raw
+    assert "🧭 Status das fontes" in body
 
 
 # preço suspeito + cabine confirmada (futuro USD) NÃO entra em confirmadas
@@ -147,7 +156,35 @@ def test_confirmed_but_suspicious_price_is_not_confirmed(tmp_path: Path):
     body = _send(store, tmp_path)
 
     assert "• Nenhuma oportunidade confirmada agora." in body
-    assert "cabine não confirmada" in body  # cai em sinais brutos
+    assert "Cabine: não confirmada" in body  # cai em sinais brutos
+
+
+def test_source_status_only_raw_travelpayouts(tmp_path: Path):
+    store = PriceStore(tmp_path / "h.json")
+    _tp_unknown(store, "GRU-MIA-one_way-business", "GRU", "MIA", 221.0, 1216.0)
+    store.save()
+    body = _send(store, tmp_path)
+
+    blk = body.split("🧭 Status das fontes")[1]
+    assert "Travelpayouts: ativo, mas sem cabine confirmada." in blk
+    assert "Kiwi: sem cotação confirmada neste ciclo." in blk
+    assert "Alertas executivos: aguardando fonte com cabine confirmada." in blk
+    # Regra 3: nenhum score médio quando só há sinais brutos
+    assert "Score médio" not in body
+
+
+def test_source_status_with_confirmed_kiwi(tmp_path: Path):
+    store = PriceStore(tmp_path / "h.json")
+    _kiwi_confirmed(store, "GRU-CDG-business", "GRU", "CDG", 9000.0)
+    _tp_unknown(store, "GRU-MIA-one_way-business", "GRU", "MIA", 221.0, 1216.0)
+    store.save()
+    body = _send(store, tmp_path)
+
+    blk = body.split("🧭 Status das fontes")[1]
+    assert "Kiwi: ativo (cabine confirmada)." in blk
+    assert "Alertas executivos: 1 confirmada(s) neste ciclo." in blk
+    # score só sobre confirmadas
+    assert "Score médio (oportunidades confirmadas):" in body
 
 
 # 7

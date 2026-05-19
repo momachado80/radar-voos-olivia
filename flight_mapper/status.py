@@ -194,13 +194,83 @@ def _format_confirmed_line(
     return base
 
 
-def _format_raw_line(
+_SOURCE_NAMES = {
+    "travelpayouts": "Travelpayouts",
+    "travelpayouts+kiwi": "Travelpayouts + Kiwi",
+    "kiwi": "Kiwi",
+    "mock": "Mock",
+    "manual_purchase": "Travelpayouts (cache)",
+}
+
+
+def _source_name(history: RouteHistory) -> str:
+    lq = history.last_quote if isinstance(history.last_quote, dict) else {}
+    src = (lq or {}).get("source")
+    if not src:
+        return "desconhecida"
+    return _SOURCE_NAMES.get(src, str(src))
+
+
+def _format_raw_block(
     index: int, key: str, history: RouteHistory, price: float
 ) -> str:
+    """Sinal bruto multilinha — painel de confiança. Nunca usa
+    'Executiva' nem 'oportunidade'."""
     parts = _split_route_key(key)
     price_str = _price_label(history, price)
     label = humanize_route(*parts) if parts else key
-    return f"{index}. {label} — {price_str} — cabine não confirmada"
+    return (
+        f"{index}. {label} — {price_str}\n"
+        f"   Fonte: {_source_name(history)}\n"
+        f"   Cabine: não confirmada\n"
+        f"   Interpretação: pode ser econômica promocional ou tarifa "
+        f"sem classe comprovada."
+    )
+
+
+def _source_status_block(
+    store: PriceStore,
+    confirmed: list[tuple[str, float]],
+    raw: list[tuple[str, float]],
+) -> str:
+    """🧭 Status das fontes — derivado do ciclo, sem rede."""
+
+    def _sources(items: list[tuple[str, float]]) -> set[str]:
+        out: set[str] = set()
+        for key, _ in items:
+            lq = store.get(key).last_quote
+            if isinstance(lq, dict) and lq.get("source"):
+                out.add(str(lq["source"]))
+        return out
+
+    raw_srcs = _sources(raw)
+    conf_srcs = _sources(confirmed)
+
+    if any(s in raw_srcs for s in ("travelpayouts", "travelpayouts+kiwi", "manual_purchase")):
+        tp = "ativo, mas sem cabine confirmada."
+    elif "travelpayouts" in conf_srcs:
+        tp = "ativo (cabine confirmada)."
+    else:
+        tp = "sem cotação neste ciclo."
+
+    if "kiwi" in conf_srcs or "travelpayouts+kiwi" in conf_srcs:
+        kiwi = "ativo (cabine confirmada)."
+    elif "kiwi" in raw_srcs:
+        kiwi = "respondeu, mas sem cabine confirmada."
+    else:
+        kiwi = "sem cotação confirmada neste ciclo."
+
+    if confirmed:
+        execs = f"{len(confirmed)} confirmada(s) neste ciclo."
+    else:
+        execs = "aguardando fonte com cabine confirmada."
+
+    return (
+        "🧭 Status das fontes\n"
+        f"• Travelpayouts: {tp}\n"
+        f"• Kiwi: {kiwi}\n"
+        f"• Alertas executivos: {execs}"
+    )
 
 
 def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> str:
@@ -239,8 +309,7 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
             for i, (key, price) in enumerate(confirmed)
         )
         avg_score = _compute_average_score(store, [k for k, _ in confirmed])
-        # Score só rotula oportunidades confirmadas (Regra 6) — nunca
-        # aparece sobre sinais brutos.
+        # Score só rotula oportunidades confirmadas — nunca sinais brutos.
         confirmed_score_line = (
             f"⭐ Score médio (oportunidades confirmadas): {avg_score}/100\n"
             if avg_score is not None
@@ -251,18 +320,14 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         confirmed_score_line = ""
 
     if raw:
-        raw_lines = "\n".join(
-            _format_raw_line(i + 1, key, store.get(key), price)
+        raw_block = "\n".join(
+            _format_raw_block(i + 1, key, store.get(key), price)
             for i, (key, price) in enumerate(raw)
         )
     else:
-        raw_lines = "• Nenhum sinal bruto de preço no momento."
+        raw_block = "• Nenhum sinal bruto de preço no momento."
 
-    observation = (
-        "📡 Observação\n"
-        "Esses valores podem representar econômica promocional ou tarifa "
-        "sem classe comprovada. O robô não trata como executiva confirmada."
-    )
+    sources_block = _source_status_block(store, confirmed, raw)
 
     footer = (
         "ℹ️ Sem oportunidade dentro dos critérios de alerta agora."
@@ -280,9 +345,9 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         "📌 Oportunidades confirmadas\n"
         f"{confirmed_score_line}"
         f"{confirmed_lines}\n\n"
-        "💸 Top 3 sinais brutos de menor preço\n"
-        f"{raw_lines}\n\n"
-        f"{observation}\n\n"
+        "📡 Sinais brutos de preço\n"
+        f"{raw_block}\n\n"
+        f"{sources_block}\n\n"
         f"{footer}"
     )
 

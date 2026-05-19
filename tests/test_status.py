@@ -189,13 +189,13 @@ def test_status_includes_regional_best_section(tmp_path: Path):
     # Sem last_quote → tudo é sinal bruto (cabine não confirmada).
     assert "📌 Oportunidades confirmadas" in body
     assert "• Nenhuma oportunidade confirmada agora." in body
-    assert "💸 Top 3 sinais brutos de menor preço" in body
-    assert "📡 Observação" in body
+    assert "📡 Sinais brutos de preço" in body
+    assert "🧭 Status das fontes" in body
     # 3 mais baratas aparecem como sinal bruto: MIA(1207) ORD(1631) LHR(1800)
     assert "São Paulo → Miami (GRU → MIA)" in body
     assert "São Paulo → Chicago (GRU → ORD)" in body
     assert "São Paulo → Londres (GRU → LHR)" in body
-    assert "cabine não confirmada" in body
+    assert "Cabine: não confirmada" in body
     # estrutura antiga aposentada
     assert "📌 Melhores oportunidades monitoradas" not in body
     assert "🌎 Melhor por região" not in body
@@ -377,8 +377,8 @@ def test_status_uses_watchlist_section_title(tmp_path: Path):
     body = notifier.sent[0]
     # novas seções
     assert "📌 Oportunidades confirmadas" in body
-    assert "💸 Top 3 sinais brutos de menor preço" in body
-    assert "📡 Observação" in body
+    assert "📡 Sinais brutos de preço" in body
+    assert "🧭 Status das fontes" in body
     # estrutura/jargão antigos não vazam
     assert "📌 Melhores oportunidades monitoradas" not in body
     assert "Melhor por watchlist" not in body
@@ -401,7 +401,7 @@ def test_regional_section_renames_asia_for_display(tmp_path: Path):
     body = notifier.sent[0]
     # rota aparece como sinal bruto, humanizada; sem rótulo regional antigo
     assert "São Paulo → Dubai (GRU → DXB)" in body
-    assert "cabine não confirmada" in body
+    assert "Cabine: não confirmada" in body
     assert "• Ásia:" not in body
     assert "📌 Melhores oportunidades monitoradas" not in body
 
