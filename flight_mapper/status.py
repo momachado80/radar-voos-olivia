@@ -12,7 +12,7 @@ from .formatting import format_brl, format_price
 from .monitor import MonitorResult
 from .notifier import TelegramNotifier
 from .regions import Cabin, TripType
-from .sanity import is_suspicious_price
+from .sanity import SUSPICIOUS_FLOOR_BRL, is_suspicious_price
 from .score import compute_opportunity_score
 from .state import PriceStore, RouteHistory
 from .thresholds import HOT_ROUTE_KEYS, levels_for, scaled_levels
@@ -211,11 +211,63 @@ def _source_name(history: RouteHistory) -> str:
     return _SOURCE_NAMES.get(src, str(src))
 
 
+def _lq(history: RouteHistory) -> dict:
+    return history.last_quote if isinstance(history.last_quote, dict) else {}
+
+
+def _amount_brl(history: RouteHistory, fallback: float) -> float | None:
+    lq = _lq(history)
+    amt = lq.get("amount_brl_estimated")
+    if amt is None and str(lq.get("currency") or "").upper() == "BRL":
+        amt = lq.get("amount")
+    if amt is None and not lq.get("currency"):
+        return None  # moeda não comprovada — não comparável
+    try:
+        return float(amt) if amt is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _trip_label(history: RouteHistory) -> str:
+    trip = (_lq(history) or {}).get("trip_type")
+    if trip == "one_way":
+        return "somente ida"
+    if trip == "round_trip":
+        return "ida e volta"
+    return "não informado"
+
+
+def _economy_plausible(history: RouteHistory) -> bool:
+    """Sinal bruto cujo preço é implausível p/ executiva mas plausível
+    p/ econômica: entre o piso econômico e o piso executivo do trip_type
+    (reusa os pisos de sanity, sem rede)."""
+    if _is_confirmed(history):
+        return False
+    lq = _lq(history)
+    if not lq:
+        return False
+    amount = lq.get("amount_brl_estimated")
+    if amount is None and str(lq.get("currency") or "").upper() == "BRL":
+        amount = lq.get("amount")
+    if amount is None:
+        return False
+    sq = _SignalQuote(lq)
+    biz = SUSPICIOUS_FLOOR_BRL.get((sq.trip_type, Cabin.BUSINESS))
+    eco = SUSPICIOUS_FLOOR_BRL.get((sq.trip_type, Cabin.ECONOMY))
+    if biz is None or eco is None:
+        return False
+    try:
+        amt = float(amount)
+    except (TypeError, ValueError):
+        return False
+    return eco <= amt < biz
+
+
 def _format_raw_block(
     index: int, key: str, history: RouteHistory, price: float
 ) -> str:
     """Sinal bruto multilinha — painel de confiança. Nunca usa
-    'Executiva' nem 'oportunidade'."""
+    'Executiva'/'Business'/'oportunidade'/'excelente'/'bom'/score."""
     parts = _split_route_key(key)
     price_str = _price_label(history, price)
     label = humanize_route(*parts) if parts else key
@@ -223,9 +275,72 @@ def _format_raw_block(
         f"{index}. {label} — {price_str}\n"
         f"   Fonte: {_source_name(history)}\n"
         f"   Cabine: não confirmada\n"
+        f"   Tipo: {_trip_label(history)}\n"
         f"   Interpretação: pode ser econômica promocional ou tarifa "
         f"sem classe comprovada."
     )
+
+
+def _format_economy_block(
+    index: int, key: str, history: RouteHistory, price: float
+) -> str:
+    """Possível promoção de econômica — preço incompatível com executiva,
+    compatível com econômica. Sem rótulo de classe comprovada."""
+    parts = _split_route_key(key)
+    price_str = _price_label(history, price)
+    label = humanize_route(*parts) if parts else key
+    return (
+        f"{index}. {label} — {price_str}\n"
+        f"   Fonte: {_source_name(history)}\n"
+        f"   Cabine: não confirmada\n"
+        f"   Tipo: {_trip_label(history)}\n"
+        f"   Interpretação: preço compatível com econômica promocional; "
+        f"classe não comprovada pela fonte."
+    )
+
+
+def _security_block(result: MonitorResult) -> str:
+    """🛡️ Bloqueios de segurança do ciclo (contadores já existentes em
+    MonitorResult — nenhuma mudança no monitor)."""
+    rows: list[tuple[str, int]] = [
+        ("cabine não confirmada", result.cabin_blocked),
+        ("preço economicamente suspeito", result.suspicious_blocked),
+        ("câmbio ausente/ inválido", result.currency_blocked),
+        ("link comercial indisponível", result.non_actionable_links_skipped),
+        ("cotação stale (2ª checagem)", result.stale_quotes_skipped),
+    ]
+    active = [f"• {label}: {n}" for label, n in rows if n]
+    body = (
+        "\n".join(active)
+        if active
+        else "• Nenhum bloqueio de segurança neste ciclo."
+    )
+    return "🛡️ Alertas bloqueados por segurança\n" + body
+
+
+def _no_alert_reason(result: MonitorResult) -> str:
+    if result.alerts_sent > 0:
+        return f"🔥 {result.alerts_sent} alerta(s) enviado(s) neste ciclo."
+    motives: list[str] = []
+    if result.cabin_blocked:
+        motives.append(
+            f"nenhuma cabine confirmada ({result.cabin_blocked} bloqueada(s))"
+        )
+    if result.suspicious_blocked:
+        motives.append(
+            f"preços economicamente suspeitos ({result.suspicious_blocked})"
+        )
+    if result.currency_blocked:
+        motives.append(
+            f"câmbio ausente/ inválido ({result.currency_blocked})"
+        )
+    if result.non_actionable_links_skipped:
+        motives.append(
+            f"link comercial indisponível ({result.non_actionable_links_skipped})"
+        )
+    if not motives:
+        return "ℹ️ Sem oportunidade dentro dos critérios de alerta agora."
+    return "ℹ️ Sem alerta confirmado: " + "; ".join(motives) + "."
 
 
 def _source_status_block(
@@ -290,8 +405,13 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         (it for it in latest if _is_confirmed(store.get(it[0]))),
         key=lambda x: x[1],
     )[:3]
+    non_conf = [it for it in latest if not _is_confirmed(store.get(it[0]))]
+    economy = sorted(
+        (it for it in non_conf if _economy_plausible(store.get(it[0]))),
+        key=lambda x: x[1],
+    )[:3]
     raw = sorted(
-        (it for it in latest if not _is_confirmed(store.get(it[0]))),
+        (it for it in non_conf if not _economy_plausible(store.get(it[0]))),
         key=lambda x: x[1],
     )[:3]
 
@@ -319,21 +439,26 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         confirmed_lines = "• Nenhuma oportunidade confirmada agora."
         confirmed_score_line = ""
 
-    if raw:
-        raw_block = "\n".join(
+    raw_block = (
+        "\n".join(
             _format_raw_block(i + 1, key, store.get(key), price)
             for i, (key, price) in enumerate(raw)
         )
-    else:
-        raw_block = "• Nenhum sinal bruto de preço no momento."
-
-    sources_block = _source_status_block(store, confirmed, raw)
-
-    footer = (
-        "ℹ️ Sem oportunidade dentro dos critérios de alerta agora."
-        if result.alerts_sent == 0
-        else f"🔥 {result.alerts_sent} alerta(s) enviado(s) neste ciclo."
+        if raw
+        else "• Nenhum sinal bruto de preço no momento."
     )
+    economy_block = (
+        "\n".join(
+            _format_economy_block(i + 1, key, store.get(key), price)
+            for i, (key, price) in enumerate(economy)
+        )
+        if economy
+        else "• Nenhum sinal compatível com econômica promocional agora."
+    )
+
+    sources_block = _source_status_block(store, confirmed, raw + economy)
+    security_block = _security_block(result)
+    reason = _no_alert_reason(result)
 
     return (
         "🛰️ <b>Radar de Voos Olivia — relatório diário</b>\n"
@@ -341,15 +466,91 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         "📊 Ciclo recente\n"
         f"• Rotas escaneadas: {result.scanned}\n"
         f"• Cotações obtidas: {result.quotes_received}\n"
-        f"• Alertas: {result.alerts_sent}\n\n"
+        f"• Alertas enviados: {result.alerts_sent}\n"
+        f"• Bloqueados por cabine: {result.cabin_blocked}\n"
+        f"• Bloqueados por preço suspeito: {result.suspicious_blocked}\n"
+        f"• Bloqueados por câmbio: {result.currency_blocked}\n"
+        f"• Links comerciais indisponíveis: {result.non_actionable_links_skipped}\n\n"
         "📌 Oportunidades confirmadas\n"
         f"{confirmed_score_line}"
         f"{confirmed_lines}\n\n"
         "📡 Sinais brutos de preço\n"
         f"{raw_block}\n\n"
+        "💸 Possíveis promoções de econômica\n"
+        f"{economy_block}\n\n"
+        f"{security_block}\n\n"
         f"{sources_block}\n\n"
-        f"{footer}"
+        f"{reason}"
     )
+
+
+def explain_status(store: PriceStore, now: datetime | None = None) -> str:
+    """Texto read-only (CLI `explain-status`): resumo das fontes, por que
+    não houve alerta confirmado, melhores sinais brutos e próximos
+    gargalos. Sem rede, sem provider, sem Telegram."""
+    now = now or datetime.now(timezone.utc)
+    latest = _latest_prices(store)
+    confirmed = sorted(
+        (it for it in latest if _is_confirmed(store.get(it[0]))),
+        key=lambda x: x[1],
+    )
+    non_conf = [it for it in latest if not _is_confirmed(store.get(it[0]))]
+    raw_sorted = sorted(non_conf, key=lambda x: x[1])[:3]
+
+    srcs: set[str] = set()
+    for key, _ in latest:
+        lq = store.get(key).last_quote
+        if isinstance(lq, dict) and lq.get("source"):
+            srcs.add(str(lq["source"]))
+    src_line = ", ".join(sorted(srcs)) if srcs else "nenhuma"
+
+    lines: list[str] = []
+    lines.append("🧭 Resumo das fontes")
+    lines.append(f"• Fontes vistas no histórico: {src_line}")
+    lines.append(
+        "• Travelpayouts não confirma cabine (não vira alerta executivo)."
+    )
+    lines.append(
+        "• Kiwi confirma cabine via filtro server-side quando disponível."
+    )
+    lines.append("")
+    lines.append("❓ Por que não há alerta confirmado")
+    if confirmed:
+        lines.append(
+            f"• Há {len(confirmed)} rota(s) com cabine confirmada no histórico."
+        )
+    else:
+        lines.append(
+            "• Nenhuma rota tem cotação com cabine confirmada — todo preço "
+            "atual é sinal bruto (Travelpayouts/cabine não confirmada)."
+        )
+    lines.append("")
+    lines.append("📡 Melhores sinais brutos")
+    if raw_sorted:
+        for i, (key, price) in enumerate(raw_sorted, 1):
+            parts = _split_route_key(key)
+            label = humanize_route(*parts) if parts else key
+            h = store.get(key)
+            lines.append(
+                f"{i}. {label} — {_price_label(h, price)} — "
+                f"Fonte: {_source_name(h)} — Cabine: não confirmada"
+            )
+    else:
+        lines.append("• Nenhum sinal bruto no histórico.")
+    lines.append("")
+    lines.append("🚧 Próximos gargalos para alerta confirmado")
+    lines.append(
+        "• Habilitar/garantir fonte com cabine confirmada (Kiwi: "
+        "KIWI_API_KEY configurado e com cobertura na rota)."
+    )
+    lines.append(
+        "• Câmbio USD_BRL_RATE presente e válido para converter preços USD."
+    )
+    lines.append(
+        "• Preço acima do piso de sanidade para a classe/trip "
+        "(evita falso 'executiva barata')."
+    )
+    return "\n".join(lines)
 
 
 def maybe_send_status(
