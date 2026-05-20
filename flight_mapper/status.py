@@ -266,8 +266,8 @@ def _economy_plausible(history: RouteHistory) -> bool:
 def _format_raw_block(
     index: int, key: str, history: RouteHistory, price: float
 ) -> str:
-    """Sinal bruto multilinha — painel de confiança. Nunca usa
-    'Executiva'/'Business'/'oportunidade'/'excelente'/'bom'/score."""
+    """Sinal bruto multilinha — fallback p/ quando as fontes diferem.
+    Nunca usa 'Executiva'/'Business'/'oportunidade'/'excelente'/'bom'/score."""
     parts = _split_route_key(key)
     price_str = _price_label(history, price)
     label = humanize_route(*parts) if parts else key
@@ -279,6 +279,43 @@ def _format_raw_block(
         f"   Interpretação: pode ser econômica promocional ou tarifa "
         f"sem classe comprovada."
     )
+
+
+def _format_raw_signals(
+    raw: list[tuple[str, float]], store: PriceStore
+) -> str:
+    """Bloco da seção "📡 Sinais brutos de preço".
+
+    Compacta quando os itens compartilham a MESMA fonte (cabine e
+    interpretação já são fixas em sinais brutos): cabeçalho com Fonte/
+    Cabine/Interpretação uma única vez no topo + linhas numeradas com
+    `[trip]` por item. Se as fontes divergirem, cai no formato
+    multilinha por item (`_format_raw_block`) sem perder honestidade.
+    """
+    if not raw:
+        return "• Nenhum sinal bruto de preço no momento."
+    sources = {_source_name(store.get(key)) for key, _ in raw}
+    if len(sources) != 1:
+        return "\n".join(
+            _format_raw_block(i + 1, key, store.get(key), price)
+            for i, (key, price) in enumerate(raw)
+        )
+    source = next(iter(sources))
+    header = (
+        f"Fonte: {source}\n"
+        "Cabine: não confirmada\n"
+        "Interpretação: podem ser econômica promocional ou tarifa "
+        "sem classe comprovada.\n"
+    )
+    lines: list[str] = []
+    for i, (key, price) in enumerate(raw):
+        h = store.get(key)
+        parts = _split_route_key(key)
+        label = humanize_route(*parts) if parts else key
+        lines.append(
+            f"{i + 1}. {label} — {_price_label(h, price)} [{_trip_label(h)}]"
+        )
+    return header + "\n" + "\n".join(lines)
 
 
 def _format_economy_block(
@@ -456,14 +493,7 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         confirmed_lines = "• Nenhuma oportunidade confirmada agora."
         confirmed_score_line = ""
 
-    raw_block = (
-        "\n".join(
-            _format_raw_block(i + 1, key, store.get(key), price)
-            for i, (key, price) in enumerate(raw)
-        )
-        if raw
-        else "• Nenhum sinal bruto de preço no momento."
-    )
+    raw_block = _format_raw_signals(raw, store)
     economy_block = (
         "\n".join(
             _format_economy_block(i + 1, key, store.get(key), price)
