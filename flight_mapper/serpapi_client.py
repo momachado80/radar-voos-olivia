@@ -143,6 +143,37 @@ def parse_search_from_file(path: str) -> list[SerpApiOffer]:
     return parse_search(payload)
 
 
+# Mapeamento canônico p/ o parâmetro `travel_class` do SerpApi
+# (engine=google_flights). A API espera inteiros 1-4; enviar string
+# como "business" faz o servidor responder 400 "Unsupported '0' for
+# travel class.". Helper aceita string ou int e normaliza.
+_SERPAPI_TRAVEL_CLASS: dict[str, int] = {
+    "economy": 1,
+    "premium_economy": 2,
+    "premium economy": 2,
+    "premiumeconomy": 2,
+    "business": 3,
+    "first": 4,
+}
+
+
+def _resolve_travel_class(value) -> int:
+    """Aceita 'business'/'BUSINESS'/3 → int 1-4 esperado pelo SerpApi.
+
+    Levanta `SerpApiError` em valores desconhecidos (string ou int).
+    """
+    if isinstance(value, int):
+        if value not in (1, 2, 3, 4):
+            raise SerpApiError(
+                f"travel_class inteiro inválido: {value} (esperado 1-4)"
+            )
+        return value
+    code = _SERPAPI_TRAVEL_CLASS.get(str(value).strip().lower())
+    if code is None:
+        raise SerpApiError(f"travel_class desconhecido: {value!r}")
+    return code
+
+
 class SerpApiClient:
     def __init__(self, api_key: str, base_url: str = BASE_URL, timeout: int = 20):
         if not api_key:
@@ -169,7 +200,7 @@ class SerpApiClient:
             "arrival_id": destination,
             "outbound_date": outbound_date,
             "type": trip_type_param,
-            "travel_class": travel_class,
+            "travel_class": _resolve_travel_class(travel_class),
             "currency": currency,
             "api_key": self.api_key,
         }
