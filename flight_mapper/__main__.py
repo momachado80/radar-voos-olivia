@@ -28,6 +28,7 @@ from .state import PriceStore
 from .status import (
     StatusState,
     _build_message,
+    explain_deals,
     explain_status,
     maybe_send_status,
 )
@@ -720,6 +721,18 @@ def cmd_export_history(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_explain_deals(args: argparse.Namespace) -> int:
+    """Read-only: top sinais de econômica classificados pela
+    deal intelligence (banda USD + comparação com histórico).
+    Sem rede, sem provider, sem Telegram."""
+    store = _load_diag_store()
+    if store is None:
+        print(_empty_history_msg())
+        return 0
+    print(explain_deals(store))
+    return 0
+
+
 def cmd_explain_status(args: argparse.Namespace) -> int:
     """Read-only: explica fontes, ausência de alerta e gargalos.
     Sem rede, sem provider, sem Telegram."""
@@ -809,6 +822,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Explica fontes, ausência de alerta e gargalos (read-only).",
     )
     p_explain.set_defaults(func=cmd_explain_status)
+
+    p_deals = sub.add_parser(
+        "explain-deals",
+        help="Top sinais de econômica classificados (read-only).",
+    )
+    p_deals.set_defaults(func=cmd_explain_deals)
 
     args = parser.parse_args(argv)
     return args.func(args)
