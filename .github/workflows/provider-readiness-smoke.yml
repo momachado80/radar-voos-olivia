@@ -1,0 +1,48 @@
+name: Provider readiness smoke
+
+# Manual apenas — nunca roda em cron / push / PR. Existe para validar
+# por demanda os provedores read-only do PR #36 (audit + smokes) usando
+# os secrets reais do GitHub Actions.
+#
+# Regras invioláveis:
+# - Não envia mensagem nenhuma (nenhum secret de canal exposto aqui).
+# - Não toca data/ (sem step de commit; permissions: contents: read).
+# - Não toca o motor (não chama nenhum dos workflows de coleta).
+# - Consome SerpApi SOMENTE quando você dispara este workflow.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-readiness-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Provider readiness
+        env:
+          KIWI_API_KEY: ${{ secrets.KIWI_API_KEY }}
+          AMADEUS_CLIENT_ID: ${{ secrets.AMADEUS_CLIENT_ID }}
+          AMADEUS_CLIENT_SECRET: ${{ secrets.AMADEUS_CLIENT_SECRET }}
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+        run: python -m flight_mapper provider-readiness
+
+      - name: SerpApi smoke (real, manual only)
+        env:
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+        run: |
+          python -m flight_mapper serpapi-smoke \
+            --route GRU-MIA --trip round_trip --cabin business
