@@ -319,17 +319,14 @@ def _format_raw_signals(
     return header + "\n" + "\n".join(lines)
 
 
-def _format_economy_block(
-    index: int, key: str, history: RouteHistory, price: float
-) -> str:
-    """Possível promoção de econômica com inteligência: classifica vs
-    banda USD por região/trip + compara com histórico (mediana, p25,
-    mínimo recente). Sem rótulo de classe comprovada."""
-    parts = _split_route_key(key)
-    price_str = _price_label(history, price)
-    label = humanize_route(*parts) if parts else key
+def _eval_history_deal(history: RouteHistory, key: str, price: float):
+    """Helper: deriva inputs e chama `evaluate_deal`. Centraliza o
+    parsing de last_quote → (destination, trip_type, usd_amount,
+    brl_amount) p/ reuso na partição (filtra `ignorar`) e nos
+    formatadores."""
     lq = _lq(history)
     sq = _SignalQuote(lq)
+    parts = _split_route_key(key)
     destination = lq.get("destination") or (parts[1] if parts else "")
     brl = _amount_brl(history, price)
     usd = None
@@ -338,13 +335,31 @@ def _format_economy_block(
             usd = float(lq.get("amount")) if lq.get("amount") is not None else None
         except (TypeError, ValueError):
             usd = None
-    deal = evaluate_deal(
+    return evaluate_deal(
         destination=destination,
         trip_type=sq.trip_type,
         usd_amount=usd,
         brl_amount=brl,
         prices=history.prices,
     )
+
+
+def _format_economy_block(
+    index: int, key: str, history: RouteHistory, price: float
+) -> str:
+    """Possível promoção de econômica com inteligência: classifica vs
+    banda USD por região/trip + compara com histórico interno (mediana,
+    p25, mínimo recente, quando útil). Sem rótulo de classe comprovada.
+
+    `Classificação` é dirigida APENAS pela banda USD (sem downgrade por
+    desconto). Quando o histórico interno é fraco (insuficiente OU
+    repetitivo OU sem variação útil), exibe aviso claro em vez de
+    `0% vs mediana` enganoso.
+    """
+    parts = _split_route_key(key)
+    price_str = _price_label(history, price)
+    label = humanize_route(*parts) if parts else key
+    deal = _eval_history_deal(history, key, price)
 
     # Linha de classificação (região/trip aparecem só quando aplicável).
     class_suffix = (
@@ -354,27 +369,42 @@ def _format_economy_block(
     )
     class_line = f"   Classificação: {deal_label_pt(deal.deal)}{class_suffix}"
 
-    # Linha de histórico.
+    # Linha de histórico (rótulo "interno" deixa claro que NÃO é
+    # benchmark de mercado).
     h = deal.history
     if h.n == 0:
-        hist_line = "   Histórico: sem amostras."
+        hist_line = "   Histórico interno: sem amostras."
     elif not h.sufficient:
         hist_line = (
-            f"   Histórico: insuficiente (n={h.n}, mínimo p/ mediana confiável: 10)"
+            f"   Histórico interno: insuficiente "
+            f"(n={h.n}, mínimo p/ mediana confiável: 10)"
+        )
+    elif h.baseline_weak:
+        # Suficiente em volume, mas repetitivo / sem variação útil.
+        hist_line = (
+            f"   Histórico interno: mediana {format_brl(h.median_brl)} "
+            f"(variação muito baixa — cache repetitivo, n={h.n})"
         )
     else:
         hist_line = (
-            f"   Histórico: mediana {format_brl(h.median_brl)} · "
+            f"   Histórico interno: mediana {format_brl(h.median_brl)} · "
             f"p25 {format_brl(h.p25_brl)} · "
             f"mínimo recente {format_brl(h.min_recent_brl)} (n={h.n})"
         )
 
-    # Linha de desconto.
+    # Linha de desconto (só quando o histórico interno é forte o
+    # suficiente para significar algo).
     if deal.discount_pct is None:
-        disc_line = "   Desconto: histórico insuficiente"
+        if h.baseline_weak and h.sufficient:
+            disc_line = (
+                "   Desconto: histórico interno ainda fraco para estimar "
+                "desconto real."
+            )
+        else:
+            disc_line = "   Desconto: histórico insuficiente."
     else:
         disc_line = (
-            f"   Desconto estimado: {deal.discount_pct:.0%} vs mediana"
+            f"   Desconto estimado: {deal.discount_pct:.0%} vs mediana interna"
         )
 
     return (
@@ -522,14 +552,22 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         key=lambda x: x[1],
     )[:3]
     non_conf = [it for it in deduped if not _is_confirmed(store.get(it[0]))]
-    economy = sorted(
-        (it for it in non_conf if _economy_plausible(store.get(it[0]))),
-        key=lambda x: x[1],
-    )[:3]
-    raw = sorted(
-        (it for it in non_conf if not _economy_plausible(store.get(it[0]))),
-        key=lambda x: x[1],
-    )[:3]
+    # Promoções de econômica: além de "econômica-plausível" pelo piso
+    # de sanidade, exige Classificação != `ignorar` (USD precisa cair
+    # numa banda forte ou boa). Itens `ignorar` vão para sinais brutos.
+    economy_pool: list[tuple[str, float]] = []
+    raw_pool: list[tuple[str, float]] = []
+    from .deal_intelligence import DEAL_IGNORE
+    for it in non_conf:
+        h = store.get(it[0])
+        if _economy_plausible(h):
+            ev = _eval_history_deal(h, it[0], it[1])
+            if ev.deal != DEAL_IGNORE:
+                economy_pool.append(it)
+                continue
+        raw_pool.append(it)
+    economy = sorted(economy_pool, key=lambda x: x[1])[:3]
+    raw = sorted(raw_pool, key=lambda x: x[1])[:3]
 
     if confirmed:
         confirmed_lines = "\n".join(
@@ -636,11 +674,9 @@ def explain_deals(store: PriceStore, top: int = 5) -> str:
         )
         evals.append((key, price, ev))
 
-    # Ordem: muito_forte > boa > observar > ignorar; dentro de cada,
-    # maior desconto primeiro; depois menor preço.
-    order = {
-        "muito_forte": 0, "boa": 1, "observar": 2, "ignorar": 3,
-    }
+    # Ordem: muito_forte > boa > ignorar; dentro de cada, maior
+    # desconto primeiro; depois menor preço.
+    order = {"muito_forte": 0, "boa": 1, "ignorar": 2}
     evals.sort(key=lambda x: (
         order.get(x[2].deal, 9),
         -(x[2].discount_pct or 0),
