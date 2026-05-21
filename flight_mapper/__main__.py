@@ -733,6 +733,165 @@ def cmd_explain_deals(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_provider_readiness(args: argparse.Namespace) -> int:
+    """Read-only: audita prontidão de provedores (Kiwi/Travelpayouts/
+    Amadeus/SerpApi) sem revelar valores de secrets. Sem rede, sem
+    Telegram, sem modificações em estado."""
+    import json as _json
+    import os as _os
+    from .provider_readiness import audit_all, format_report
+
+    config = Config.from_env()
+    history: dict = {}
+    if config.history_path.exists():
+        try:
+            history = _json.loads(
+                config.history_path.read_text(encoding="utf-8") or "{}"
+            )
+        except _json.JSONDecodeError:
+            history = {}
+    workflows_dir = Path(".github/workflows")
+    statuses = audit_all(_os.environ, workflows_dir, history)
+    print(format_report(statuses))
+    return 0
+
+
+def cmd_amadeus_smoke(args: argparse.Namespace) -> int:
+    """Smoke read-only Amadeus. Com `--mock-file PATH`: parsing offline
+    de fixture JSON (zero rede). Sem mock: chamada real (test env), só
+    se AMADEUS_CLIENT_ID/SECRET estiverem no ambiente. Não envia
+    Telegram, não toca PriceStore."""
+    from .amadeus_client import (
+        AmadeusAuthError, AmadeusClient, AmadeusError,
+        parse_offers_from_file,
+    )
+
+    if args.mock_file:
+        try:
+            offers = parse_offers_from_file(args.mock_file)
+        except (OSError, AmadeusError) as exc:
+            print(f"erro lendo fixture: {exc}")
+            return 1
+        _print_amadeus_offers(args, offers, source="fixture")
+        return 0
+
+    import os as _os
+    client_id = _os.environ.get("AMADEUS_CLIENT_ID")
+    client_secret = _os.environ.get("AMADEUS_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        print(
+            "AMADEUS_CLIENT_ID / AMADEUS_CLIENT_SECRET ausentes. "
+            "Use --mock-file para smoke offline."
+        )
+        return 0
+    try:
+        client = AmadeusClient(client_id, client_secret)
+        offers = client.search_offers(
+            origin=args.route.split("-")[0],
+            destination=args.route.split("-")[1],
+            departure_date=args.departure,
+            return_date=args.return_date,
+            travel_class=args.cabin.upper(),
+        )
+    except AmadeusAuthError as exc:
+        print(f"auth Amadeus falhou: {exc}")
+        return 1
+    except AmadeusError as exc:
+        print(f"erro Amadeus: {exc}")
+        return 1
+    _print_amadeus_offers(args, offers, source="amadeus_live")
+    return 0
+
+
+def _print_amadeus_offers(args, offers, source: str) -> None:
+    print(f"🔍 Amadeus smoke ({source})")
+    print(f"  rota={args.route} trip={args.trip} cabin={args.cabin}")
+    if not offers:
+        print("  • sem ofertas no payload")
+        return
+    for i, o in enumerate(offers, 1):
+        print(
+            f"  {i}. {o.currency} {o.price_total:.2f} | "
+            f"cabin={o.cabin.value} ({o.cabin_raw}) "
+            f"confirmed={o.cabin_confirmed} | trip={o.trip_type.value} | "
+            f"dep={o.departure_date}"
+            + (f" ret={o.return_date}" if o.return_date else "")
+            + (
+                f" | carriers={','.join(o.carriers)}" if o.carriers else ""
+            )
+        )
+    print(
+        "  Observação: payload Amadeus NÃO traz deep_link de booking "
+        "(precisa do Flight Offers Price / Orders ou link auxiliar)."
+    )
+
+
+def cmd_serpapi_smoke(args: argparse.Namespace) -> int:
+    """Smoke read-only SerpApi. Com `--mock-file PATH`: parsing offline
+    de fixture (zero rede). Sem mock: chamada real, só se
+    SERPAPI_API_KEY estiver no ambiente. Não envia Telegram, não toca
+    PriceStore. Não é provider de pipeline."""
+    from .serpapi_client import (
+        SerpApiAuthError, SerpApiClient, SerpApiError,
+        parse_search_from_file,
+    )
+
+    if args.mock_file:
+        try:
+            offers = parse_search_from_file(args.mock_file)
+        except (OSError, SerpApiError) as exc:
+            print(f"erro lendo fixture: {exc}")
+            return 1
+        _print_serpapi_offers(args, offers, source="fixture")
+        return 0
+
+    import os as _os
+    api_key = _os.environ.get("SERPAPI_API_KEY")
+    if not api_key:
+        print("SERPAPI_API_KEY ausente. Use --mock-file para smoke offline.")
+        return 0
+    try:
+        client = SerpApiClient(api_key)
+        offers = client.search_google_flights(
+            origin=args.route.split("-")[0],
+            destination=args.route.split("-")[1],
+            outbound_date=args.departure,
+            return_date=args.return_date,
+            travel_class=args.cabin,
+        )
+    except SerpApiAuthError as exc:
+        print(f"auth SerpApi falhou: {exc}")
+        return 1
+    except SerpApiError as exc:
+        print(f"erro SerpApi: {exc}")
+        return 1
+    _print_serpapi_offers(args, offers, source="serpapi_live")
+    return 0
+
+
+def _print_serpapi_offers(args, offers, source: str) -> None:
+    print(f"🔍 SerpApi smoke ({source})")
+    print(f"  rota={args.route} trip={args.trip} cabin={args.cabin}")
+    if not offers:
+        print("  • sem ofertas no payload")
+        return
+    for i, o in enumerate(offers, 1):
+        price = (
+            f"{o.currency} {o.price:.2f}" if o.price is not None else "?"
+        )
+        bk = "sim" if o.booking_token else "não"
+        print(
+            f"  {i}. {price} | cabin={o.cabin.value} ({o.cabin_raw}) | "
+            f"trip={o.trip_type.value} ({o.type_raw}) | "
+            f"booking_token={bk}"
+            + (f" | carriers={','.join(o.carriers)}" if o.carriers else "")
+        )
+    print(
+        "  Observação: SerpApi NÃO emite alerta — só validação/benchmark. "
+        "Booking real exige follow-up com booking_token."
+    )
+
+
 def cmd_explain_status(args: argparse.Namespace) -> int:
     """Read-only: explica fontes, ausência de alerta e gargalos.
     Sem rede, sem provider, sem Telegram."""
@@ -828,6 +987,36 @@ def main(argv: list[str] | None = None) -> int:
         help="Top sinais de econômica classificados (read-only).",
     )
     p_deals.set_defaults(func=cmd_explain_deals)
+
+    p_pr = sub.add_parser(
+        "provider-readiness",
+        help="Audita prontidão de provedores (read-only, sem revelar secrets).",
+    )
+    p_pr.set_defaults(func=cmd_provider_readiness)
+
+    p_am = sub.add_parser(
+        "amadeus-smoke",
+        help="Smoke read-only do Amadeus (use --mock-file p/ offline).",
+    )
+    p_am.add_argument("--route", default="GRU-MIA", help="origem-destino (ex.: GRU-MIA)")
+    p_am.add_argument("--trip", choices=["one_way", "round_trip"], default="round_trip")
+    p_am.add_argument("--cabin", default="business")
+    p_am.add_argument("--departure", default="2026-09-10", help="YYYY-MM-DD")
+    p_am.add_argument("--return-date", dest="return_date", default=None, help="YYYY-MM-DD (round_trip)")
+    p_am.add_argument("--mock-file", default=None, help="Caminho p/ fixture JSON (offline)")
+    p_am.set_defaults(func=cmd_amadeus_smoke)
+
+    p_sp = sub.add_parser(
+        "serpapi-smoke",
+        help="Smoke read-only do SerpApi Google Flights (use --mock-file p/ offline).",
+    )
+    p_sp.add_argument("--route", default="GRU-MIA")
+    p_sp.add_argument("--trip", choices=["one_way", "round_trip"], default="round_trip")
+    p_sp.add_argument("--cabin", default="business")
+    p_sp.add_argument("--departure", default="2026-09-10")
+    p_sp.add_argument("--return-date", dest="return_date", default=None)
+    p_sp.add_argument("--mock-file", default=None)
+    p_sp.set_defaults(func=cmd_serpapi_smoke)
 
     args = parser.parse_args(argv)
     return args.func(args)

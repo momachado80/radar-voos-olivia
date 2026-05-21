@@ -1,0 +1,47 @@
+{
+  "search_metadata": {"id": "smk_0001", "status": "Success"},
+  "search_parameters": {
+    "engine": "google_flights",
+    "departure_id": "GRU",
+    "arrival_id": "MIA",
+    "outbound_date": "2026-09-10",
+    "return_date": "2026-09-17",
+    "type": "1",
+    "travel_class": "business",
+    "currency": "USD"
+  },
+  "best_flights": [
+    {
+      "type": "Round trip",
+      "price": 1820,
+      "flights": [
+        {
+          "departure_airport": {"id": "GRU"},
+          "arrival_airport": {"id": "MIA"},
+          "airline": "LATAM",
+          "flight_number": "LA8180",
+          "travel_class": "Business"
+        }
+      ],
+      "booking_token": "BK_TOKEN_1",
+      "departure_token": "DEP_TOKEN_1"
+    }
+  ],
+  "other_flights": [
+    {
+      "type": "Round trip",
+      "price": 2050,
+      "flights": [
+        {
+          "departure_airport": {"id": "GRU"},
+          "arrival_airport": {"id": "MIA"},
+          "airline": "American",
+          "flight_number": "AA951",
+          "travel_class": "Business"
+        }
+      ],
+      "booking_token": "BK_TOKEN_2",
+      "departure_token": "DEP_TOKEN_2"
+    }
+  ]
+}

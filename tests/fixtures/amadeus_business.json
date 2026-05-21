@@ -1,0 +1,74 @@
+{
+  "meta": {"count": 2},
+  "data": [
+    {
+      "type": "flight-offer",
+      "id": "1",
+      "source": "GDS",
+      "oneWay": false,
+      "numberOfBookableSeats": 5,
+      "itineraries": [
+        {
+          "duration": "PT9H30M",
+          "segments": [
+            {
+              "departure": {"iataCode": "GRU", "at": "2026-09-10T22:30:00"},
+              "arrival": {"iataCode": "MIA", "at": "2026-09-11T05:30:00"},
+              "carrierCode": "LH",
+              "number": "501"
+            }
+          ]
+        },
+        {
+          "duration": "PT8H50M",
+          "segments": [
+            {
+              "departure": {"iataCode": "MIA", "at": "2026-09-17T23:10:00"},
+              "arrival": {"iataCode": "GRU", "at": "2026-09-18T08:00:00"},
+              "carrierCode": "LH",
+              "number": "500"
+            }
+          ]
+        }
+      ],
+      "price": {
+        "currency": "USD",
+        "total": "1850.20",
+        "base": "1500.00"
+      },
+      "validatingAirlineCodes": ["LH"],
+      "travelerPricings": [
+        {
+          "travelerId": "1",
+          "fareOption": "STANDARD",
+          "travelerType": "ADULT",
+          "fareDetailsBySegment": [
+            {"segmentId": "1", "cabin": "BUSINESS", "class": "C", "includedCheckedBags": {"quantity": 2}},
+            {"segmentId": "2", "cabin": "BUSINESS", "class": "C", "includedCheckedBags": {"quantity": 2}}
+          ]
+        }
+      ]
+    },
+    {
+      "type": "flight-offer",
+      "id": "2",
+      "source": "GDS",
+      "oneWay": false,
+      "itineraries": [
+        {"duration": "PT12H", "segments": [{"departure": {"iataCode": "GRU", "at": "2026-09-10T18:00:00"}, "arrival": {"iataCode": "MIA", "at": "2026-09-11T03:00:00"}, "carrierCode": "AA", "number": "950"}]},
+        {"duration": "PT9H", "segments": [{"departure": {"iataCode": "MIA", "at": "2026-09-17T22:00:00"}, "arrival": {"iataCode": "GRU", "at": "2026-09-18T07:00:00"}, "carrierCode": "AA", "number": "951"}]}
+      ],
+      "price": {"currency": "USD", "total": "2100.00", "base": "1700.00"},
+      "validatingAirlineCodes": ["AA"],
+      "travelerPricings": [
+        {
+          "travelerId": "1", "fareOption": "STANDARD", "travelerType": "ADULT",
+          "fareDetailsBySegment": [
+            {"segmentId": "1", "cabin": "BUSINESS", "class": "I"},
+            {"segmentId": "2", "cabin": "BUSINESS", "class": "I"}
+          ]
+        }
+      ]
+    }
+  ]
+}
