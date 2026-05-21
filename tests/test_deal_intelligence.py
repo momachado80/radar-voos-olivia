@@ -14,7 +14,6 @@ from flight_mapper.deal_intelligence import (
     DEAL_GOOD,
     DEAL_IGNORE,
     DEAL_VERY_STRONG,
-    DEAL_WATCH,
     ECONOMY_BANDS_USD,
     evaluate_deal,
     history_stats,
@@ -125,19 +124,23 @@ def test_evaluate_strong_band_no_history_promotes_to_very_strong():
     assert ev.discount_pct is None
 
 
-def test_evaluate_strong_band_weak_discount_is_good_not_very_strong():
-    # USD forte mas mediana próxima do preço atual → só "boa"
+def test_evaluate_strong_band_with_small_discount_still_very_strong():
+    # USD forte (200 < 250) com mediana próxima do preço atual.
+    # Banda USD dirige a classificação: NÃO rebaixa por desconto baixo.
     prices = [2200, 2250, 2300, 2350, 2400, 2450, 2500, 2550, 2600, 2650]
     ev = evaluate_deal(
         destination="MIA", trip_type=TripType.ONE_WAY,
         usd_amount=200.0, brl_amount=2200.0, prices=prices,
     )
-    assert ev.deal == DEAL_GOOD
+    assert ev.deal == DEAL_VERY_STRONG
+    # motivo coerente: só fala do piso, não menciona desconto p/ rebaixar
+    assert "piso muito forte" in ev.reason
+    assert "insuficiente" not in ev.reason
 
 
 def test_evaluate_good_band_with_good_discount():
     # EUA one_way: boa entre 250-350; histórico cai 12%
-    prices = [3500] * 10
+    prices = [3500] * 10  # repetitivo → baseline_weak True → discount None
     ev = evaluate_deal(
         destination="MIA", trip_type=TripType.ONE_WAY,
         usd_amount=300.0, brl_amount=3080.0, prices=prices,
@@ -145,13 +148,16 @@ def test_evaluate_good_band_with_good_discount():
     assert ev.deal == DEAL_GOOD
 
 
-def test_evaluate_good_band_small_discount_is_watch():
-    prices = [3000] * 10
+def test_evaluate_good_band_always_good_no_downgrade():
+    # USD na faixa boa (250-350); histórico variado e sem desconto.
+    # Sob a nova semântica, banda boa → DEAL_GOOD (não existe mais
+    # downgrade p/ "observar"). Histórico variado garante baseline OK.
+    prices = [3000, 3000, 3010, 3020, 3010, 3000, 2990, 3010, 3020, 3000]
     ev = evaluate_deal(
         destination="MIA", trip_type=TripType.ONE_WAY,
         usd_amount=300.0, brl_amount=2980.0, prices=prices,
     )
-    assert ev.deal == DEAL_WATCH
+    assert ev.deal == DEAL_GOOD
 
 
 def test_evaluate_above_bands_is_ignore():
@@ -204,7 +210,7 @@ def test_economy_block_shows_classification_history_and_discount(tmp_path: Path)
 
     assert "São Paulo → Roma (GRU → FCO)" in eco
     assert "Classificação: muito forte (Europa/one_way)" in eco
-    assert "Histórico: mediana R$" in eco
+    assert "Histórico interno: mediana R$" in eco
     assert "Desconto estimado:" in eco
     assert "% vs mediana" in eco
     assert "Interpretação: preço compatível com econômica promocional" in eco
@@ -233,7 +239,7 @@ def test_economy_block_history_insufficient_shows_so(tmp_path: Path):
         store, _NOW,
     )
     eco = body.split("💸 Possíveis promoções de econômica")[1].split("🛡️")[0]
-    assert "Histórico: insuficiente" in eco
+    assert "Histórico interno: insuficiente" in eco
     assert "Desconto: histórico insuficiente" in eco
     # Banda USD forte sem histórico ainda promove a "muito forte"
     assert "Classificação: muito forte" in eco

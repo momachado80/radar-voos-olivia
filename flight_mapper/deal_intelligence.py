@@ -32,15 +32,11 @@ MIN_HISTORY_SAMPLES = 10
 # Janela "recente" para `min_recent`.
 RECENT_WINDOW = 10
 
-# Limiares de desconto vs mediana usados na classificação final.
-DISCOUNT_STRONG = 0.25
-DISCOUNT_GOOD = 0.10
 
-
-# Classificação final de promoção (decoupled da banda USD-só).
+# Classificação final de promoção. Dirigida pela banda USD apenas
+# (desconto vs mediana é informativo, não rebaixa).
 DEAL_VERY_STRONG = "muito_forte"
 DEAL_GOOD = "boa"
-DEAL_WATCH = "observar"
 DEAL_IGNORE = "ignorar"
 
 
@@ -50,12 +46,14 @@ class HistoryStats:
     median_brl: float | None
     p25_brl: float | None
     min_recent_brl: float | None
-    sufficient: bool
+    sufficient: bool          # n >= MIN_HISTORY_SAMPLES
+    baseline_weak: bool       # histórico repetitivo / variação muito baixa
+                              # ⇒ não dá p/ estimar desconto real
 
 
 @dataclass(frozen=True)
 class DealEvaluation:
-    deal: str                       # muito_forte | boa | observar | ignorar
+    deal: str                       # muito_forte | boa | ignorar
     region: str | None              # "EUA" / "Europa" / "Ásia" / None
     region_band: str | None         # "forte" / "boa" / None (banda USD pura)
     usd_amount: float | None
@@ -97,17 +95,35 @@ def history_stats(prices: Sequence[float]) -> HistoryStats:
     vals = [float(p) for p in prices if p is not None]
     n = len(vals)
     if n == 0:
-        return HistoryStats(n=0, median_brl=None, p25_brl=None,
-                            min_recent_brl=None, sufficient=False)
+        return HistoryStats(
+            n=0, median_brl=None, p25_brl=None, min_recent_brl=None,
+            sufficient=False, baseline_weak=True,
+        )
     med = float(median(vals))
     p25 = _percentile_sorted(sorted(vals), 0.25)
     recent = vals[-RECENT_WINDOW:]
+    rec_min = min(recent)
+    rec_max = max(recent)
+    sufficient = n >= MIN_HISTORY_SAMPLES
+    # Histórico fraco: amostras insuficientes OU repetitivo (poucos
+    # valores únicos no janela recente) OU amplitude muito baixa
+    # (< 2% da mediana). Cobre o caso "cache Travelpayouts devolve
+    # o MESMO preço várias vezes → mediana == preço atual → desconto
+    # 0% que NÃO representa o preço normal da rota".
+    unique_recent = len({round(v, 2) for v in recent})
+    narrow_range = (
+        med > 0 and (rec_max - rec_min) / med < 0.02
+    )
+    baseline_weak = (
+        (not sufficient) or unique_recent <= 2 or narrow_range
+    )
     return HistoryStats(
         n=n,
         median_brl=round(med, 2),
         p25_brl=round(p25, 2),
-        min_recent_brl=round(min(recent), 2),
-        sufficient=n >= MIN_HISTORY_SAMPLES,
+        min_recent_brl=round(rec_min, 2),
+        sufficient=sufficient,
+        baseline_weak=baseline_weak,
     )
 
 
@@ -138,60 +154,41 @@ def evaluate_deal(
 ) -> DealEvaluation:
     """Classifica um sinal de econômica.
 
-    Combina banda USD (vs piso por região/trip) com desconto vs mediana
-    histórica. Conservador: sem histórico suficiente, só promove a
-    "muito_forte" se a banda USD for `forte` (preço inegavelmente baixo).
+    A banda USD por (região, trip_type) dirige a classificação:
+      • USD abaixo do piso `muito forte` → `muito_forte`
+      • USD na faixa `boa` (entre piso `muito forte` e `boa`) → `boa`
+      • USD acima de ambos → `ignorar` (não entra em "Possíveis
+        promoções de econômica")
+    O desconto vs mediana é informativo, e SÓ é calculado quando o
+    histórico interno NÃO é fraco (ver `HistoryStats.baseline_weak`).
+    Desconto nunca rebaixa a classificação — evita o paradoxo
+    "USD abaixo do piso forte, mas classificado como boa".
     """
     region = region_for_destination(destination)
     stats = history_stats(prices)
     band = usd_band(usd_amount, region, trip_type)
 
+    # Desconto só quando o histórico interno tem variação útil. Caso
+    # contrário, deixar None e o relatório mostra "histórico interno
+    # ainda fraco".
     discount: float | None = None
     if (
-        stats.sufficient
+        not stats.baseline_weak
         and stats.median_brl
         and brl_amount is not None
         and stats.median_brl > 0
     ):
         discount = round((stats.median_brl - brl_amount) / stats.median_brl, 4)
 
-    # Classificação final.
+    # Classificação dirigida pela banda USD (sem downgrade por desconto).
     if band == "forte":
-        if discount is not None and discount >= DISCOUNT_STRONG:
-            deal = DEAL_VERY_STRONG
-            reason = (
-                f"USD abaixo do piso forte ({region}/{trip_type.value}) e "
-                f"desconto vs mediana {discount:.0%} ≥ {DISCOUNT_STRONG:.0%}"
-            )
-        elif discount is None:
-            deal = DEAL_VERY_STRONG
-            reason = (
-                f"USD abaixo do piso forte ({region}/{trip_type.value}); "
-                f"histórico insuficiente (n={stats.n})"
-            )
-        else:
-            deal = DEAL_GOOD
-            reason = (
-                f"USD abaixo do piso forte ({region}/{trip_type.value}); "
-                f"desconto vs mediana {discount:.0%} insuficiente p/ muito_forte"
-            )
+        deal = DEAL_VERY_STRONG
+        reason = (
+            f"USD abaixo do piso muito forte ({region}/{trip_type.value})"
+        )
     elif band == "boa":
-        if discount is not None and discount >= DISCOUNT_GOOD:
-            deal = DEAL_GOOD
-            reason = (
-                f"USD abaixo do piso bom ({region}/{trip_type.value}) e "
-                f"desconto vs mediana {discount:.0%} ≥ {DISCOUNT_GOOD:.0%}"
-            )
-        else:
-            deal = DEAL_WATCH
-            reason = (
-                f"USD na faixa boa ({region}/{trip_type.value}); "
-                + (
-                    f"desconto {discount:.0%} pequeno"
-                    if discount is not None
-                    else "sem histórico suficiente"
-                )
-            )
+        deal = DEAL_GOOD
+        reason = f"USD abaixo do piso bom ({region}/{trip_type.value})"
     else:
         deal = DEAL_IGNORE
         if region is None:
@@ -220,6 +217,5 @@ def deal_label_pt(deal: str) -> str:
     return {
         DEAL_VERY_STRONG: "muito forte",
         DEAL_GOOD: "boa",
-        DEAL_WATCH: "observar",
         DEAL_IGNORE: "ignorar",
     }.get(deal, deal)
