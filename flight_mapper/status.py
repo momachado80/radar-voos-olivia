@@ -11,6 +11,7 @@ from .airports import humanize_route, is_actionable_url
 from .formatting import format_brl, format_price
 from .monitor import MonitorResult
 from .notifier import TelegramNotifier
+from .deal_intelligence import deal_label_pt, evaluate_deal
 from .regions import Cabin, TripType
 from .sanity import SUSPICIOUS_FLOOR_BRL, is_suspicious_price
 from .score import compute_opportunity_score
@@ -321,19 +322,80 @@ def _format_raw_signals(
 def _format_economy_block(
     index: int, key: str, history: RouteHistory, price: float
 ) -> str:
-    """Possível promoção de econômica — preço incompatível com executiva,
-    compatível com econômica. Sem rótulo de classe comprovada."""
+    """Possível promoção de econômica com inteligência: classifica vs
+    banda USD por região/trip + compara com histórico (mediana, p25,
+    mínimo recente). Sem rótulo de classe comprovada."""
     parts = _split_route_key(key)
     price_str = _price_label(history, price)
     label = humanize_route(*parts) if parts else key
+    lq = _lq(history)
+    sq = _SignalQuote(lq)
+    destination = lq.get("destination") or (parts[1] if parts else "")
+    brl = _amount_brl(history, price)
+    usd = None
+    if str(lq.get("currency") or "").upper() == "USD":
+        try:
+            usd = float(lq.get("amount")) if lq.get("amount") is not None else None
+        except (TypeError, ValueError):
+            usd = None
+    deal = evaluate_deal(
+        destination=destination,
+        trip_type=sq.trip_type,
+        usd_amount=usd,
+        brl_amount=brl,
+        prices=history.prices,
+    )
+
+    # Linha de classificação (região/trip aparecem só quando aplicável).
+    class_suffix = (
+        f" ({deal.region}/{deal.trip_type.value})"
+        if deal.region and deal.region_band
+        else ""
+    )
+    class_line = f"   Classificação: {deal_label_pt(deal.deal)}{class_suffix}"
+
+    # Linha de histórico.
+    h = deal.history
+    if h.n == 0:
+        hist_line = "   Histórico: sem amostras."
+    elif not h.sufficient:
+        hist_line = (
+            f"   Histórico: insuficiente (n={h.n}, mínimo p/ mediana confiável: 10)"
+        )
+    else:
+        hist_line = (
+            f"   Histórico: mediana {format_brl(h.median_brl)} · "
+            f"p25 {format_brl(h.p25_brl)} · "
+            f"mínimo recente {format_brl(h.min_recent_brl)} (n={h.n})"
+        )
+
+    # Linha de desconto.
+    if deal.discount_pct is None:
+        disc_line = "   Desconto: histórico insuficiente"
+    else:
+        disc_line = (
+            f"   Desconto estimado: {deal.discount_pct:.0%} vs mediana"
+        )
+
     return (
         f"{index}. {label} — {price_str} [{_trip_label(history)}]\n"
         f"   Fonte: {_source_name(history)}\n"
         f"   Cabine: não confirmada\n"
         f"   Tipo: {_trip_label(history)}\n"
+        f"{class_line}\n"
+        f"{hist_line}\n"
+        f"{disc_line}\n"
         f"   Interpretação: preço compatível com econômica promocional; "
-        f"classe não comprovada pela fonte."
+        f"classe não comprovada pela fonte.\n"
+        f"   Motivo: {deal.reason}"
     )
+
+
+# Aviso fixo do bloco de econômica — mantém honestidade sobre a classe.
+_ECONOMY_WARNING = (
+    "⚠️ Cabine não confirmada. Classificado como possível econômica, "
+    "não executiva."
+)
 
 
 def _security_block(result: MonitorResult) -> str:
@@ -494,14 +556,14 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         confirmed_score_line = ""
 
     raw_block = _format_raw_signals(raw, store)
-    economy_block = (
-        "\n".join(
+    if economy:
+        eco_items = "\n".join(
             _format_economy_block(i + 1, key, store.get(key), price)
             for i, (key, price) in enumerate(economy)
         )
-        if economy
-        else "• Nenhum sinal compatível com econômica promocional agora."
-    )
+        economy_block = f"{eco_items}\n\n{_ECONOMY_WARNING}"
+    else:
+        economy_block = "• Nenhum sinal compatível com econômica promocional agora."
 
     sources_block = _source_status_block(store, confirmed, raw + economy)
     security_block = _security_block(result)
@@ -535,6 +597,88 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         f"{sources_block}\n\n"
         f"{reason}"
     )
+
+
+def explain_deals(store: PriceStore, top: int = 5) -> str:
+    """Texto read-only (CLI `explain-deals`): top sinais de econômica
+    classificados (deal intelligence). Sem rede, sem provider, sem
+    Telegram. Não promove sinal bruto a executiva."""
+    latest = _latest_prices(store)
+    candidates: list[tuple[str, float]] = []
+    for key, price in latest:
+        h = store.get(key)
+        if _is_confirmed(h):
+            continue
+        if _amount_brl(h, price) is None:
+            continue  # entrada legada sem moeda — fora do painel principal
+        candidates.append((key, price))
+
+    evals: list[tuple[str, float, object]] = []
+    for key, price in candidates:
+        h = store.get(key)
+        lq = _lq(h)
+        sq = _SignalQuote(lq)
+        parts = _split_route_key(key)
+        destination = lq.get("destination") or (parts[1] if parts else "")
+        brl = _amount_brl(h, price)
+        usd = None
+        if str(lq.get("currency") or "").upper() == "USD":
+            try:
+                usd = float(lq.get("amount")) if lq.get("amount") is not None else None
+            except (TypeError, ValueError):
+                usd = None
+        ev = evaluate_deal(
+            destination=destination,
+            trip_type=sq.trip_type,
+            usd_amount=usd,
+            brl_amount=brl,
+            prices=h.prices,
+        )
+        evals.append((key, price, ev))
+
+    # Ordem: muito_forte > boa > observar > ignorar; dentro de cada,
+    # maior desconto primeiro; depois menor preço.
+    order = {
+        "muito_forte": 0, "boa": 1, "observar": 2, "ignorar": 3,
+    }
+    evals.sort(key=lambda x: (
+        order.get(x[2].deal, 9),
+        -(x[2].discount_pct or 0),
+        x[1],
+    ))
+    evals = evals[:top]
+
+    lines: list[str] = []
+    lines.append("💸 Top sinais de econômica (classificação read-only)")
+    if not evals:
+        lines.append("• Nenhum sinal com moeda comprovada para classificar.")
+    else:
+        for i, (key, price, ev) in enumerate(evals, 1):
+            parts = _split_route_key(key)
+            label = humanize_route(*parts) if parts else key
+            h = store.get(key)
+            disc = (
+                f"{ev.discount_pct:.0%} vs mediana"
+                if ev.discount_pct is not None
+                else "histórico insuficiente"
+            )
+            hist = (
+                f"n={ev.history.n}"
+                + (
+                    f", mediana {format_brl(ev.history.median_brl)}"
+                    if ev.history.median_brl is not None
+                    else ""
+                )
+            )
+            lines.append(
+                f"{i}. {label} — {_price_label(h, price)} "
+                f"[{_trip_label(h)}] — {deal_label_pt(ev.deal)}"
+            )
+            lines.append(f"   Desconto: {disc}; histórico: {hist}")
+            lines.append(f"   Motivo: {ev.reason}")
+    lines.append("")
+    lines.append(_ECONOMY_WARNING)
+    return "\n".join(lines)
 
 
 def explain_status(store: PriceStore, now: datetime | None = None) -> str:
