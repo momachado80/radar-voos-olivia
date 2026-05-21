@@ -34,6 +34,7 @@ from flight_mapper.serpapi_client import (
     SerpApiAuthError,
     SerpApiClient,
     SerpApiError,
+    _resolve_travel_class,
     parse_search,
     parse_search_from_file,
 )
@@ -343,6 +344,46 @@ def test_serpapi_client_search_uses_correct_url(monkeypatch):
     assert "engine=google_flights" in captured["url"]
     assert "api_key=KEY" in captured["url"]
     assert "type=1" in captured["url"]  # round_trip
+    # business → 3 (regressão do HTTP 400 "Unsupported '0' for travel class")
+    assert "travel_class=3" in captured["url"]
+
+
+# ---- _resolve_travel_class (cobertura completa do bug fix) ----
+
+def test_resolve_travel_class_maps_business_to_3():
+    assert _resolve_travel_class("business") == 3
+    assert _resolve_travel_class("BUSINESS") == 3
+    assert _resolve_travel_class("  Business  ") == 3
+
+
+def test_resolve_travel_class_accepts_int_passthrough():
+    assert _resolve_travel_class(3) == 3
+    assert _resolve_travel_class(1) == 1
+    assert _resolve_travel_class(4) == 4
+
+
+def test_resolve_travel_class_other_cabins():
+    assert _resolve_travel_class("economy") == 1
+    assert _resolve_travel_class("premium_economy") == 2
+    assert _resolve_travel_class("premium economy") == 2
+    assert _resolve_travel_class("premiumeconomy") == 2
+    assert _resolve_travel_class("first") == 4
+
+
+def test_resolve_travel_class_rejects_invalid_string():
+    with pytest.raises(SerpApiError):
+        _resolve_travel_class("xyz")
+    with pytest.raises(SerpApiError):
+        _resolve_travel_class("")
+
+
+def test_resolve_travel_class_rejects_invalid_int():
+    with pytest.raises(SerpApiError):
+        _resolve_travel_class(0)
+    with pytest.raises(SerpApiError):
+        _resolve_travel_class(5)
+    with pytest.raises(SerpApiError):
+        _resolve_travel_class(99)
 
 
 def test_serpapi_client_403_raises_auth_error(monkeypatch):
