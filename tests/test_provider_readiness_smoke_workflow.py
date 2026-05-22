@@ -111,3 +111,22 @@ def test_other_workflows_untouched():
     permanecem no diretório (não foram removidos por este PR)."""
     for fname in ("flight-mapper.yml", "flight-hot-scan.yml"):
         assert (WORKFLOWS / fname).exists(), f"workflow do motor sumiu: {fname}"
+
+
+def test_workflow_serpapi_step_fetches_booking_options():
+    """Após PR #40, o workflow manual expande até 1 booking_token por
+    execução (gasto previsível de 2 queries do free-tier)."""
+    raw = WF.read_text(encoding="utf-8")
+    assert "--fetch-booking-options" in raw
+    assert "--max-booking-options 1" in raw
+
+
+def test_workflow_serpapi_step_caps_booking_options_to_one():
+    """Garantia explícita de que o limite é 1 (não pode subir
+    silenciosamente e estourar a cota free-tier)."""
+    raw = WF.read_text(encoding="utf-8")
+    # nenhuma variante > 1 (defesa contra typo p/ --max-booking-options 11 etc.)
+    for n in range(2, 20):
+        assert f"--max-booking-options {n}" not in raw, (
+            f"limite {n} não autorizado no workflow"
+        )

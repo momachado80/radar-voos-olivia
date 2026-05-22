@@ -43,6 +43,9 @@ jobs:
       - name: SerpApi smoke (real, manual only)
         env:
           SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+        # Disparo manual gasta ~2 queries do free-tier SerpApi:
+        # 1 search + 1 booking_options (limite 1 expansão).
         run: |
           python -m flight_mapper serpapi-smoke \
-            --route GRU-MIA --trip round_trip --cabin business
+            --route GRU-MIA --trip round_trip --cabin business \
+            --fetch-booking-options --max-booking-options 1
