@@ -167,11 +167,45 @@ def test_workflow_dispatch_input_max_booking_options_exists():
     assert "1 a 3" in (spec.get("description") or ""), (
         "description deve declarar o intervalo 1..3"
     )
-    # Apenas UM input (não criar entrada p/ rota / cabine — risco de
-    # disparar varredura em massa).
-    assert set(inputs.keys()) == {"max_booking_options"}, (
-        f"apenas max_booking_options autorizado; achei: {sorted(inputs)}"
+    # Apenas os inputs autorizados (max_booking_options + debug_booking_fields).
+    # Rota / cabine / trip NÃO podem virar input — risco de varredura
+    # em massa via dispatch.
+    assert set(inputs.keys()) == {
+        "max_booking_options", "debug_booking_fields",
+    }, (
+        f"inputs não autorizados; achei: {sorted(inputs)}"
     )
+
+
+def test_workflow_dispatch_input_debug_booking_fields_exists():
+    """workflow_dispatch.inputs.debug_booking_fields existe, é boolean
+    e tem default false (auditoria fica explicitamente opt-in)."""
+    doc = _load()
+    on = _on(doc)
+    wd = on.get("workflow_dispatch") or {}
+    inputs = wd.get("inputs") or {}
+    assert "debug_booking_fields" in inputs
+    spec = inputs["debug_booking_fields"]
+    assert spec.get("type") == "boolean"
+    # YAML `false` vira Python False
+    assert spec.get("default") is False, (
+        "default deve ser false (auditoria opt-in)"
+    )
+    assert "read-only" in (spec.get("description") or "").lower()
+
+
+def test_workflow_passes_debug_flag_only_when_input_true():
+    """O step só passa --debug-booking-fields quando o input vier
+    como 'true' (gate condicional no shell)."""
+    raw = WF.read_text(encoding="utf-8")
+    assert "RAW_DEBUG_BOOKING_FIELDS" in raw
+    # gate explícito
+    assert '"${RAW_DEBUG_BOOKING_FIELDS}" = "true"' in raw
+    # flag adicionada via array (sem injection)
+    assert 'EXTRA+=("--debug-booking-fields")' in raw
+    # Nunca passa o flag incondicionalmente
+    assert "  --debug-booking-fields" not in raw  # não em linha solta no python -m
+    assert " --debug-booking-fields" not in raw.split("EXTRA+=")[0]
 
 
 def test_workflow_passes_fixed_dates_to_serpapi_smoke():

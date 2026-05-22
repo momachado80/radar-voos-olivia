@@ -844,6 +844,7 @@ def cmd_serpapi_smoke(args: argparse.Namespace) -> int:
 
     fetch_options = bool(getattr(args, "fetch_booking_options", False))
     max_options = max(1, int(getattr(args, "max_booking_options", 1) or 1))
+    debug_fields = bool(getattr(args, "debug_booking_fields", False))
 
     if args.mock_file:
         try:
@@ -858,6 +859,8 @@ def cmd_serpapi_smoke(args: argparse.Namespace) -> int:
             args, offers, source="fixture",
             request_type_param=trip_param, trip_audit=trip_audit,
         )
+        if debug_fields:
+            _print_booking_field_audits(offers)
         if fetch_options:
             print(
                 "  ⚠️ --fetch-booking-options ignorado em modo fixture "
@@ -890,6 +893,9 @@ def cmd_serpapi_smoke(args: argparse.Namespace) -> int:
         args, offers, source="serpapi_live",
         request_type_param=trip_param, trip_audit=None,
     )
+
+    if debug_fields:
+        _print_booking_field_audits(offers)
 
     if fetch_options:
         target = _select_expansion_target(offers, args.cabin)
@@ -984,6 +990,51 @@ def _print_serpapi_offers(
         "  Observação: SerpApi NÃO emite alerta — só validação/benchmark. "
         "Booking real exige follow-up com booking_token."
     )
+
+
+def _print_booking_field_audits(offers, limit: int = 11) -> None:
+    """Imprime auditoria read-only dos campos brutos de cada offer
+    (até `limit`). Nunca imprime token, nunca URL completa, nunca
+    chama booking_options, nunca toca PriceStore."""
+    from .serpapi_client import KNOWN_BOOKING_FIELDS, audit_offer_fields
+    print(
+        "  🔬 debug-booking-fields: auditoria read-only do payload bruto"
+    )
+    for i, parsed in enumerate(offers[:limit], 1):
+        raw = parsed.raw if isinstance(parsed.raw, dict) else {}
+        audit = audit_offer_fields(raw)
+        cabin = parsed.cabin.value
+        price_str = (
+            f"{parsed.currency} {parsed.price:.2f}"
+            if parsed.price is not None else "?"
+        )
+        carriers = (
+            ",".join(parsed.carriers) if parsed.carriers else "?"
+        )
+        print(
+            f"    oferta #{i}: cabin={cabin}, price={price_str}, "
+            f"carriers={carriers}"
+        )
+        print(f"      top_level_keys: {audit['top_level_keys']}")
+        for fname in KNOWN_BOOKING_FIELDS:
+            info = audit["fields"].get(fname, {"present": False})
+            if not info.get("present"):
+                print(f"      • {fname}: ausente")
+                continue
+            kind = info.get("kind")
+            if kind == "dict":
+                print(
+                    f"      • {fname}: dict, "
+                    f"inner_keys={info.get('inner_keys')}"
+                )
+            elif kind == "list":
+                print(f"      • {fname}: list, len={info.get('len')}")
+            elif kind == "url":
+                print(f"      • {fname}: url, domínio={info.get('domain')}")
+            elif kind == "str":
+                print(f"      • {fname}: str, length={info.get('length')}")
+            else:
+                print(f"      • {fname}: {kind}")
 
 
 def _print_booking_options(idx: int, options) -> None:
@@ -1205,6 +1256,14 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=1,
         help="Máximo de booking_tokens a expandir (default 1).",
+    )
+    p_sp.add_argument(
+        "--debug-booking-fields",
+        action="store_true",
+        help=(
+            "Audita campos brutos de booking em cada oferta "
+            "(read-only; nunca imprime token nem URL completa)."
+        ),
     )
     p_sp.set_defaults(func=cmd_serpapi_smoke)
 
