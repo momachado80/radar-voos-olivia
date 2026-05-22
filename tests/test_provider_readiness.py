@@ -32,17 +32,25 @@ from flight_mapper.provider_readiness import (
 from flight_mapper.regions import Cabin, TripType
 from flight_mapper.serpapi_client import (
     SerpApiAuthError,
+    SerpApiBookingOption,
     SerpApiClient,
     SerpApiError,
     _resolve_travel_class,
+    audit_trip_consistency,
+    parse_booking_options,
+    parse_booking_options_from_file,
     parse_search,
     parse_search_from_file,
+    url_domain,
 )
 from flight_mapper.state import PriceStore
 
 
 FIXTURE_AMADEUS = Path(__file__).parent / "fixtures" / "amadeus_business.json"
 FIXTURE_SERPAPI = Path(__file__).parent / "fixtures" / "serpapi_google_flights.json"
+FIXTURE_SERPAPI_BOOKING = (
+    Path(__file__).parent / "fixtures" / "serpapi_booking_options.json"
+)
 
 
 def _workflows_with(secret_name: str, tmp_path: Path) -> Path:
@@ -484,6 +492,276 @@ def test_cli_serpapi_smoke_without_mock_and_no_env_is_graceful(
     assert "ausente" in out
 
 
+# ----------------- SerpApi booking options (PR #40) -----------------
+
+
+def test_booking_options_fixture_parses_provider_and_url():
+    options = parse_booking_options_from_file(str(FIXTURE_SERPAPI_BOOKING))
+    assert len(options) == 3
+    first = options[0]
+    assert first.provider == "Latam Airlines"
+    assert first.provider_raw == "Latam Airlines"
+    assert first.booking_url == "https://www.latam.com/checkout?token=abc"
+    assert first.has_post_data is True
+    assert isinstance(first, SerpApiBookingOption)
+
+
+def test_booking_options_fixture_parses_price_and_currency():
+    options = parse_booking_options_from_file(str(FIXTURE_SERPAPI_BOOKING))
+    assert options[0].price == 1820.0
+    assert options[0].currency == "USD"
+    assert options[1].price == 1855.0
+    assert options[2].price == 1900.0
+
+
+def test_booking_options_handles_missing_url_without_crash():
+    options = parse_booking_options_from_file(str(FIXTURE_SERPAPI_BOOKING))
+    third = options[2]
+    assert third.provider_raw == "ProviderSemURL"
+    assert third.booking_url is None
+    assert third.has_post_data is False
+
+
+def test_booking_options_invalid_payload_raises():
+    with pytest.raises(SerpApiError):
+        parse_booking_options("not dict")  # type: ignore[arg-type]
+
+
+def test_booking_options_empty_payload_returns_empty_list():
+    assert parse_booking_options({}) == []
+    assert parse_booking_options({"booking_options": []}) == []
+
+
+def test_fetch_booking_options_requires_token():
+    client = SerpApiClient("KEY")
+    with pytest.raises(SerpApiError):
+        client.fetch_booking_options(
+            booking_token="",
+            departure_id="GRU", arrival_id="MIA",
+            outbound_date="2026-09-10", return_date="2026-09-17",
+        )
+
+
+def test_fetch_booking_options_uses_correct_url(monkeypatch):
+    import flight_mapper.serpapi_client as sp
+    fixture = json.loads(FIXTURE_SERPAPI_BOOKING.read_text(encoding="utf-8"))
+    captured: dict = {}
+
+    def _fake_urlopen(req, *a, **k):
+        captured["url"] = getattr(req, "full_url", str(req))
+        return _FakeResp(json.dumps(fixture).encode("utf-8"))
+
+    monkeypatch.setattr(sp, "urlopen", _fake_urlopen)
+    options = SerpApiClient("KEY").fetch_booking_options(
+        booking_token="BK_TOKEN_1",
+        departure_id="GRU", arrival_id="MIA",
+        outbound_date="2026-09-10", return_date="2026-09-17",
+        travel_class="business",
+    )
+    assert len(options) == 3
+    assert "engine=google_flights" in captured["url"]
+    assert "booking_token=BK_TOKEN_1" in captured["url"]
+    assert "travel_class=3" in captured["url"]
+    assert "type=1" in captured["url"]  # round_trip pelo return_date
+
+
+def test_url_domain_extraction():
+    assert url_domain("https://www.latam.com/x?y=1") == "www.latam.com"
+    assert url_domain("https://gflights.kissandfly.com/book") == (
+        "gflights.kissandfly.com"
+    )
+    assert url_domain(None) is None
+    assert url_domain("") is None
+
+
+# ----------------- audit_trip_consistency (PR #40) -----------------
+
+
+def test_audit_trip_consistency_round_trip_round_payload_ok():
+    payload = {
+        "search_parameters": {"type": "1"},
+        "best_flights": [{"type": "Round trip"}],
+    }
+    assert audit_trip_consistency(TripType.ROUND_TRIP, payload) is None
+
+
+def test_audit_trip_consistency_round_request_but_one_way_offers():
+    payload = {
+        "search_parameters": {"type": 1},
+        "best_flights": [{"type": "One way"}, {"type": "One way"}],
+    }
+    assert (
+        audit_trip_consistency(TripType.ROUND_TRIP, payload)
+        == "payload_trip_inconclusive"
+    )
+
+
+def test_audit_trip_consistency_sp_type_diverges_from_request():
+    payload = {"search_parameters": {"type": "2"}}  # one_way
+    assert (
+        audit_trip_consistency(TripType.ROUND_TRIP, payload)
+        == "payload_trip_inconclusive"
+    )
+
+
+def test_audit_trip_consistency_one_way_request_round_payload():
+    payload = {"search_parameters": {"type": "1"}}
+    assert (
+        audit_trip_consistency(TripType.ONE_WAY, payload)
+        == "payload_trip_inconclusive"
+    )
+
+
+def test_audit_trip_consistency_handles_int_type():
+    """SerpApi pode devolver type como inteiro 1/2; helper precisa
+    tratar sem TypeError."""
+    payload = {"search_parameters": {"type": 1}}
+    assert audit_trip_consistency(TripType.ROUND_TRIP, payload) is None
+
+
+def test_audit_trip_consistency_no_signal_returns_none():
+    """Payload sem `type` em search_parameters nem nos offers não dá
+    base p/ divergência."""
+    assert audit_trip_consistency(TripType.ROUND_TRIP, {}) is None
+
+
+# ----------------- CLI: serpapi-booking-options (PR #40) -----------------
+
+
+def test_cli_serpapi_booking_options_with_mock_file(capsys):
+    rc = main([
+        "serpapi-booking-options",
+        "--mock-file", str(FIXTURE_SERPAPI_BOOKING),
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "booking options (fixture)" in out
+    assert "Latam Airlines" in out
+    assert "www.latam.com" in out
+    assert "sem URL clicável" in out  # 3a opção da fixture
+
+
+def test_cli_serpapi_booking_options_requires_token_in_live_mode(
+    tmp_path, monkeypatch, capsys
+):
+    _safe_config(monkeypatch, tmp_path)
+    monkeypatch.setenv("SERPAPI_API_KEY", "FAKE_KEY_NO_NETWORK")
+    rc = main(["serpapi-booking-options"])
+    assert rc == 2
+    out = capsys.readouterr().out
+    assert "--booking-token" in out
+
+
+def test_cli_serpapi_booking_options_without_env_is_graceful(
+    tmp_path, monkeypatch, capsys
+):
+    _safe_config(monkeypatch, tmp_path)
+    monkeypatch.delenv("SERPAPI_API_KEY", raising=False)
+    rc = main([
+        "serpapi-booking-options",
+        "--booking-token", "BK_TOKEN_1",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "ausente" in out
+
+
+# ----------------- CLI: serpapi-smoke --fetch-booking-options (PR #40) -----
+
+
+def test_cli_serpapi_smoke_with_fetch_flag_in_fixture_mode_is_noop(capsys):
+    """Em modo fixture, o flag --fetch-booking-options NÃO faz rede —
+    aponta para serpapi-booking-options."""
+    rc = main([
+        "serpapi-smoke",
+        "--route", "GRU-MIA",
+        "--trip", "round_trip",
+        "--cabin", "business",
+        "--mock-file", str(FIXTURE_SERPAPI),
+        "--fetch-booking-options",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "fetch-booking-options ignorado em modo fixture" in out
+
+
+def test_cli_serpapi_smoke_reports_request_type_and_payload_trip(capsys):
+    rc = main([
+        "serpapi-smoke",
+        "--route", "GRU-MIA",
+        "--trip", "round_trip",
+        "--cabin", "business",
+        "--mock-file", str(FIXTURE_SERPAPI),
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "request: type=1" in out
+    assert "payload trip inferido" in out
+
+
+def test_cli_serpapi_smoke_max_booking_options_default_is_one(monkeypatch):
+    """Verifica via parser que o default de --max-booking-options é 1
+    (não vai sair varrendo as 11 ofertas)."""
+    from flight_mapper.__main__ import main as _main
+    import argparse as _ap
+    captured: dict = {}
+
+    real_parser_init = _ap.ArgumentParser.parse_args
+
+    def _intercept(self, argv=None):
+        ns = real_parser_init(self, argv)
+        captured["ns"] = ns
+        return ns
+
+    monkeypatch.setattr(_ap.ArgumentParser, "parse_args", _intercept)
+    rc = _main([
+        "serpapi-smoke",
+        "--route", "GRU-MIA",
+        "--mock-file", str(FIXTURE_SERPAPI),
+    ])
+    assert rc == 0
+    ns = captured["ns"]
+    assert ns.max_booking_options == 1
+    assert ns.fetch_booking_options is False
+
+
+def test_cli_serpapi_smoke_live_caps_booking_options_to_max(monkeypatch):
+    """Mesmo com SERPAPI_API_KEY setado e 3 offers com booking_token,
+    --max-booking-options=1 só dispara 1 fetch."""
+    import flight_mapper.serpapi_client as sp
+    from flight_mapper.__main__ import main as _main
+
+    search_payload = json.loads(FIXTURE_SERPAPI.read_text(encoding="utf-8"))
+    booking_payload = json.loads(
+        FIXTURE_SERPAPI_BOOKING.read_text(encoding="utf-8")
+    )
+    calls: dict = {"search": 0, "booking": 0}
+
+    def _fake_urlopen(req, *a, **k):
+        url = getattr(req, "full_url", str(req))
+        if "booking_token=" in url:
+            calls["booking"] += 1
+            return _FakeResp(json.dumps(booking_payload).encode("utf-8"))
+        calls["search"] += 1
+        return _FakeResp(json.dumps(search_payload).encode("utf-8"))
+
+    monkeypatch.setattr(sp, "urlopen", _fake_urlopen)
+    monkeypatch.setenv("SERPAPI_API_KEY", "FAKE_KEY_NO_NETWORK")
+    rc = _main([
+        "serpapi-smoke",
+        "--route", "GRU-MIA",
+        "--trip", "round_trip",
+        "--cabin", "business",
+        "--departure", "2026-09-10",
+        "--return-date", "2026-09-17",
+        "--fetch-booking-options",
+    ])
+    assert rc == 0
+    assert calls["search"] == 1
+    # default --max-booking-options=1 → 1 fetch só, mesmo com 2 offers
+    assert calls["booking"] == 1
+
+
 # ----------------- Garantias gerais -----------------
 
 def test_no_provider_module_imported_in_pipeline_core(tmp_path):
@@ -493,3 +771,13 @@ def test_no_provider_module_imported_in_pipeline_core(tmp_path):
         src = (Path("flight_mapper") / mod).read_text(encoding="utf-8")
         assert "amadeus_client" not in src, mod
         assert "serpapi_client" not in src, mod
+
+
+def test_booking_options_not_consumed_by_pipeline_core():
+    """Booking options PR #40 — read-only. Não pode aparecer em
+    monitor/providers/notifier/state."""
+    for mod in ("monitor.py", "providers.py", "notifier.py", "state.py"):
+        src = (Path("flight_mapper") / mod).read_text(encoding="utf-8")
+        assert "fetch_booking_options" not in src, mod
+        assert "parse_booking_options" not in src, mod
+        assert "SerpApiBookingOption" not in src, mod

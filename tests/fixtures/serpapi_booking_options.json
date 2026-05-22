@@ -1,0 +1,50 @@
+{
+  "search_metadata": {"id": "bk_smk_0001", "status": "Success"},
+  "search_parameters": {
+    "engine": "google_flights",
+    "departure_id": "GRU",
+    "arrival_id": "MIA",
+    "outbound_date": "2026-09-10",
+    "return_date": "2026-09-17",
+    "type": "1",
+    "currency": "USD",
+    "booking_token": "BK_TOKEN_1"
+  },
+  "booking_options": [
+    {
+      "together": {
+        "book_with": "Latam Airlines",
+        "marketed_as": ["Latam Airlines"],
+        "price": 1820,
+        "local_prices": [
+          {"currency": "BRL", "price": 10010}
+        ],
+        "booking_request": {
+          "url": "https://www.latam.com/checkout?token=abc",
+          "post_data": "param=value"
+        },
+        "option_title": "Latam Airlines",
+        "extensions": ["Stops: nonstop"],
+        "baggage_prices": []
+      }
+    },
+    {
+      "together": {
+        "book_with": "Kissandfly",
+        "marketed_as": ["Latam Airlines"],
+        "price": 1855,
+        "booking_request": {
+          "url": "https://gflights.kissandfly.com/book?ref=xyz"
+        },
+        "option_title": "Kissandfly"
+      }
+    },
+    {
+      "together": {
+        "book_with": "ProviderSemURL",
+        "price": 1900
+      }
+    }
+  ],
+  "price_insights": {"lowest_price": 1820, "price_level": "low"}
+}

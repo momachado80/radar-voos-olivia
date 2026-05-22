@@ -4,6 +4,7 @@ calibrate-routes|simulate-thresholds|rank-routes|provider-health|audit-links|exp
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -833,16 +834,36 @@ def cmd_serpapi_smoke(args: argparse.Namespace) -> int:
     PriceStore. Não é provider de pipeline."""
     from .serpapi_client import (
         SerpApiAuthError, SerpApiClient, SerpApiError,
-        parse_search_from_file,
+        audit_trip_consistency, parse_search_from_file,
     )
+
+    requested_trip = (
+        TripType.ROUND_TRIP if args.trip == "round_trip" else TripType.ONE_WAY
+    )
+    trip_param = "1" if requested_trip is TripType.ROUND_TRIP else "2"
+
+    fetch_options = bool(getattr(args, "fetch_booking_options", False))
+    max_options = max(1, int(getattr(args, "max_booking_options", 1) or 1))
 
     if args.mock_file:
         try:
             offers = parse_search_from_file(args.mock_file)
-        except (OSError, SerpApiError) as exc:
+            with open(args.mock_file, "r", encoding="utf-8") as _f:
+                payload = json.load(_f)
+        except (OSError, SerpApiError, ValueError) as exc:
             print(f"erro lendo fixture: {exc}")
             return 1
-        _print_serpapi_offers(args, offers, source="fixture")
+        trip_audit = audit_trip_consistency(requested_trip, payload)
+        _print_serpapi_offers(
+            args, offers, source="fixture",
+            request_type_param=trip_param, trip_audit=trip_audit,
+        )
+        if fetch_options:
+            print(
+                "  ⚠️ --fetch-booking-options ignorado em modo fixture "
+                "(use serpapi-booking-options --mock-file p/ payload "
+                "de booking)."
+            )
         return 0
 
     import os as _os
@@ -865,16 +886,56 @@ def cmd_serpapi_smoke(args: argparse.Namespace) -> int:
     except SerpApiError as exc:
         print(f"erro SerpApi: {exc}")
         return 1
-    _print_serpapi_offers(args, offers, source="serpapi_live")
+    _print_serpapi_offers(
+        args, offers, source="serpapi_live",
+        request_type_param=trip_param, trip_audit=None,
+    )
+
+    if fetch_options:
+        targets = [o for o in offers if o.booking_token][:max_options]
+        if not targets:
+            print("  • nenhum offer com booking_token; nada a buscar.")
+            return 0
+        print(
+            f"  → fetch_booking_options: buscando {len(targets)} "
+            f"booking_token(s) (limite={max_options})"
+        )
+        for i, off in enumerate(targets, 1):
+            try:
+                options = client.fetch_booking_options(
+                    booking_token=off.booking_token,
+                    departure_id=args.route.split("-")[0],
+                    arrival_id=args.route.split("-")[1],
+                    outbound_date=args.departure,
+                    return_date=args.return_date,
+                    travel_class=args.cabin,
+                )
+            except SerpApiError as exc:
+                print(f"    erro booking_options[{i}]: {exc}")
+                continue
+            _print_booking_options(i, options)
     return 0
 
 
-def _print_serpapi_offers(args, offers, source: str) -> None:
+def _print_serpapi_offers(
+    args, offers, source: str,
+    request_type_param: str | None = None,
+    trip_audit: str | None = None,
+) -> None:
     print(f"🔍 SerpApi smoke ({source})")
     print(f"  rota={args.route} trip={args.trip} cabin={args.cabin}")
+    if request_type_param is not None:
+        print(
+            f"  request: type={request_type_param} "
+            f"(1=round_trip, 2=one_way)"
+        )
     if not offers:
         print("  • sem ofertas no payload")
         return
+    inferred = {o.trip_type.value for o in offers}
+    print(f"  payload trip inferido: {sorted(inferred)}")
+    if trip_audit:
+        print(f"  ⚠️ {trip_audit} — requested={args.trip}, payload divergente")
     for i, o in enumerate(offers, 1):
         price = (
             f"{o.currency} {o.price:.2f}" if o.price is not None else "?"
@@ -890,6 +951,88 @@ def _print_serpapi_offers(args, offers, source: str) -> None:
         "  Observação: SerpApi NÃO emite alerta — só validação/benchmark. "
         "Booking real exige follow-up com booking_token."
     )
+
+
+def _print_booking_options(idx: int, options) -> None:
+    """Imprime opções de booking de UM booking_token. Read-only:
+    NUNCA abre o link, NUNCA envia Telegram, NUNCA toca PriceStore."""
+    from .serpapi_client import url_domain
+    if not options:
+        print(
+            f"    booking_options[{idx}]: booking_token existe, mas "
+            f"booking options não trouxeram link aproveitável."
+        )
+        return
+    print(f"    booking_options[{idx}]: {len(options)} opção(ões)")
+    for j, opt in enumerate(options, 1):
+        price = (
+            f"{opt.currency} {opt.price:.2f}"
+            if opt.price is not None else "?"
+        )
+        dom = url_domain(opt.booking_url)
+        if opt.booking_url:
+            link_info = (
+                f"domínio={dom}" + (" (POST)" if opt.has_post_data else "")
+            )
+        else:
+            link_info = "sem URL clicável"
+        print(
+            f"      {j}. {opt.provider_raw} | {price} | {link_info}"
+        )
+
+
+def cmd_serpapi_booking_options(args: argparse.Namespace) -> int:
+    """Smoke read-only para booking options a partir de um
+    `booking_token` já conhecido (vindo de um `serpapi-smoke` anterior).
+
+    Com `--mock-file PATH`: parsing offline. Sem mock: chamada real
+    (gasta 1 query do free-tier). NUNCA abre o link, NUNCA envia
+    Telegram, NUNCA toca PriceStore."""
+    from .serpapi_client import (
+        SerpApiAuthError, SerpApiClient, SerpApiError,
+        parse_booking_options_from_file,
+    )
+
+    if args.mock_file:
+        try:
+            options = parse_booking_options_from_file(args.mock_file)
+        except (OSError, SerpApiError) as exc:
+            print(f"erro lendo fixture: {exc}")
+            return 1
+        print(f"🔍 SerpApi booking options (fixture)")
+        print(f"  booking_token={args.booking_token or '(da fixture)'}")
+        _print_booking_options(0, options)
+        return 0
+
+    if not args.booking_token:
+        print("--booking-token é obrigatório para chamada real.")
+        return 2
+
+    import os as _os
+    api_key = _os.environ.get("SERPAPI_API_KEY")
+    if not api_key:
+        print("SERPAPI_API_KEY ausente. Use --mock-file para smoke offline.")
+        return 0
+    try:
+        client = SerpApiClient(api_key)
+        options = client.fetch_booking_options(
+            booking_token=args.booking_token,
+            departure_id=args.route.split("-")[0],
+            arrival_id=args.route.split("-")[1],
+            outbound_date=args.departure,
+            return_date=args.return_date,
+            travel_class=args.cabin,
+        )
+    except SerpApiAuthError as exc:
+        print(f"auth SerpApi falhou: {exc}")
+        return 1
+    except SerpApiError as exc:
+        print(f"erro SerpApi: {exc}")
+        return 1
+    print(f"🔍 SerpApi booking options (serpapi_live)")
+    print(f"  booking_token={args.booking_token[:12]}…")
+    _print_booking_options(0, options)
+    return 0
 
 
 def cmd_explain_status(args: argparse.Namespace) -> int:
@@ -1016,7 +1159,36 @@ def main(argv: list[str] | None = None) -> int:
     p_sp.add_argument("--departure", default="2026-09-10")
     p_sp.add_argument("--return-date", dest="return_date", default=None)
     p_sp.add_argument("--mock-file", default=None)
+    p_sp.add_argument(
+        "--fetch-booking-options",
+        action="store_true",
+        help=(
+            "Após search, busca booking options reais de até N offers "
+            "com booking_token (gasta queries adicionais do SerpApi)."
+        ),
+    )
+    p_sp.add_argument(
+        "--max-booking-options",
+        type=int,
+        default=1,
+        help="Máximo de booking_tokens a expandir (default 1).",
+    )
     p_sp.set_defaults(func=cmd_serpapi_smoke)
+
+    p_sbo = sub.add_parser(
+        "serpapi-booking-options",
+        help=(
+            "Smoke read-only de booking options a partir de um "
+            "booking_token (use --mock-file p/ offline)."
+        ),
+    )
+    p_sbo.add_argument("--booking-token", dest="booking_token", default=None)
+    p_sbo.add_argument("--route", default="GRU-MIA")
+    p_sbo.add_argument("--cabin", default="business")
+    p_sbo.add_argument("--departure", default="2026-09-10")
+    p_sbo.add_argument("--return-date", dest="return_date", default=None)
+    p_sbo.add_argument("--mock-file", default=None)
+    p_sbo.set_defaults(func=cmd_serpapi_booking_options)
 
     args = parser.parse_args(argv)
     return args.func(args)
