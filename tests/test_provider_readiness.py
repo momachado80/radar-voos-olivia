@@ -51,6 +51,12 @@ FIXTURE_SERPAPI = Path(__file__).parent / "fixtures" / "serpapi_google_flights.j
 FIXTURE_SERPAPI_BOOKING = (
     Path(__file__).parent / "fixtures" / "serpapi_booking_options.json"
 )
+FIXTURE_SERPAPI_MIXED = (
+    Path(__file__).parent / "fixtures" / "serpapi_mixed_cabins.json"
+)
+FIXTURE_SERPAPI_ONLY_ECONOMY = (
+    Path(__file__).parent / "fixtures" / "serpapi_only_economy.json"
+)
 
 
 def _workflows_with(secret_name: str, tmp_path: Path) -> Path:
@@ -695,8 +701,8 @@ def test_cli_serpapi_smoke_reports_request_type_and_payload_trip(capsys):
     ])
     assert rc == 0
     out = capsys.readouterr().out
-    assert "request: type=1" in out
-    assert "payload trip inferido" in out
+    assert "request trip: round_trip/type=1" in out
+    assert "payload trip: round_trip" in out
 
 
 def test_cli_serpapi_smoke_max_booking_options_default_is_one(monkeypatch):
@@ -760,6 +766,182 @@ def test_cli_serpapi_smoke_live_caps_booking_options_to_max(monkeypatch):
     assert calls["search"] == 1
     # default --max-booking-options=1 → 1 fetch só, mesmo com 2 offers
     assert calls["booking"] == 1
+
+
+# ----------------- PR #42: cabin-aware booking_token selector + log refinements -----------------
+
+
+def _live_smoke_with_payload(monkeypatch, search_payload: dict,
+                              booking_payload: dict | None = None):
+    """Helper p/ rodar `serpapi-smoke` em modo live com payloads mockados.
+    Não faz rede (urlopen monkeypatched)."""
+    import flight_mapper.serpapi_client as sp
+    calls: dict = {"search": 0, "booking": 0, "tokens": []}
+
+    def _fake_urlopen(req, *a, **k):
+        url = getattr(req, "full_url", str(req))
+        if "booking_token=" in url:
+            calls["booking"] += 1
+            # extrai token da URL (rastreável p/ asserts)
+            for part in url.split("&"):
+                if part.startswith("booking_token="):
+                    calls["tokens"].append(part.split("=", 1)[1])
+            payload_to_use = booking_payload or {"booking_options": []}
+            return _FakeResp(json.dumps(payload_to_use).encode("utf-8"))
+        calls["search"] += 1
+        return _FakeResp(json.dumps(search_payload).encode("utf-8"))
+
+    monkeypatch.setattr(sp, "urlopen", _fake_urlopen)
+    monkeypatch.setenv("SERPAPI_API_KEY", "FAKE_KEY_NO_NETWORK")
+    return calls
+
+
+def test_smoke_business_skips_first_economy_offer(monkeypatch, capsys):
+    """Bug observado no smoke real: 1ª oferta veio economy mesmo em
+    busca business; expandiu booking_token errado. Agora o seletor
+    pula a economy e expande o 1º business."""
+    search = json.loads(FIXTURE_SERPAPI_MIXED.read_text(encoding="utf-8"))
+    booking = json.loads(FIXTURE_SERPAPI_BOOKING.read_text(encoding="utf-8"))
+    calls = _live_smoke_with_payload(monkeypatch, search, booking)
+    rc = main([
+        "serpapi-smoke", "--route", "GRU-MIA", "--trip", "round_trip",
+        "--cabin", "business",
+        "--departure", "2026-09-10", "--return-date", "2026-09-17",
+        "--fetch-booking-options",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    # expandiu COPA (oferta #2), não BoA (oferta #1 economy)
+    assert "expandindo booking_token da oferta #2" in out
+    assert "cabin=business" in out
+    assert "carriers=COPA" in out
+    assert calls["booking"] == 1
+    assert calls["tokens"] == ["BK_TOKEN_BIZ_2"]
+    # token economy NÃO foi usado
+    assert "BK_TOKEN_ECON_FIRST" not in calls["tokens"]
+
+
+def test_smoke_business_with_only_economy_skips_expansion(
+    monkeypatch, capsys
+):
+    """Se nenhuma oferta business tem booking_token, não expande nada
+    e imprime mensagem honesta."""
+    search = json.loads(
+        FIXTURE_SERPAPI_ONLY_ECONOMY.read_text(encoding="utf-8")
+    )
+    calls = _live_smoke_with_payload(monkeypatch, search)
+    rc = main([
+        "serpapi-smoke", "--route", "GRU-MIA", "--trip", "round_trip",
+        "--cabin", "business",
+        "--departure", "2026-09-10", "--return-date", "2026-09-17",
+        "--fetch-booking-options",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert (
+        "nenhuma oferta com cabine confirmada compatível "
+        "para expandir booking_token"
+    ) in out
+    assert calls["booking"] == 0
+    assert calls["tokens"] == []
+
+
+def test_smoke_economy_search_picks_first_economy(monkeypatch, capsys):
+    """Simetria: busca econômica deve expandir 1º economy, não business."""
+    search = json.loads(FIXTURE_SERPAPI_MIXED.read_text(encoding="utf-8"))
+    booking = json.loads(FIXTURE_SERPAPI_BOOKING.read_text(encoding="utf-8"))
+    calls = _live_smoke_with_payload(monkeypatch, search, booking)
+    rc = main([
+        "serpapi-smoke", "--route", "GRU-MIA", "--trip", "one_way",
+        "--cabin", "economy",
+        "--departure", "2026-09-10",
+        "--fetch-booking-options",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "expandindo booking_token da oferta #1" in out
+    assert "cabin=economy" in out
+    assert calls["tokens"] == ["BK_TOKEN_ECON_FIRST"]
+
+
+def test_booking_options_post_marked_as_not_simple_hyperlink(capsys):
+    """Booking option com booking_request.post_data deve ser rotulada
+    como 'POST — não é hyperlink simples' (visível p/ humano e
+    pesquisável no log)."""
+    rc = main([
+        "serpapi-booking-options",
+        "--mock-file", str(FIXTURE_SERPAPI_BOOKING),
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    # 1ª opção da fixture: Latam com post_data
+    assert "POST — não é hyperlink simples" in out
+
+
+def test_booking_options_simple_url_marked_as_link_simples(capsys):
+    """Booking option só com URL (sem post_data) deve ser rotulada
+    como 'link simples'."""
+    rc = main([
+        "serpapi-booking-options",
+        "--mock-file", str(FIXTURE_SERPAPI_BOOKING),
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    # 2ª opção da fixture: Kissandfly só URL (sem post_data)
+    assert "link simples" in out
+    assert "Kissandfly" in out
+
+
+def test_smoke_log_trip_status_inconclusive_when_payload_diverges(capsys):
+    """request=round_trip + payload one_way deve gerar bloco:
+    request trip / payload trip / status: trip inconclusivo..."""
+    rc = main([
+        "serpapi-smoke", "--route", "GRU-MIA", "--trip", "round_trip",
+        "--cabin", "business",
+        "--mock-file", str(FIXTURE_SERPAPI_MIXED),
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "request trip: round_trip/type=1" in out
+    assert "payload trip: one_way/type=2" in out
+    assert (
+        "status: trip inconclusivo, não integrar ao alerta ainda" in out
+    )
+
+
+def test_smoke_log_no_status_line_when_trip_consistent(capsys):
+    """Quando request e payload concordam (round/round), a linha
+    `status: trip inconclusivo` NÃO deve aparecer."""
+    rc = main([
+        "serpapi-smoke", "--route", "GRU-MIA", "--trip", "round_trip",
+        "--cabin", "business",
+        "--mock-file", str(FIXTURE_SERPAPI),  # type=1, payload round_trip
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "request trip: round_trip/type=1" in out
+    assert "payload trip: round_trip" in out
+    assert "trip inconclusivo" not in out
+
+
+def test_select_expansion_target_helper_business():
+    from flight_mapper.__main__ import _select_expansion_target
+    from flight_mapper.serpapi_client import parse_search_from_file
+    offers = parse_search_from_file(str(FIXTURE_SERPAPI_MIXED))
+    tgt = _select_expansion_target(offers, "business")
+    assert tgt is not None
+    assert tgt.cabin.value == "business"
+    assert tgt.booking_token == "BK_TOKEN_BIZ_2"
+    assert "COPA" in tgt.carriers
+
+
+def test_select_expansion_target_helper_returns_none_when_no_match():
+    from flight_mapper.__main__ import _select_expansion_target
+    from flight_mapper.serpapi_client import parse_search_from_file
+    offers = parse_search_from_file(str(FIXTURE_SERPAPI_ONLY_ECONOMY))
+    assert _select_expansion_target(offers, "business") is None
+    # mas economy bate
+    assert _select_expansion_target(offers, "economy") is not None
 
 
 # ----------------- Garantias gerais -----------------

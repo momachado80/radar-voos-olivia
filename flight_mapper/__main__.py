@@ -892,14 +892,25 @@ def cmd_serpapi_smoke(args: argparse.Namespace) -> int:
     )
 
     if fetch_options:
-        targets = [o for o in offers if o.booking_token][:max_options]
-        if not targets:
-            print("  • nenhum offer com booking_token; nada a buscar.")
+        target = _select_expansion_target(offers, args.cabin)
+        if target is None:
+            print(
+                "    nenhuma oferta com cabine confirmada compatível "
+                "para expandir booking_token"
+            )
             return 0
-        print(
-            f"  → fetch_booking_options: buscando {len(targets)} "
-            f"booking_token(s) (limite={max_options})"
+        target_idx = offers.index(target) + 1
+        carriers = ",".join(target.carriers) if target.carriers else "?"
+        price_str = (
+            f"{target.currency} {target.price:.2f}"
+            if target.price is not None else "?"
         )
+        print(
+            f"  → expandindo booking_token da oferta #{target_idx}: "
+            f"cabin={target.cabin.value}, price={price_str}, "
+            f"carriers={carriers} (limite={max_options})"
+        )
+        targets = [target]  # max_options aplicado pelo seletor (1 por chamada)
         for i, off in enumerate(targets, 1):
             try:
                 options = client.fetch_booking_options(
@@ -917,25 +928,47 @@ def cmd_serpapi_smoke(args: argparse.Namespace) -> int:
     return 0
 
 
+def _select_expansion_target(offers, requested_cabin: str):
+    """Escolhe o primeiro offer cuja cabine confirmada bate com o pedido
+    E que tenha booking_token. Retorna None se nenhum candidato.
+
+    Pelo bug observado no smoke real: a 1ª oferta veio economy mesmo em
+    busca business — não dá pra expandir booking_token de economy quando
+    o pedido é business (booking de classe errada).
+    """
+    target_cabin = (requested_cabin or "").strip().lower()
+    for off in offers:
+        if not off.booking_token:
+            continue
+        if off.cabin.value == target_cabin:
+            return off
+    return None
+
+
 def _print_serpapi_offers(
     args, offers, source: str,
     request_type_param: str | None = None,
     trip_audit: str | None = None,
 ) -> None:
     print(f"🔍 SerpApi smoke ({source})")
-    print(f"  rota={args.route} trip={args.trip} cabin={args.cabin}")
+    print(f"  rota={args.route} cabin={args.cabin}")
     if request_type_param is not None:
-        print(
-            f"  request: type={request_type_param} "
-            f"(1=round_trip, 2=one_way)"
-        )
+        print(f"  request trip: {args.trip}/type={request_type_param}")
     if not offers:
         print("  • sem ofertas no payload")
         return
-    inferred = {o.trip_type.value for o in offers}
-    print(f"  payload trip inferido: {sorted(inferred)}")
+    inferred_vals = sorted({o.trip_type.value for o in offers})
+    inferred_types = sorted({o.type_raw for o in offers if o.type_raw})
+    type_repr = ",".join(inferred_types) if inferred_types else "?"
+    if len(inferred_vals) == 1:
+        print(f"  payload trip: {inferred_vals[0]}/type={type_repr}")
+    else:
+        print(f"  payload trip: {inferred_vals}/type={type_repr}")
     if trip_audit:
-        print(f"  ⚠️ {trip_audit} — requested={args.trip}, payload divergente")
+        print(
+            f"  status: trip inconclusivo, não integrar ao alerta ainda "
+            f"({trip_audit})"
+        )
     for i, o in enumerate(offers, 1):
         price = (
             f"{o.currency} {o.price:.2f}" if o.price is not None else "?"
@@ -970,10 +1003,10 @@ def _print_booking_options(idx: int, options) -> None:
             if opt.price is not None else "?"
         )
         dom = url_domain(opt.booking_url)
-        if opt.booking_url:
-            link_info = (
-                f"domínio={dom}" + (" (POST)" if opt.has_post_data else "")
-            )
+        if opt.booking_url and opt.has_post_data:
+            link_info = f"domínio={dom} | POST — não é hyperlink simples"
+        elif opt.booking_url:
+            link_info = f"domínio={dom} | link simples"
         else:
             link_info = "sem URL clicável"
         print(

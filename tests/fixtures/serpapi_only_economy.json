@@ -1,0 +1,42 @@
+{
+  "search_metadata": {"id": "econ_only_0001", "status": "Success"},
+  "search_parameters": {
+    "engine": "google_flights",
+    "departure_id": "GRU",
+    "arrival_id": "MIA",
+    "outbound_date": "2026-09-10",
+    "type": "2",
+    "travel_class": "business",
+    "currency": "USD"
+  },
+  "best_flights": [
+    {
+      "type": "One way",
+      "price": 980,
+      "flights": [
+        {
+          "departure_airport": {"id": "GRU"},
+          "arrival_airport": {"id": "MIA"},
+          "airline": "Boliviana de Aviación",
+          "flight_number": "BoA101",
+          "travel_class": "Economy"
+        }
+      ],
+      "booking_token": "BK_ECON_A"
+    },
+    {
+      "type": "One way",
+      "price": 1100,
+      "flights": [
+        {
+          "departure_airport": {"id": "GRU"},
+          "arrival_airport": {"id": "MIA"},
+          "airline": "Avianca",
+          "flight_number": "AV202",
+          "travel_class": "Economy"
+        }
+      ],
+      "booking_token": "BK_ECON_B"
+    }
+  ]
+}
