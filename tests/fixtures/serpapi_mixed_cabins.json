@@ -1,0 +1,58 @@
+{
+  "search_metadata": {"id": "mix_smk_0001", "status": "Success"},
+  "search_parameters": {
+    "engine": "google_flights",
+    "departure_id": "GRU",
+    "arrival_id": "MIA",
+    "outbound_date": "2026-09-10",
+    "type": "2",
+    "travel_class": "business",
+    "currency": "USD"
+  },
+  "best_flights": [
+    {
+      "type": "One way",
+      "price": 1240,
+      "flights": [
+        {
+          "departure_airport": {"id": "GRU"},
+          "arrival_airport": {"id": "MIA"},
+          "airline": "Boliviana de Aviación",
+          "flight_number": "BoA101",
+          "travel_class": "Economy"
+        }
+      ],
+      "booking_token": "BK_TOKEN_ECON_FIRST"
+    },
+    {
+      "type": "One way",
+      "price": 1131,
+      "flights": [
+        {
+          "departure_airport": {"id": "GRU"},
+          "arrival_airport": {"id": "MIA"},
+          "airline": "COPA",
+          "flight_number": "CM800",
+          "travel_class": "Business"
+        }
+      ],
+      "booking_token": "BK_TOKEN_BIZ_2"
+    }
+  ],
+  "other_flights": [
+    {
+      "type": "One way",
+      "price": 1820,
+      "flights": [
+        {
+          "departure_airport": {"id": "GRU"},
+          "arrival_airport": {"id": "MIA"},
+          "airline": "LATAM",
+          "flight_number": "LA8180",
+          "travel_class": "Business"
+        }
+      ],
+      "booking_token": "BK_TOKEN_BIZ_3"
+    }
+  ]
+}
