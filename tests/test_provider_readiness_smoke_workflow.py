@@ -81,13 +81,25 @@ def test_workflow_runs_only_provider_readiness_and_serpapi_smoke():
 
 
 def test_workflow_serpapi_step_isolates_env():
-    """O step do SerpApi smoke só recebe `SERPAPI_API_KEY` — nada além."""
+    """O step do SerpApi smoke só recebe `SERPAPI_API_KEY` como secret.
+    `RAW_MAX_BOOKING_OPTIONS` é input do dispatch (não-secret), passado
+    via env p/ evitar shell injection do `${{ inputs.* }}` em linha."""
     doc = _load()
     steps = doc["jobs"]["smoke"]["steps"]
     serpapi_step = next(s for s in steps if "serpapi" in (s.get("name") or "").lower())
     env = serpapi_step.get("env") or {}
-    assert set(env.keys()) == {"SERPAPI_API_KEY"}
-    assert env["SERPAPI_API_KEY"] == "${{ secrets.SERPAPI_API_KEY }}"
+    # Único secret exposto
+    assert env.get("SERPAPI_API_KEY") == "${{ secrets.SERPAPI_API_KEY }}"
+    # Nenhuma referência a outro `secrets.*` no env do step
+    for k, v in env.items():
+        if k == "SERPAPI_API_KEY":
+            continue
+        assert "secrets." not in str(v), (
+            f"env '{k}' não pode trazer outro secret: {v!r}"
+        )
+    # TELEGRAM nunca pode aparecer
+    for k in env:
+        assert "TELEGRAM" not in k
 
 
 def test_workflow_provider_readiness_step_uses_only_audit_secrets():
@@ -114,19 +126,60 @@ def test_other_workflows_untouched():
 
 
 def test_workflow_serpapi_step_fetches_booking_options():
-    """Após PR #40, o workflow manual expande até 1 booking_token por
-    execução (gasto previsível de 2 queries do free-tier)."""
+    """O workflow manual sempre expande booking_token(s) business."""
     raw = WF.read_text(encoding="utf-8")
     assert "--fetch-booking-options" in raw
-    assert "--max-booking-options 1" in raw
+    # Valor agora vem da var de shell (capada entre 1 e 3 antes do CLI).
+    assert '--max-booking-options "$MAX_BOOKING_OPTIONS"' in raw
 
 
-def test_workflow_serpapi_step_caps_booking_options_to_one():
-    """Garantia explícita de que o limite é 1 (não pode subir
-    silenciosamente e estourar a cota free-tier)."""
+def test_workflow_serpapi_step_caps_booking_options_via_shell():
+    """Cap de 3 booking_tokens é aplicado no shell antes do CLI.
+    Defesa: input do dispatch pode ser qualquer string; o shell
+    normaliza p/ inteiro 1..3 (não-numérico/vazio → 1; > 3 → 3)."""
     raw = WF.read_text(encoding="utf-8")
-    # nenhuma variante > 1 (defesa contra typo p/ --max-booking-options 11 etc.)
-    for n in range(2, 20):
+    # Não pode passar literal > 3 no CLI (defesa contra hardcode acidental).
+    for n in range(4, 20):
         assert f"--max-booking-options {n}" not in raw, (
-            f"limite {n} não autorizado no workflow"
+            f"literal {n} não autorizado no workflow"
         )
+    # Cap explícito a 3 no shell
+    assert "MAX_BOOKING_OPTIONS=3" in raw
+    assert '-gt 3' in raw
+    # Default seguro = 1 se input vier vazio
+    assert 'RAW_MAX_BOOKING_OPTIONS:-1' in raw
+    # Validação numérica (não-dígitos → 1)
+    assert "[[ \"$MAX_BOOKING_OPTIONS\" =~ ^[0-9]+$ ]]" in raw
+
+
+def test_workflow_dispatch_input_max_booking_options_exists():
+    """workflow_dispatch.inputs.max_booking_options com default '1'
+    é a única forma de o usuário disparar com profundidade maior."""
+    doc = _load()
+    on = _on(doc)
+    wd = on.get("workflow_dispatch") or {}
+    inputs = wd.get("inputs") or {}
+    assert "max_booking_options" in inputs, (
+        "input max_booking_options ausente"
+    )
+    spec = inputs["max_booking_options"]
+    assert str(spec.get("default")) == "1", "default deve ser '1'"
+    assert "1 a 3" in (spec.get("description") or ""), (
+        "description deve declarar o intervalo 1..3"
+    )
+    # Apenas UM input (não criar entrada p/ rota / cabine — risco de
+    # disparar varredura em massa).
+    assert set(inputs.keys()) == {"max_booking_options"}, (
+        f"apenas max_booking_options autorizado; achei: {sorted(inputs)}"
+    )
+
+
+def test_workflow_passes_fixed_dates_to_serpapi_smoke():
+    """Datas fixas no workflow eliminam ambiguidade de request type
+    (passa --return-date → request type=1 round_trip)."""
+    raw = WF.read_text(encoding="utf-8")
+    assert "--departure 2026-09-10" in raw
+    assert "--return-date 2026-09-17" in raw
+    assert "--trip round_trip" in raw
+    assert "--cabin business" in raw
+    assert "--route GRU-MIA" in raw

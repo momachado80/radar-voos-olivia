@@ -10,7 +10,12 @@ name: Provider readiness smoke
 # - Não toca o motor (não chama nenhum dos workflows de coleta).
 # - Consome SerpApi SOMENTE quando você dispara este workflow.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      max_booking_options:
+        description: "Número de booking_tokens business a expandir (1 a 3)"
+        required: false
+        default: "1"
 
 permissions:
   contents: read
@@ -43,9 +48,24 @@ jobs:
       - name: SerpApi smoke (real, manual only)
         env:
           SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
-        # Disparo manual gasta ~2 queries do free-tier SerpApi:
-        # 1 search + 1 booking_options (limite 1 expansão).
+          # Input do dispatch passa por env var p/ evitar shell injection.
+          RAW_MAX_BOOKING_OPTIONS: ${{ inputs.max_booking_options }}
+        # Disparo manual gasta ~(1 + N) queries do free-tier SerpApi:
+        # 1 search + N booking_options (N capado entre 1 e 3 abaixo).
+        # Datas fixas (--return-date) garantem request type=1 round_trip.
         run: |
+          MAX_BOOKING_OPTIONS="${RAW_MAX_BOOKING_OPTIONS:-1}"
+          if ! [[ "$MAX_BOOKING_OPTIONS" =~ ^[0-9]+$ ]]; then
+            MAX_BOOKING_OPTIONS=1
+          fi
+          if [ "$MAX_BOOKING_OPTIONS" -lt 1 ]; then
+            MAX_BOOKING_OPTIONS=1
+          fi
+          if [ "$MAX_BOOKING_OPTIONS" -gt 3 ]; then
+            MAX_BOOKING_OPTIONS=3
+          fi
+          echo "max_booking_options=$MAX_BOOKING_OPTIONS (raw='${RAW_MAX_BOOKING_OPTIONS}')"
           python -m flight_mapper serpapi-smoke \
             --route GRU-MIA --trip round_trip --cabin business \
-            --fetch-booking-options --max-booking-options 1
+            --departure 2026-09-10 --return-date 2026-09-17 \
+            --fetch-booking-options --max-booking-options "$MAX_BOOKING_OPTIONS"
