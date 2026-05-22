@@ -416,3 +416,108 @@ def url_domain(url: str | None) -> str | None:
         return host or None
     except Exception:
         return None
+
+
+# Campos do offer cru que olhamos no modo `--debug-booking-fields`.
+# A lista é fechada de propósito: o objetivo é AUDITAR onde ficam os
+# campos de booking — não fazer parsing dinâmico.
+KNOWN_BOOKING_FIELDS: tuple[str, ...] = (
+    "booking_token",
+    "booking_options",
+    "booking_link",
+    "booking_url",
+    "booking_request",
+    "departure_token",
+    "search_token",
+    "token",
+    "link",
+    "url",
+)
+
+# Campos cujo valor NUNCA pode aparecer em log (opacos / potencialmente
+# sensíveis). Mostramos apenas presença + length.
+_TOKEN_FIELDS: frozenset[str] = frozenset({
+    "booking_token", "departure_token", "search_token", "token",
+})
+
+
+def _looks_like_url(value) -> bool:
+    return isinstance(value, str) and value.startswith(("http://", "https://"))
+
+
+def audit_offer_fields(
+    offer: dict,
+    known_fields: tuple[str, ...] = KNOWN_BOOKING_FIELDS,
+) -> dict:
+    """Função PURA de diagnóstico. Para o offer cru, devolve:
+      {
+        "top_level_keys": [...],   # ordenado, todas as chaves de top-level
+        "fields": {
+          "<field>": {"present": False}
+          OR
+          "<field>": {"present": True, "kind": "dict",
+                      "inner_keys": [...]}
+          OR
+          "<field>": {"present": True, "kind": "list",
+                      "len": N}
+          OR
+          "<field>": {"present": True, "kind": "url",
+                      "domain": "..."}    # nunca URL completa
+          OR
+          "<field>": {"present": True, "kind": "str",
+                      "length": N}        # tokens / strings: nunca valor
+          OR
+          "<field>": {"present": True, "kind": "<typename>"}
+        }
+      }
+
+    Nenhum valor de token/url completo entra na saída — só estrutura.
+    Construído sem rede, sem I/O, sem efeitos colaterais.
+    """
+    if not isinstance(offer, dict):
+        return {"top_level_keys": [], "fields": {}}
+    out: dict = {"top_level_keys": sorted(offer.keys()), "fields": {}}
+    for field in known_fields:
+        if field not in offer:
+            out["fields"][field] = {"present": False}
+            continue
+        val = offer[field]
+        if val is None:
+            out["fields"][field] = {"present": True, "kind": "None"}
+        elif isinstance(val, dict):
+            out["fields"][field] = {
+                "present": True,
+                "kind": "dict",
+                "inner_keys": sorted(val.keys()),
+            }
+        elif isinstance(val, list):
+            out["fields"][field] = {
+                "present": True,
+                "kind": "list",
+                "len": len(val),
+            }
+        elif isinstance(val, str) and field in _TOKEN_FIELDS:
+            # Tokens: presença + length, NUNCA valor.
+            out["fields"][field] = {
+                "present": True,
+                "kind": "str",
+                "length": len(val),
+            }
+        elif _looks_like_url(val):
+            out["fields"][field] = {
+                "present": True,
+                "kind": "url",
+                "domain": url_domain(val) or "(sem domínio)",
+            }
+        elif isinstance(val, str):
+            out["fields"][field] = {
+                "present": True,
+                "kind": "str",
+                "length": len(val),
+            }
+        else:
+            out["fields"][field] = {
+                "present": True,
+                "kind": type(val).__name__,
+            }
+    return out

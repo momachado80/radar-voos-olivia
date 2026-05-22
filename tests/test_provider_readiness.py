@@ -31,11 +31,13 @@ from flight_mapper.provider_readiness import (
 )
 from flight_mapper.regions import Cabin, TripType
 from flight_mapper.serpapi_client import (
+    KNOWN_BOOKING_FIELDS,
     SerpApiAuthError,
     SerpApiBookingOption,
     SerpApiClient,
     SerpApiError,
     _resolve_travel_class,
+    audit_offer_fields,
     audit_trip_consistency,
     parse_booking_options,
     parse_booking_options_from_file,
@@ -56,6 +58,9 @@ FIXTURE_SERPAPI_MIXED = (
 )
 FIXTURE_SERPAPI_ONLY_ECONOMY = (
     Path(__file__).parent / "fixtures" / "serpapi_only_economy.json"
+)
+FIXTURE_SERPAPI_AUDIT = (
+    Path(__file__).parent / "fixtures" / "serpapi_offers_for_audit.json"
 )
 
 
@@ -942,6 +947,173 @@ def test_select_expansion_target_helper_returns_none_when_no_match():
     assert _select_expansion_target(offers, "business") is None
     # mas economy bate
     assert _select_expansion_target(offers, "economy") is not None
+
+
+# ----------------- PR #44: audit_offer_fields + --debug-booking-fields -----------------
+
+
+def test_audit_detects_top_level_booking_token():
+    """1ª oferta da fixture de auditoria tem booking_token top-level."""
+    payload = json.loads(FIXTURE_SERPAPI_AUDIT.read_text(encoding="utf-8"))
+    offer = payload["best_flights"][0]
+    audit = audit_offer_fields(offer)
+    assert "booking_token" in audit["top_level_keys"]
+    assert audit["fields"]["booking_token"]["present"] is True
+    assert audit["fields"]["booking_token"]["kind"] == "str"
+    # Length presente, mas valor NUNCA aparece
+    assert "length" in audit["fields"]["booking_token"]
+    assert "value" not in audit["fields"]["booking_token"]
+    assert "preview" not in audit["fields"]["booking_token"]
+
+
+def test_audit_detects_nested_booking_request_inner_keys():
+    """2ª oferta: booking_request é dict; auditoria mostra inner_keys."""
+    payload = json.loads(FIXTURE_SERPAPI_AUDIT.read_text(encoding="utf-8"))
+    offer = payload["best_flights"][1]
+    audit = audit_offer_fields(offer)
+    info = audit["fields"]["booking_request"]
+    assert info["present"] is True
+    assert info["kind"] == "dict"
+    assert info["inner_keys"] == ["post_data", "url"]
+    # booking_token deve estar ausente nessa oferta
+    assert audit["fields"]["booking_token"]["present"] is False
+
+
+def test_audit_url_only_domain_no_full_url():
+    """3ª oferta tem url e link como URLs completas. Audit deve mostrar
+    apenas o domínio — NUNCA a URL completa (defesa de log)."""
+    payload = json.loads(FIXTURE_SERPAPI_AUDIT.read_text(encoding="utf-8"))
+    offer = payload["best_flights"][2]
+    audit = audit_offer_fields(offer)
+    url_info = audit["fields"]["url"]
+    link_info = audit["fields"]["link"]
+    assert url_info == {"present": True, "kind": "url", "domain": "www.aa.com"}
+    assert link_info == {
+        "present": True, "kind": "url", "domain": "booking.aa.com",
+    }
+    # Garantia: nenhum payload sensível vazou
+    serialized = json.dumps(audit)
+    assert "secret_path_here" not in serialized
+    assert "secret_cart_id" not in serialized
+    assert "checkout" not in serialized
+    assert "?ref=" not in serialized
+
+
+def test_audit_absent_fields_are_marked_explicitly():
+    """4ª oferta não tem nenhum campo de booking. Audit imprime
+    `present: False` para todos os campos conhecidos."""
+    payload = json.loads(FIXTURE_SERPAPI_AUDIT.read_text(encoding="utf-8"))
+    offer = payload["best_flights"][3]
+    audit = audit_offer_fields(offer)
+    for field in KNOWN_BOOKING_FIELDS:
+        assert audit["fields"][field] == {"present": False}, field
+
+
+def test_audit_handles_non_dict_input():
+    """Robustez: payload bruto inválido não pode crashar."""
+    assert audit_offer_fields(None) == {"top_level_keys": [], "fields": {}}
+    assert audit_offer_fields("string") == {"top_level_keys": [], "fields": {}}
+
+
+def test_audit_handles_list_field():
+    """Field como list deve mostrar `kind=list, len=N`."""
+    offer = {"booking_options": [{"a": 1}, {"b": 2}, {"c": 3}]}
+    audit = audit_offer_fields(offer)
+    info = audit["fields"]["booking_options"]
+    assert info["present"] is True
+    assert info["kind"] == "list"
+    assert info["len"] == 3
+
+
+def test_audit_never_leaks_token_value():
+    """Defesa explícita: token longo nunca aparece no audit, em
+    nenhuma representação (preview, value, slice)."""
+    secret = "BK_TOKEN_SHOULD_NEVER_BE_LOGGED_xyz1234567890"
+    offer = {
+        "booking_token": secret,
+        "departure_token": secret,
+        "search_token": secret,
+        "token": secret,
+    }
+    audit = audit_offer_fields(offer)
+    serialized = json.dumps(audit)
+    assert "SHOULD_NEVER_BE_LOGGED" not in serialized
+    assert secret not in serialized
+    for fname in ("booking_token", "departure_token", "search_token", "token"):
+        assert audit["fields"][fname]["kind"] == "str"
+        assert audit["fields"][fname]["length"] == len(secret)
+
+
+def test_cli_serpapi_smoke_debug_booking_fields(capsys):
+    """CLI: --debug-booking-fields imprime auditoria sem rede."""
+    rc = main([
+        "serpapi-smoke", "--route", "GRU-MIA", "--trip", "round_trip",
+        "--cabin", "business",
+        "--mock-file", str(FIXTURE_SERPAPI_AUDIT),
+        "--debug-booking-fields",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "debug-booking-fields: auditoria read-only" in out
+    assert "oferta #1" in out
+    # 1ª oferta: booking_token presente
+    assert "booking_token: str, length=" in out
+    # 2ª oferta: booking_request como dict
+    assert "booking_request: dict, inner_keys=" in out
+    # 3ª oferta: url só domínio
+    assert "url: url, domínio=www.aa.com" in out
+    assert "link: url, domínio=booking.aa.com" in out
+    # 4ª oferta: todos ausentes
+    assert "ausente" in out
+    # Nenhum valor sensível leakado
+    assert "secret_path_here" not in out
+    assert "secret_cart_id" not in out
+    assert "secret_payload_here" not in out
+
+
+def test_cli_debug_booking_fields_does_not_trigger_booking_options(
+    monkeypatch, capsys
+):
+    """Em live mode, --debug-booking-fields sozinho NÃO chama
+    fetch_booking_options — auditoria é independente da expansão."""
+    import flight_mapper.serpapi_client as sp
+    payload = json.loads(FIXTURE_SERPAPI_AUDIT.read_text(encoding="utf-8"))
+    calls: dict = {"search": 0, "booking": 0}
+
+    def _fake_urlopen(req, *a, **k):
+        url = getattr(req, "full_url", str(req))
+        if "booking_token=" in url:
+            calls["booking"] += 1
+        else:
+            calls["search"] += 1
+        return _FakeResp(json.dumps(payload).encode("utf-8"))
+
+    monkeypatch.setattr(sp, "urlopen", _fake_urlopen)
+    monkeypatch.setenv("SERPAPI_API_KEY", "FAKE_KEY_NO_NETWORK")
+    rc = main([
+        "serpapi-smoke", "--route", "GRU-MIA", "--trip", "round_trip",
+        "--cabin", "business",
+        "--departure", "2026-09-10", "--return-date", "2026-09-17",
+        "--debug-booking-fields",  # SOZINHO, sem --fetch-booking-options
+    ])
+    assert rc == 0
+    assert calls["search"] == 1
+    assert calls["booking"] == 0  # NÃO chamou booking options
+    out = capsys.readouterr().out
+    assert "debug-booking-fields" in out
+
+
+def test_cli_no_debug_flag_no_audit_output(capsys):
+    """Sem --debug-booking-fields, NÃO imprime bloco de auditoria."""
+    rc = main([
+        "serpapi-smoke", "--route", "GRU-MIA", "--trip", "round_trip",
+        "--cabin", "business",
+        "--mock-file", str(FIXTURE_SERPAPI_AUDIT),
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "debug-booking-fields" not in out
+    assert "auditoria read-only" not in out
 
 
 # ----------------- Garantias gerais -----------------

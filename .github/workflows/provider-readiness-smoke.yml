@@ -16,6 +16,11 @@ on:
         description: "Número de booking_tokens business a expandir (1 a 3)"
         required: false
         default: "1"
+      debug_booking_fields:
+        description: "Auditar campos brutos de booking no payload (read-only)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -48,8 +53,9 @@ jobs:
       - name: SerpApi smoke (real, manual only)
         env:
           SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
-          # Input do dispatch passa por env var p/ evitar shell injection.
+          # Inputs do dispatch passam por env var p/ evitar shell injection.
           RAW_MAX_BOOKING_OPTIONS: ${{ inputs.max_booking_options }}
+          RAW_DEBUG_BOOKING_FIELDS: ${{ inputs.debug_booking_fields }}
         # Disparo manual gasta ~(1 + N) queries do free-tier SerpApi:
         # 1 search + N booking_options (N capado entre 1 e 3 abaixo).
         # Datas fixas (--return-date) garantem request type=1 round_trip.
@@ -64,8 +70,14 @@ jobs:
           if [ "$MAX_BOOKING_OPTIONS" -gt 3 ]; then
             MAX_BOOKING_OPTIONS=3
           fi
+          EXTRA=()
+          if [ "${RAW_DEBUG_BOOKING_FIELDS}" = "true" ]; then
+            EXTRA+=("--debug-booking-fields")
+          fi
           echo "max_booking_options=$MAX_BOOKING_OPTIONS (raw='${RAW_MAX_BOOKING_OPTIONS}')"
+          echo "debug_booking_fields=${RAW_DEBUG_BOOKING_FIELDS:-false}"
           python -m flight_mapper serpapi-smoke \
             --route GRU-MIA --trip round_trip --cabin business \
             --departure 2026-09-10 --return-date 2026-09-17 \
-            --fetch-booking-options --max-booking-options "$MAX_BOOKING_OPTIONS"
+            --fetch-booking-options --max-booking-options "$MAX_BOOKING_OPTIONS" \
+            "${EXTRA[@]}"
