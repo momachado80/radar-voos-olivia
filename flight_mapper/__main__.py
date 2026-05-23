@@ -912,37 +912,43 @@ def cmd_serpapi_smoke(args: argparse.Namespace) -> int:
     if fetch_options:
         target = _select_expansion_target(offers, args.cabin)
         if target is None:
+            # Sem candidato p/ expandir booking_token. NÃO faz early
+            # return aqui — o fluxo precisa continuar para o bloco de
+            # departure_token follow-up (round-trip do SerpApi não traz
+            # booking_token no 1º hop, só departure_token).
             print(
                 "    nenhuma oferta com cabine confirmada compatível "
                 "para expandir booking_token"
             )
-            return 0
-        target_idx = offers.index(target) + 1
-        carriers = ",".join(target.carriers) if target.carriers else "?"
-        price_str = (
-            f"{target.currency} {target.price:.2f}"
-            if target.price is not None else "?"
-        )
-        print(
-            f"  → expandindo booking_token da oferta #{target_idx}: "
-            f"cabin={target.cabin.value}, price={price_str}, "
-            f"carriers={carriers} (limite={max_options})"
-        )
-        targets = [target]  # max_options aplicado pelo seletor (1 por chamada)
-        for i, off in enumerate(targets, 1):
-            try:
-                options = client.fetch_booking_options(
-                    booking_token=off.booking_token,
-                    departure_id=args.route.split("-")[0],
-                    arrival_id=args.route.split("-")[1],
-                    outbound_date=args.departure,
-                    return_date=args.return_date,
-                    travel_class=args.cabin,
-                )
-            except SerpApiError as exc:
-                print(f"    erro booking_options[{i}]: {exc}")
-                continue
-            _print_booking_options(i, options)
+        else:
+            target_idx = offers.index(target) + 1
+            carriers = (
+                ",".join(target.carriers) if target.carriers else "?"
+            )
+            price_str = (
+                f"{target.currency} {target.price:.2f}"
+                if target.price is not None else "?"
+            )
+            print(
+                f"  → expandindo booking_token da oferta #{target_idx}: "
+                f"cabin={target.cabin.value}, price={price_str}, "
+                f"carriers={carriers} (limite={max_options})"
+            )
+            # max_options aplicado pelo seletor (1 por chamada)
+            for i, off in enumerate([target], 1):
+                try:
+                    options = client.fetch_booking_options(
+                        booking_token=off.booking_token,
+                        departure_id=args.route.split("-")[0],
+                        arrival_id=args.route.split("-")[1],
+                        outbound_date=args.departure,
+                        return_date=args.return_date,
+                        travel_class=args.cabin,
+                    )
+                except SerpApiError as exc:
+                    print(f"    erro booking_options[{i}]: {exc}")
+                    continue
+                _print_booking_options(i, options)
 
     if fetch_followup:
         targets = _select_departure_followup_targets(

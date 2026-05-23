@@ -1455,6 +1455,84 @@ def test_cli_smoke_departure_followup_in_fixture_mode_is_noop(capsys):
     ) in out
 
 
+# ----------------- PR #47: early-return regression -----------------
+
+
+def test_followup_runs_when_no_booking_token_target_found(
+    monkeypatch, capsys,
+):
+    """Regressão do run #9: 1º hop só tem departure_token (sem
+    booking_token). Antes do fix, `if target is None: return 0` no
+    bloco `fetch_options` matava o fluxo antes do `fetch_followup`.
+    Agora:
+    1. linha 'nenhuma oferta ... para expandir booking_token' aparece;
+    2. logo depois, o bloco '🧭 departure_token follow-up' também roda.
+    """
+    first = json.loads(FIXTURE_SERPAPI_FIRST_HOP.read_text(encoding="utf-8"))
+    followup = json.loads(
+        FIXTURE_SERPAPI_DEPARTURE_FOLLOWUP.read_text(encoding="utf-8")
+    )
+    calls = _live_followup_smoke(monkeypatch, first, followup)
+    rc = main([
+        "serpapi-smoke", "--route", "GRU-MIA", "--trip", "round_trip",
+        "--cabin", "business",
+        "--departure", "2026-09-10", "--return-date", "2026-09-17",
+        # AMBOS os flags ativos — caso real do workflow #9:
+        "--fetch-booking-options", "--max-booking-options", "3",
+        "--fetch-departure-token-followup",
+        "--max-departure-followups", "1",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    # 1) diagnóstico do expansor ainda aparece
+    assert (
+        "nenhuma oferta com cabine confirmada compatível para "
+        "expandir booking_token"
+    ) in out
+    # 2) follow-up roda DEPOIS — fluxo não foi cortado
+    assert "🧭 departure_token follow-up" in out
+    assert "return_offer #1" in out
+    # 3) o expansor NÃO chamou booking_options (nenhum candidato);
+    #    o follow-up SIM (1 chamada)
+    assert calls["search"] == 1
+    assert calls["followup"] == 1
+    # 4) defesa: nenhum leak
+    for sentinel in _LEAK_SENTINELS:
+        assert sentinel not in out, f"LEAK: {sentinel!r}"
+    for fragment in _LEAK_URL_FRAGMENTS:
+        assert fragment not in out, f"URL fragment leaked: {fragment!r}"
+
+
+def test_no_followup_when_flag_off_and_no_booking_token(
+    monkeypatch, capsys,
+):
+    """Comportamento simétrico: SEM --fetch-departure-token-followup,
+    mesmo cenário (1º hop sem booking_token) termina sem chamar o
+    2º hop — só imprime o diagnóstico do expansor. Garante que o
+    fix não introduziu chamadas indevidas."""
+    first = json.loads(FIXTURE_SERPAPI_FIRST_HOP.read_text(encoding="utf-8"))
+    followup = json.loads(
+        FIXTURE_SERPAPI_DEPARTURE_FOLLOWUP.read_text(encoding="utf-8")
+    )
+    calls = _live_followup_smoke(monkeypatch, first, followup)
+    rc = main([
+        "serpapi-smoke", "--route", "GRU-MIA", "--trip", "round_trip",
+        "--cabin", "business",
+        "--departure", "2026-09-10", "--return-date", "2026-09-17",
+        "--fetch-booking-options", "--max-booking-options", "3",
+        # SEM --fetch-departure-token-followup
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert (
+        "nenhuma oferta com cabine confirmada compatível para "
+        "expandir booking_token"
+    ) in out
+    assert "🧭 departure_token follow-up" not in out
+    assert calls["search"] == 1
+    assert calls["followup"] == 0
+
+
 def test_departure_followup_not_consumed_by_pipeline_core():
     """2º hop é só smoke CLI; NÃO pode aparecer em monitor/providers/
     notifier/state."""
