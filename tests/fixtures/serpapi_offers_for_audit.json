@@ -38,7 +38,8 @@
       ],
       "booking_request": {
         "url": "https://www.google.com/travel/clk/redirect?token=secret_payload_here",
-        "post_data": "param=value"
+        "method": "POST",
+        "post_data": "secret_post_body=value&other=secret_value"
       }
     },
     {
@@ -64,6 +65,31 @@
           "arrival_airport": {"id": "MIA"},
           "airline": "Avianca",
           "travel_class": "Business"
+        }
+      ]
+    },
+    {
+      "type": "Round trip",
+      "price": 2500,
+      "flights": [
+        {
+          "departure_airport": {"id": "GRU"},
+          "arrival_airport": {"id": "MIA"},
+          "airline": "Iberia",
+          "travel_class": "Business"
+        }
+      ],
+      "booking_options": [
+        {
+          "book_with": "Iberia",
+          "price": 2500,
+          "booking_request": {
+            "url": "https://www.iberia.com/book?secret_path=here"
+          }
+        },
+        {
+          "book_with": "Kissandfly",
+          "price": 2510
         }
       ]
     }

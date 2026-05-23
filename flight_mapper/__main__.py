@@ -995,7 +995,7 @@ def _print_serpapi_offers(
 def _print_booking_field_audits(offers, limit: int = 11) -> None:
     """Imprime auditoria read-only dos campos brutos de cada offer
     (até `limit`). Nunca imprime token, nunca URL completa, nunca
-    chama booking_options, nunca toca PriceStore."""
+    post_data, nunca chama booking_options, nunca toca PriceStore."""
     from .serpapi_client import KNOWN_BOOKING_FIELDS, audit_offer_fields
     print(
         "  🔬 debug-booking-fields: auditoria read-only do payload bruto"
@@ -1016,6 +1016,17 @@ def _print_booking_field_audits(offers, limit: int = 11) -> None:
             f"carriers={carriers}"
         )
         print(f"      top_level_keys: {audit['top_level_keys']}")
+        # Atalho: se TODOS os campos auditados estão ausentes, uma
+        # linha só (em vez de 10 linhas "ausente").
+        all_absent = all(
+            not (audit["fields"].get(f) or {}).get("present")
+            for f in KNOWN_BOOKING_FIELDS
+        )
+        if all_absent:
+            print(
+                "      todos os campos de booking auditados: ausentes"
+            )
+            continue
         for fname in KNOWN_BOOKING_FIELDS:
             info = audit["fields"].get(fname, {"present": False})
             if not info.get("present"):
@@ -1023,18 +1034,34 @@ def _print_booking_field_audits(offers, limit: int = 11) -> None:
                 continue
             kind = info.get("kind")
             if kind == "dict":
+                parts = [f"inner_keys={info.get('inner_keys')}"]
+                if info.get("domain"):
+                    parts.append(f"domínio={info['domain']}")
+                if info.get("method"):
+                    parts.append(f"method={info['method']}")
+                if info.get("post_data_present"):
+                    parts.append("post_data_presente=True")
                 print(
-                    f"      • {fname}: dict, "
-                    f"inner_keys={info.get('inner_keys')}"
+                    f"      • {fname}: type=dict, " + ", ".join(parts)
                 )
             elif kind == "list":
-                print(f"      • {fname}: list, len={info.get('len')}")
+                parts = [f"length={info.get('len')}"]
+                if info.get("first_inner_keys"):
+                    parts.append(
+                        f"first_inner_keys={info['first_inner_keys']}"
+                    )
+                print(
+                    f"      • {fname}: type=list, " + ", ".join(parts)
+                )
             elif kind == "url":
-                print(f"      • {fname}: url, domínio={info.get('domain')}")
+                print(f"      • {fname}: domínio={info.get('domain')}")
             elif kind == "str":
-                print(f"      • {fname}: str, length={info.get('length')}")
+                print(
+                    f"      • {fname}: type=str, "
+                    f"length={info.get('length')}"
+                )
             else:
-                print(f"      • {fname}: {kind}")
+                print(f"      • {fname}: type={kind}")
 
 
 def _print_booking_options(idx: int, options) -> None:

@@ -71,11 +71,21 @@ jobs:
             MAX_BOOKING_OPTIONS=3
           fi
           EXTRA=()
-          if [ "${RAW_DEBUG_BOOKING_FIELDS}" = "true" ]; then
+          # Normaliza p/ lowercase e aceita variantes truthy
+          # (true/yes/y/1). GH Actions com type: boolean envia "true"
+          # ou "false", mas aceitamos variantes p/ robustez contra
+          # UI quirks. Sem rede, sem token leak.
+          DEBUG_NORM="$(printf '%s' "${RAW_DEBUG_BOOKING_FIELDS}" | tr '[:upper:]' '[:lower:]')"
+          if [[ "$DEBUG_NORM" =~ ^(true|yes|y|1)$ ]]; then
             EXTRA+=("--debug-booking-fields")
+            echo "[debug] --debug-booking-fields ENABLED (raw='${RAW_DEBUG_BOOKING_FIELDS}', norm='${DEBUG_NORM}')"
+          else
+            echo "[debug] --debug-booking-fields disabled (raw='${RAW_DEBUG_BOOKING_FIELDS}', norm='${DEBUG_NORM}')"
           fi
           echo "max_booking_options=$MAX_BOOKING_OPTIONS (raw='${RAW_MAX_BOOKING_OPTIONS}')"
           echo "debug_booking_fields=${RAW_DEBUG_BOOKING_FIELDS:-false}"
+          # Echo da linha real do CLI (sem segredos — apenas flags).
+          echo "[debug] executing: python -m flight_mapper serpapi-smoke --route GRU-MIA --trip round_trip --cabin business --departure 2026-09-10 --return-date 2026-09-17 --fetch-booking-options --max-booking-options ${MAX_BOOKING_OPTIONS} ${EXTRA[*]}"
           python -m flight_mapper serpapi-smoke \
             --route GRU-MIA --trip round_trip --cabin business \
             --departure 2026-09-10 --return-date 2026-09-17 \

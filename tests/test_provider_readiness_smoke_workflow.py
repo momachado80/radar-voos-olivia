@@ -194,18 +194,61 @@ def test_workflow_dispatch_input_debug_booking_fields_exists():
     assert "read-only" in (spec.get("description") or "").lower()
 
 
-def test_workflow_passes_debug_flag_only_when_input_true():
+def test_workflow_passes_debug_flag_only_when_input_truthy():
     """O step só passa --debug-booking-fields quando o input vier
-    como 'true' (gate condicional no shell)."""
+    como variante truthy (true/yes/y/1 — case-insensitive). Gate
+    tolerante contra UI quirks (GH passa "true"/"false", mas se um
+    dia mudar para "True"/"TRUE", continuamos funcionando)."""
     raw = WF.read_text(encoding="utf-8")
     assert "RAW_DEBUG_BOOKING_FIELDS" in raw
-    # gate explícito
-    assert '"${RAW_DEBUG_BOOKING_FIELDS}" = "true"' in raw
+    # Lowercase normalization
+    assert "tr '[:upper:]' '[:lower:]'" in raw
+    # Regex truthy
+    assert "(true|yes|y|1)" in raw
     # flag adicionada via array (sem injection)
     assert 'EXTRA+=("--debug-booking-fields")' in raw
-    # Nunca passa o flag incondicionalmente
-    assert "  --debug-booking-fields" not in raw  # não em linha solta no python -m
-    assert " --debug-booking-fields" not in raw.split("EXTRA+=")[0]
+    # Log auto-diagnóstico: confirma estado do flag
+    assert "--debug-booking-fields ENABLED" in raw
+    assert "--debug-booking-fields disabled" in raw
+    # Log do comando real executado (humano consegue rastrear)
+    assert "[debug] executing:" in raw
+
+
+def test_workflow_shell_truthy_gate_simulation(tmp_path):
+    """Simula a lógica do gate em bash isolado (sem rede).
+
+    Garante que: vazio / 'false' / 'FALSE' / 'no' / '0' → flag OFF;
+    'true' / 'True' / 'TRUE' / 'yes' / 'Y' / '1' → flag ON.
+    """
+    import subprocess
+    script = tmp_path / "gate.sh"
+    script.write_text(
+        '#!/usr/bin/env bash\n'
+        'set -eu\n'
+        'RAW_DEBUG_BOOKING_FIELDS="$1"\n'
+        'EXTRA=()\n'
+        'DEBUG_NORM="$(printf \'%s\' "${RAW_DEBUG_BOOKING_FIELDS}" '
+        '| tr \'[:upper:]\' \'[:lower:]\')"\n'
+        'if [[ "$DEBUG_NORM" =~ ^(true|yes|y|1)$ ]]; then\n'
+        '  EXTRA+=("--debug-booking-fields")\n'
+        'fi\n'
+        'echo "${EXTRA[*]:-<empty>}"\n',
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+
+    def _run(arg: str) -> str:
+        return subprocess.run(
+            ["bash", str(script), arg],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+
+    # Truthy
+    for v in ["true", "True", "TRUE", "yes", "Y", "1"]:
+        assert _run(v) == "--debug-booking-fields", f"truthy '{v}' falhou"
+    # Falsy
+    for v in ["", "false", "FALSE", "no", "0", "abc", "TRUE TRUE"]:
+        assert _run(v) == "<empty>", f"falsy '{v}' disparou flag"
 
 
 def test_workflow_passes_fixed_dates_to_serpapi_smoke():
