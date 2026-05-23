@@ -169,7 +169,8 @@ def test_workflow_dispatch_input_max_booking_options_exists():
     )
     # Apenas os inputs autorizados:
     #   max_booking_options, debug_booking_fields,
-    #   departure_token_followup, max_departure_followups.
+    #   departure_token_followup, max_departure_followups,
+    #   return_booking_expansion, max_return_booking_expansions.
     # Rota / cabine / trip NÃO podem virar input — risco de varredura
     # em massa via dispatch.
     assert set(inputs.keys()) == {
@@ -177,6 +178,8 @@ def test_workflow_dispatch_input_max_booking_options_exists():
         "debug_booking_fields",
         "departure_token_followup",
         "max_departure_followups",
+        "return_booking_expansion",
+        "max_return_booking_expansions",
     }, (
         f"inputs não autorizados; achei: {sorted(inputs)}"
     )
@@ -339,6 +342,91 @@ def test_workflow_shell_departure_followup_gate_simulation(tmp_path):
 
     for v in ["true", "True", "TRUE", "yes", "Y", "1"]:
         assert _run(v) == "--fetch-departure-token-followup", (
+            f"truthy '{v}' falhou"
+        )
+    for v in ["", "false", "FALSE", "no", "0", "abc"]:
+        assert _run(v) == "<empty>", f"falsy '{v}' disparou flag"
+
+
+def test_workflow_dispatch_input_return_booking_expansion_exists():
+    """workflow_dispatch.inputs.return_booking_expansion é boolean,
+    default false (3º hop opt-in)."""
+    doc = _load()
+    on = _on(doc)
+    wd = on.get("workflow_dispatch") or {}
+    inputs = wd.get("inputs") or {}
+    assert "return_booking_expansion" in inputs
+    spec = inputs["return_booking_expansion"]
+    assert spec.get("type") == "boolean"
+    assert spec.get("default") is False, "default deve ser false (opt-in)"
+    desc = (spec.get("description") or "").lower()
+    assert "read-only" in desc
+    assert "3" in desc  # menciona 3º hop
+
+
+def test_workflow_dispatch_input_max_return_booking_expansions_exists():
+    """max_return_booking_expansions default '1', menciona 1..3."""
+    doc = _load()
+    on = _on(doc)
+    wd = on.get("workflow_dispatch") or {}
+    inputs = wd.get("inputs") or {}
+    assert "max_return_booking_expansions" in inputs
+    spec = inputs["max_return_booking_expansions"]
+    assert str(spec.get("default")) == "1"
+    assert "1 a 3" in (spec.get("description") or "")
+
+
+def test_workflow_passes_return_expansion_flag_only_when_input_truthy():
+    """Só passa --expand-return-booking-token + --max-return-booking-expansions
+    quando input vier como variante truthy."""
+    raw = WF.read_text(encoding="utf-8")
+    assert "RAW_RETURN_BOOKING_EXPANSION" in raw
+    assert "RAW_MAX_RETURN_BOOKING_EXPANSIONS" in raw
+    assert 'EXTRA+=("--expand-return-booking-token")' in raw
+    assert 'EXTRA+=("--max-return-booking-expansions" "$MAX_RETURN_BOOKING_EXPANSIONS")' in raw
+    assert "--expand-return-booking-token ENABLED" in raw
+    assert "--expand-return-booking-token DISABLED" in raw
+    assert "return_booking_expansion=" in raw
+    assert "max_return_booking_expansions=" in raw
+
+
+def test_workflow_caps_max_return_booking_expansions_at_three():
+    """Cap a 3 no shell + rejeita literal --max-return-booking-expansions N>3."""
+    raw = WF.read_text(encoding="utf-8")
+    assert "MAX_RETURN_BOOKING_EXPANSIONS=3" in raw
+    for n in range(4, 20):
+        assert f"--max-return-booking-expansions {n}" not in raw, (
+            f"literal {n} não autorizado"
+        )
+
+
+def test_workflow_shell_return_expansion_gate_simulation(tmp_path):
+    """Sandbox bash: gate truthy/falsy do 3º hop."""
+    import subprocess
+    script = tmp_path / "gate.sh"
+    script.write_text(
+        '#!/usr/bin/env bash\n'
+        'set -eu\n'
+        'RAW_RETURN_BOOKING_EXPANSION="$1"\n'
+        'EXTRA=()\n'
+        'RETURN_NORM="$(printf \'%s\' "${RAW_RETURN_BOOKING_EXPANSION}" '
+        '| tr \'[:upper:]\' \'[:lower:]\')"\n'
+        'if [[ "$RETURN_NORM" =~ ^(true|yes|y|1)$ ]]; then\n'
+        '  EXTRA+=("--expand-return-booking-token")\n'
+        'fi\n'
+        'echo "${EXTRA[*]:-<empty>}"\n',
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+
+    def _run(arg: str) -> str:
+        return subprocess.run(
+            ["bash", str(script), arg],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+
+    for v in ["true", "True", "TRUE", "yes", "Y", "1"]:
+        assert _run(v) == "--expand-return-booking-token", (
             f"truthy '{v}' falhou"
         )
     for v in ["", "false", "FALSE", "no", "0", "abc"]:

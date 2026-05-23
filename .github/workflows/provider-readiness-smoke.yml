@@ -30,6 +30,15 @@ on:
         description: "Número de departure_tokens business p/ 2º hop (1 a 3)"
         required: false
         default: "1"
+      return_booking_expansion:
+        description: "3º hop round-trip: expande booking_token da return_offer (read-only)"
+        required: false
+        default: false
+        type: boolean
+      max_return_booking_expansions:
+        description: "Número total de expansões de booking_token de return_offer (1 a 3)"
+        required: false
+        default: "1"
 
 permissions:
   contents: read
@@ -67,10 +76,12 @@ jobs:
           RAW_DEBUG_BOOKING_FIELDS: ${{ inputs.debug_booking_fields }}
           RAW_DEPARTURE_TOKEN_FOLLOWUP: ${{ inputs.departure_token_followup }}
           RAW_MAX_DEPARTURE_FOLLOWUPS: ${{ inputs.max_departure_followups }}
-        # Disparo manual gasta ~(1 + N + M) queries do free-tier SerpApi:
-        # 1 search + N booking_options + M departure_token 2º-hops
-        # (N e M capados entre 1 e 3 abaixo). Datas fixas (--return-date)
-        # garantem request type=1 round_trip.
+          RAW_RETURN_BOOKING_EXPANSION: ${{ inputs.return_booking_expansion }}
+          RAW_MAX_RETURN_BOOKING_EXPANSIONS: ${{ inputs.max_return_booking_expansions }}
+        # Disparo manual gasta ~(1 + N + M + K) queries do free-tier SerpApi:
+        # 1 search + N booking_options + M departure_token 2º-hops +
+        # K return booking_options 3º-hops (N, M e K capados 1..3 abaixo).
+        # Datas fixas (--return-date) garantem request type=1 round_trip.
         run: |
           MAX_BOOKING_OPTIONS="${RAW_MAX_BOOKING_OPTIONS:-1}"
           if ! [[ "$MAX_BOOKING_OPTIONS" =~ ^[0-9]+$ ]]; then
@@ -92,6 +103,16 @@ jobs:
           if [ "$MAX_DEPARTURE_FOLLOWUPS" -gt 3 ]; then
             MAX_DEPARTURE_FOLLOWUPS=3
           fi
+          MAX_RETURN_BOOKING_EXPANSIONS="${RAW_MAX_RETURN_BOOKING_EXPANSIONS:-1}"
+          if ! [[ "$MAX_RETURN_BOOKING_EXPANSIONS" =~ ^[0-9]+$ ]]; then
+            MAX_RETURN_BOOKING_EXPANSIONS=1
+          fi
+          if [ "$MAX_RETURN_BOOKING_EXPANSIONS" -lt 1 ]; then
+            MAX_RETURN_BOOKING_EXPANSIONS=1
+          fi
+          if [ "$MAX_RETURN_BOOKING_EXPANSIONS" -gt 3 ]; then
+            MAX_RETURN_BOOKING_EXPANSIONS=3
+          fi
           EXTRA=()
           # Normaliza p/ lowercase e aceita variantes truthy
           # (true/yes/y/1). GH Actions com type: boolean envia "true"
@@ -112,10 +133,20 @@ jobs:
           else
             echo "[debug] --fetch-departure-token-followup DISABLED (raw='${RAW_DEPARTURE_TOKEN_FOLLOWUP}', norm='${FOLLOWUP_NORM}')"
           fi
+          RETURN_NORM="$(printf '%s' "${RAW_RETURN_BOOKING_EXPANSION}" | tr '[:upper:]' '[:lower:]')"
+          if [[ "$RETURN_NORM" =~ ^(true|yes|y|1)$ ]]; then
+            EXTRA+=("--expand-return-booking-token")
+            EXTRA+=("--max-return-booking-expansions" "$MAX_RETURN_BOOKING_EXPANSIONS")
+            echo "[debug] --expand-return-booking-token ENABLED (raw='${RAW_RETURN_BOOKING_EXPANSION}', norm='${RETURN_NORM}')"
+          else
+            echo "[debug] --expand-return-booking-token DISABLED (raw='${RAW_RETURN_BOOKING_EXPANSION}', norm='${RETURN_NORM}')"
+          fi
           echo "max_booking_options=$MAX_BOOKING_OPTIONS (raw='${RAW_MAX_BOOKING_OPTIONS}')"
           echo "debug_booking_fields=${RAW_DEBUG_BOOKING_FIELDS:-false}"
           echo "departure_token_followup=${RAW_DEPARTURE_TOKEN_FOLLOWUP:-false}"
           echo "max_departure_followups=$MAX_DEPARTURE_FOLLOWUPS (raw='${RAW_MAX_DEPARTURE_FOLLOWUPS}')"
+          echo "return_booking_expansion=${RAW_RETURN_BOOKING_EXPANSION:-false}"
+          echo "max_return_booking_expansions=$MAX_RETURN_BOOKING_EXPANSIONS (raw='${RAW_MAX_RETURN_BOOKING_EXPANSIONS}')"
           # Echo da linha real do CLI (sem segredos — apenas flags).
           echo "[debug] executing: python -m flight_mapper serpapi-smoke --route GRU-MIA --trip round_trip --cabin business --departure 2026-09-10 --return-date 2026-09-17 --fetch-booking-options --max-booking-options ${MAX_BOOKING_OPTIONS} ${EXTRA[*]}"
           python -m flight_mapper serpapi-smoke \
