@@ -1,0 +1,67 @@
+{
+  "search_metadata": {"id": "first_hop_dep_0001", "status": "Success"},
+  "search_parameters": {
+    "engine": "google_flights",
+    "departure_id": "GRU",
+    "arrival_id": "MIA",
+    "outbound_date": "2026-09-10",
+    "return_date": "2026-09-17",
+    "type": "1",
+    "travel_class": "business",
+    "currency": "USD"
+  },
+  "best_flights": [
+    {
+      "type": "Round trip",
+      "price": 2150,
+      "flights": [
+        {
+          "departure_airport": {"id": "GRU"},
+          "arrival_airport": {"id": "MIA"},
+          "airline": "LATAM",
+          "travel_class": "Business"
+        }
+      ],
+      "departure_token": "DEP_TOKEN_THAT_MUST_NEVER_LEAK_LATAM_xxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "type": "Round trip",
+      "price": 1100,
+      "flights": [
+        {
+          "departure_airport": {"id": "GRU"},
+          "arrival_airport": {"id": "MIA"},
+          "airline": "Boliviana de Aviación",
+          "travel_class": "Economy"
+        }
+      ],
+      "departure_token": "DEP_TOKEN_THAT_MUST_NEVER_LEAK_BOA_ECONOMY_yyyyyyyyyyyy"
+    },
+    {
+      "type": "Round trip",
+      "price": 2240,
+      "flights": [
+        {
+          "departure_airport": {"id": "GRU"},
+          "arrival_airport": {"id": "MIA"},
+          "airline": "COPA",
+          "travel_class": "Business"
+        }
+      ],
+      "departure_token": "DEP_TOKEN_THAT_MUST_NEVER_LEAK_COPA_zzzzzzzzzzzzzzzzzzzz"
+    },
+    {
+      "type": "Round trip",
+      "price": 2310,
+      "flights": [
+        {
+          "departure_airport": {"id": "GRU"},
+          "arrival_airport": {"id": "MIA"},
+          "airline": "American",
+          "travel_class": "Business"
+        }
+      ],
+      "departure_token": "DEP_TOKEN_THAT_MUST_NEVER_LEAK_AA_wwwwwwwwwwwwwwwwwwwww"
+    }
+  ]
+}

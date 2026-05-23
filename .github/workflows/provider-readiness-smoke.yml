@@ -21,6 +21,15 @@ on:
         required: false
         default: false
         type: boolean
+      departure_token_followup:
+        description: "2º hop round-trip: usa departure_token p/ auditar payload de volta (read-only)"
+        required: false
+        default: false
+        type: boolean
+      max_departure_followups:
+        description: "Número de departure_tokens business p/ 2º hop (1 a 3)"
+        required: false
+        default: "1"
 
 permissions:
   contents: read
@@ -56,9 +65,12 @@ jobs:
           # Inputs do dispatch passam por env var p/ evitar shell injection.
           RAW_MAX_BOOKING_OPTIONS: ${{ inputs.max_booking_options }}
           RAW_DEBUG_BOOKING_FIELDS: ${{ inputs.debug_booking_fields }}
-        # Disparo manual gasta ~(1 + N) queries do free-tier SerpApi:
-        # 1 search + N booking_options (N capado entre 1 e 3 abaixo).
-        # Datas fixas (--return-date) garantem request type=1 round_trip.
+          RAW_DEPARTURE_TOKEN_FOLLOWUP: ${{ inputs.departure_token_followup }}
+          RAW_MAX_DEPARTURE_FOLLOWUPS: ${{ inputs.max_departure_followups }}
+        # Disparo manual gasta ~(1 + N + M) queries do free-tier SerpApi:
+        # 1 search + N booking_options + M departure_token 2º-hops
+        # (N e M capados entre 1 e 3 abaixo). Datas fixas (--return-date)
+        # garantem request type=1 round_trip.
         run: |
           MAX_BOOKING_OPTIONS="${RAW_MAX_BOOKING_OPTIONS:-1}"
           if ! [[ "$MAX_BOOKING_OPTIONS" =~ ^[0-9]+$ ]]; then
@@ -70,6 +82,16 @@ jobs:
           if [ "$MAX_BOOKING_OPTIONS" -gt 3 ]; then
             MAX_BOOKING_OPTIONS=3
           fi
+          MAX_DEPARTURE_FOLLOWUPS="${RAW_MAX_DEPARTURE_FOLLOWUPS:-1}"
+          if ! [[ "$MAX_DEPARTURE_FOLLOWUPS" =~ ^[0-9]+$ ]]; then
+            MAX_DEPARTURE_FOLLOWUPS=1
+          fi
+          if [ "$MAX_DEPARTURE_FOLLOWUPS" -lt 1 ]; then
+            MAX_DEPARTURE_FOLLOWUPS=1
+          fi
+          if [ "$MAX_DEPARTURE_FOLLOWUPS" -gt 3 ]; then
+            MAX_DEPARTURE_FOLLOWUPS=3
+          fi
           EXTRA=()
           # Normaliza p/ lowercase e aceita variantes truthy
           # (true/yes/y/1). GH Actions com type: boolean envia "true"
@@ -80,10 +102,20 @@ jobs:
             EXTRA+=("--debug-booking-fields")
             echo "[debug] --debug-booking-fields ENABLED (raw='${RAW_DEBUG_BOOKING_FIELDS}', norm='${DEBUG_NORM}')"
           else
-            echo "[debug] --debug-booking-fields disabled (raw='${RAW_DEBUG_BOOKING_FIELDS}', norm='${DEBUG_NORM}')"
+            echo "[debug] --debug-booking-fields DISABLED (raw='${RAW_DEBUG_BOOKING_FIELDS}', norm='${DEBUG_NORM}')"
+          fi
+          FOLLOWUP_NORM="$(printf '%s' "${RAW_DEPARTURE_TOKEN_FOLLOWUP}" | tr '[:upper:]' '[:lower:]')"
+          if [[ "$FOLLOWUP_NORM" =~ ^(true|yes|y|1)$ ]]; then
+            EXTRA+=("--fetch-departure-token-followup")
+            EXTRA+=("--max-departure-followups" "$MAX_DEPARTURE_FOLLOWUPS")
+            echo "[debug] --fetch-departure-token-followup ENABLED (raw='${RAW_DEPARTURE_TOKEN_FOLLOWUP}', norm='${FOLLOWUP_NORM}')"
+          else
+            echo "[debug] --fetch-departure-token-followup DISABLED (raw='${RAW_DEPARTURE_TOKEN_FOLLOWUP}', norm='${FOLLOWUP_NORM}')"
           fi
           echo "max_booking_options=$MAX_BOOKING_OPTIONS (raw='${RAW_MAX_BOOKING_OPTIONS}')"
           echo "debug_booking_fields=${RAW_DEBUG_BOOKING_FIELDS:-false}"
+          echo "departure_token_followup=${RAW_DEPARTURE_TOKEN_FOLLOWUP:-false}"
+          echo "max_departure_followups=$MAX_DEPARTURE_FOLLOWUPS (raw='${RAW_MAX_DEPARTURE_FOLLOWUPS}')"
           # Echo da linha real do CLI (sem segredos — apenas flags).
           echo "[debug] executing: python -m flight_mapper serpapi-smoke --route GRU-MIA --trip round_trip --cabin business --departure 2026-09-10 --return-date 2026-09-17 --fetch-booking-options --max-booking-options ${MAX_BOOKING_OPTIONS} ${EXTRA[*]}"
           python -m flight_mapper serpapi-smoke \

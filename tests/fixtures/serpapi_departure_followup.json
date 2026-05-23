@@ -1,0 +1,98 @@
+{
+  "search_metadata": {"id": "departure_followup_0001", "status": "Success"},
+  "search_parameters": {
+    "engine": "google_flights",
+    "departure_id": "GRU",
+    "arrival_id": "MIA",
+    "outbound_date": "2026-09-10",
+    "return_date": "2026-09-17",
+    "type": "1",
+    "travel_class": "business",
+    "currency": "USD"
+  },
+  "best_flights": [
+    {
+      "type": "Round trip",
+      "price": 4200,
+      "flights": [
+        {
+          "departure_airport": {"id": "MIA"},
+          "arrival_airport": {"id": "GRU"},
+          "airline": "LATAM",
+          "travel_class": "Business"
+        }
+      ],
+      "booking_token": "BK_TOKEN_THAT_MUST_NEVER_LEAK_LATAM_RT_xxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "type": "Round trip",
+      "price": 4280,
+      "flights": [
+        {
+          "departure_airport": {"id": "MIA"},
+          "arrival_airport": {"id": "GRU"},
+          "airline": "LATAM",
+          "travel_class": "Business"
+        }
+      ],
+      "booking_request": {
+        "url": "https://www.google.com/travel/clk/redirect?token=BR_secret_payload_xyz",
+        "method": "POST",
+        "post_data": "BR_secret_post_body=value_here&other=BR_secret_param_xyz"
+      }
+    }
+  ],
+  "other_flights": [
+    {
+      "type": "Round trip",
+      "price": 4500,
+      "flights": [
+        {
+          "departure_airport": {"id": "MIA"},
+          "arrival_airport": {"id": "GRU"},
+          "airline": "American",
+          "travel_class": "Business"
+        }
+      ],
+      "url": "https://www.aa.com/booking?ref=BR_secret_ref_here",
+      "link": "https://booking.aa.com/checkout/?cart=BR_secret_cart_value"
+    },
+    {
+      "type": "Round trip",
+      "price": 4600,
+      "flights": [
+        {
+          "departure_airport": {"id": "MIA"},
+          "arrival_airport": {"id": "GRU"},
+          "airline": "Iberia",
+          "travel_class": "Business"
+        }
+      ],
+      "booking_options": [
+        {
+          "book_with": "Iberia",
+          "price": 4600,
+          "booking_request": {
+            "url": "https://iberia.com/checkout?token=BR_secret_iberia_path"
+          }
+        },
+        {
+          "book_with": "Kissandfly",
+          "price": 4610
+        }
+      ]
+    },
+    {
+      "type": "Round trip",
+      "price": 4700,
+      "flights": [
+        {
+          "departure_airport": {"id": "MIA"},
+          "arrival_airport": {"id": "GRU"},
+          "airline": "Avianca",
+          "travel_class": "Business"
+        }
+      ]
+    }
+  ]
+}

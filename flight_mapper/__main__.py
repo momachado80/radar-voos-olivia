@@ -845,6 +845,12 @@ def cmd_serpapi_smoke(args: argparse.Namespace) -> int:
     fetch_options = bool(getattr(args, "fetch_booking_options", False))
     max_options = max(1, int(getattr(args, "max_booking_options", 1) or 1))
     debug_fields = bool(getattr(args, "debug_booking_fields", False))
+    fetch_followup = bool(
+        getattr(args, "fetch_departure_token_followup", False)
+    )
+    max_followups = max(
+        1, min(int(getattr(args, "max_departure_followups", 1) or 1), 3)
+    )
 
     if args.mock_file:
         try:
@@ -866,6 +872,12 @@ def cmd_serpapi_smoke(args: argparse.Namespace) -> int:
                 "  ⚠️ --fetch-booking-options ignorado em modo fixture "
                 "(use serpapi-booking-options --mock-file p/ payload "
                 "de booking)."
+            )
+        if fetch_followup:
+            print(
+                "  ⚠️ --fetch-departure-token-followup ignorado em modo "
+                "fixture (2º hop requer chamada real; rode em live "
+                "mode com SERPAPI_API_KEY)."
             )
         return 0
 
@@ -931,6 +943,41 @@ def cmd_serpapi_smoke(args: argparse.Namespace) -> int:
                 print(f"    erro booking_options[{i}]: {exc}")
                 continue
             _print_booking_options(i, options)
+
+    if fetch_followup:
+        targets = _select_departure_followup_targets(
+            offers, args.cabin, max_followups,
+        )
+        if not targets:
+            print(
+                "    nenhuma oferta com cabine confirmada compatível E "
+                "departure_token para 2º hop"
+            )
+            return 0
+        print(
+            f"  🧭 departure_token follow-up: {len(targets)} offer(s) "
+            f"selecionada(s) (limite={max_followups})"
+        )
+        for i, off in enumerate(targets, 1):
+            try:
+                followup_offers = client.fetch_departure_followup(
+                    departure_token=off.departure_token,
+                    departure_id=args.route.split("-")[0],
+                    arrival_id=args.route.split("-")[1],
+                    outbound_date=args.departure,
+                    return_date=args.return_date,
+                    travel_class=args.cabin,
+                )
+            except SerpApiError as exc:
+                # Defesa: SerpApiError pode trazer detalhe do servidor;
+                # truncamos para não vazar payload no log.
+                msg = str(exc)
+                if len(msg) > 200:
+                    msg = msg[:200] + "…"
+                print(f"    erro followup[{i}]: {msg}")
+                continue
+            _print_departure_followup_block(i, off, followup_offers)
+
     return 0
 
 
@@ -949,6 +996,26 @@ def _select_expansion_target(offers, requested_cabin: str):
         if off.cabin.value == target_cabin:
             return off
     return None
+
+
+def _select_departure_followup_targets(
+    offers, requested_cabin: str, max_n: int,
+) -> list:
+    """Seleciona até `max_n` offers com cabine confirmada compatível E
+    com `departure_token`. Round-trip do SerpApi devolve só departure
+    no 1º hop — este seletor escolhe quais merecem o 2º hop."""
+    target_cabin = (requested_cabin or "").strip().lower()
+    cap = max(1, min(int(max_n or 1), 3))
+    out: list = []
+    for off in offers:
+        if not off.departure_token:
+            continue
+        if off.cabin.value != target_cabin:
+            continue
+        out.append(off)
+        if len(out) >= cap:
+            break
+    return out
 
 
 def _print_serpapi_offers(
@@ -992,11 +1059,65 @@ def _print_serpapi_offers(
     )
 
 
+def _render_audit_field(fname: str, info: dict) -> str:
+    """Renderiza UMA linha sanitizada do audit (sem prefixo / indent).
+    Pura — sem rede, sem I/O. Compartilhada por
+    `_print_booking_field_audits` E pelo bloco de departure_token
+    follow-up."""
+    if not info.get("present"):
+        return f"{fname}: ausente"
+    kind = info.get("kind")
+    if kind == "dict":
+        parts = [f"inner_keys={info.get('inner_keys')}"]
+        if info.get("domain"):
+            parts.append(f"domínio={info['domain']}")
+        if info.get("method"):
+            parts.append(f"method={info['method']}")
+        if info.get("post_data_present"):
+            parts.append("post_data_presente=True")
+        return f"{fname}: type=dict, " + ", ".join(parts)
+    if kind == "list":
+        parts = [f"length={info.get('len')}"]
+        if info.get("first_inner_keys"):
+            parts.append(f"first_inner_keys={info['first_inner_keys']}")
+        return f"{fname}: type=list, " + ", ".join(parts)
+    if kind == "url":
+        return f"{fname}: domínio={info.get('domain')}"
+    if kind == "str":
+        return f"{fname}: type=str, length={info.get('length')}"
+    return f"{fname}: type={kind}"
+
+
+def _print_offer_audit(
+    parsed, audit: dict, header: str, bullet_indent: str,
+    bullet: str = "•",
+) -> None:
+    """Imprime header + audit de UMA oferta. Compartilhado por
+    debug-booking-fields E departure_token follow-up."""
+    from .serpapi_client import KNOWN_BOOKING_FIELDS
+    print(header)
+    print(f"{bullet_indent}top_level_keys: {audit['top_level_keys']}")
+    all_absent = all(
+        not (audit["fields"].get(f) or {}).get("present")
+        for f in KNOWN_BOOKING_FIELDS
+    )
+    if all_absent:
+        print(
+            f"{bullet_indent}todos os campos de booking auditados: "
+            f"ausentes"
+        )
+        return
+    for fname in KNOWN_BOOKING_FIELDS:
+        info = audit["fields"].get(fname, {"present": False})
+        line = _render_audit_field(fname, info)
+        print(f"{bullet_indent}{bullet} {line}")
+
+
 def _print_booking_field_audits(offers, limit: int = 11) -> None:
     """Imprime auditoria read-only dos campos brutos de cada offer
     (até `limit`). Nunca imprime token, nunca URL completa, nunca
     post_data, nunca chama booking_options, nunca toca PriceStore."""
-    from .serpapi_client import KNOWN_BOOKING_FIELDS, audit_offer_fields
+    from .serpapi_client import audit_offer_fields
     print(
         "  🔬 debug-booking-fields: auditoria read-only do payload bruto"
     )
@@ -1011,57 +1132,61 @@ def _print_booking_field_audits(offers, limit: int = 11) -> None:
         carriers = (
             ",".join(parsed.carriers) if parsed.carriers else "?"
         )
-        print(
+        header = (
             f"    oferta #{i}: cabin={cabin}, price={price_str}, "
             f"carriers={carriers}"
         )
-        print(f"      top_level_keys: {audit['top_level_keys']}")
-        # Atalho: se TODOS os campos auditados estão ausentes, uma
-        # linha só (em vez de 10 linhas "ausente").
-        all_absent = all(
-            not (audit["fields"].get(f) or {}).get("present")
-            for f in KNOWN_BOOKING_FIELDS
+        _print_offer_audit(parsed, audit, header, bullet_indent="      ")
+
+
+def _print_departure_followup_block(
+    idx: int, source_offer, followup_offers,
+    inner_limit: int = 5,
+) -> None:
+    """Imprime o resultado de UM 2º hop por departure_token. Read-only:
+    NUNCA loga departure_token, booking_token, URL completa, post_data
+    nem qualquer payload sensível. Apenas auditoria sanitizada via
+    `audit_offer_fields` + `_render_audit_field`."""
+    from .serpapi_client import audit_offer_fields
+
+    src_cabin = source_offer.cabin.value
+    src_price = (
+        f"{source_offer.currency} {source_offer.price:.2f}"
+        if source_offer.price is not None else "?"
+    )
+    src_carriers = (
+        ",".join(source_offer.carriers) if source_offer.carriers else "?"
+    )
+    print(
+        f"    followup[{idx}] (origem: cabin={src_cabin}, "
+        f"price={src_price}, carriers={src_carriers}): "
+        f"{len(followup_offers)} offer(s) de volta"
+    )
+    if not followup_offers:
+        print(
+            "      payload do 2º hop sem ofertas de volta — "
+            "departure_token expirado ou rota sem retorno SerpApi"
         )
-        if all_absent:
-            print(
-                "      todos os campos de booking auditados: ausentes"
-            )
-            continue
-        for fname in KNOWN_BOOKING_FIELDS:
-            info = audit["fields"].get(fname, {"present": False})
-            if not info.get("present"):
-                print(f"      • {fname}: ausente")
-                continue
-            kind = info.get("kind")
-            if kind == "dict":
-                parts = [f"inner_keys={info.get('inner_keys')}"]
-                if info.get("domain"):
-                    parts.append(f"domínio={info['domain']}")
-                if info.get("method"):
-                    parts.append(f"method={info['method']}")
-                if info.get("post_data_present"):
-                    parts.append("post_data_presente=True")
-                print(
-                    f"      • {fname}: type=dict, " + ", ".join(parts)
-                )
-            elif kind == "list":
-                parts = [f"length={info.get('len')}"]
-                if info.get("first_inner_keys"):
-                    parts.append(
-                        f"first_inner_keys={info['first_inner_keys']}"
-                    )
-                print(
-                    f"      • {fname}: type=list, " + ", ".join(parts)
-                )
-            elif kind == "url":
-                print(f"      • {fname}: domínio={info.get('domain')}")
-            elif kind == "str":
-                print(
-                    f"      • {fname}: type=str, "
-                    f"length={info.get('length')}"
-                )
-            else:
-                print(f"      • {fname}: type={kind}")
+        return
+    for j, parsed in enumerate(followup_offers[:inner_limit], 1):
+        raw = parsed.raw if isinstance(parsed.raw, dict) else {}
+        audit = audit_offer_fields(raw)
+        f_cabin = parsed.cabin.value
+        f_price = (
+            f"{parsed.currency} {parsed.price:.2f}"
+            if parsed.price is not None else "?"
+        )
+        f_carriers = (
+            ",".join(parsed.carriers) if parsed.carriers else "?"
+        )
+        header = (
+            f"      return_offer #{j}: cabin={f_cabin}, "
+            f"price={f_price}, carriers={f_carriers}"
+        )
+        _print_offer_audit(
+            parsed, audit, header,
+            bullet_indent="        ", bullet="-",
+        )
 
 
 def _print_booking_options(idx: int, options) -> None:
@@ -1290,6 +1415,23 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "Audita campos brutos de booking em cada oferta "
             "(read-only; nunca imprime token nem URL completa)."
+        ),
+    )
+    p_sp.add_argument(
+        "--fetch-departure-token-followup",
+        action="store_true",
+        help=(
+            "2º hop SerpApi round-trip: usa departure_token p/ descobrir "
+            "opções de volta (read-only; só ofertas de cabine compatível; "
+            "auditoria sanitizada do payload retornado)."
+        ),
+    )
+    p_sp.add_argument(
+        "--max-departure-followups",
+        type=int,
+        default=1,
+        help=(
+            "Máximo de 2º-hops por execução (default 1, cap 1..3)."
         ),
     )
     p_sp.set_defaults(func=cmd_serpapi_smoke)
