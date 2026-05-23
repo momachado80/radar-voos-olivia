@@ -974,9 +974,17 @@ def test_audit_detects_nested_booking_request_inner_keys():
     info = audit["fields"]["booking_request"]
     assert info["present"] is True
     assert info["kind"] == "dict"
-    assert info["inner_keys"] == ["post_data", "url"]
+    assert info["inner_keys"] == ["method", "post_data", "url"]
     # booking_token deve estar ausente nessa oferta
     assert audit["fields"]["booking_token"]["present"] is False
+    # Sub-campos seguros extraídos do dict (PR #45):
+    assert info["domain"] == "www.google.com"
+    assert info["method"] == "POST"
+    assert info["post_data_present"] is True
+    # Defesa: conteúdo de post_data NUNCA aparece no audit
+    serialized = json.dumps(audit)
+    assert "secret_post_body" not in serialized
+    assert "secret_value" not in serialized
 
 
 def test_audit_url_only_domain_no_full_url():
@@ -1016,13 +1024,79 @@ def test_audit_handles_non_dict_input():
 
 
 def test_audit_handles_list_field():
-    """Field como list deve mostrar `kind=list, len=N`."""
-    offer = {"booking_options": [{"a": 1}, {"b": 2}, {"c": 3}]}
+    """Field como list deve mostrar `kind=list, len=N` e
+    first_inner_keys se 1º item for dict."""
+    offer = {"booking_options": [{"a": 1, "b": 2}, {"c": 3}]}
+    audit = audit_offer_fields(offer)
+    info = audit["fields"]["booking_options"]
+    assert info["present"] is True
+    assert info["kind"] == "list"
+    assert info["len"] == 2
+    assert info["first_inner_keys"] == ["a", "b"]
+
+
+def test_audit_handles_list_field_first_not_dict():
+    """Se o 1º item não é dict, first_inner_keys NÃO aparece."""
+    offer = {"booking_options": ["a", "b", "c"]}
     audit = audit_offer_fields(offer)
     info = audit["fields"]["booking_options"]
     assert info["present"] is True
     assert info["kind"] == "list"
     assert info["len"] == 3
+    assert "first_inner_keys" not in info
+
+
+def test_audit_dict_extracts_url_domain_only():
+    """Dict com sub-campo url: só domínio entra no audit, URL completa
+    nunca."""
+    offer = {
+        "booking_request": {
+            "url": "https://www.google.com/travel/clk/redirect?token=secret_xyz",
+        },
+    }
+    audit = audit_offer_fields(offer)
+    info = audit["fields"]["booking_request"]
+    assert info["kind"] == "dict"
+    assert info["domain"] == "www.google.com"
+    # NUNCA URL completa nem path nem query
+    serialized = json.dumps(audit)
+    assert "secret_xyz" not in serialized
+    assert "redirect" not in serialized
+    assert "?token" not in serialized
+
+
+def test_audit_dict_extracts_method():
+    """Dict com sub-campo `method` (curto, não-sensível) é exposto."""
+    offer = {"booking_request": {"method": "POST"}}
+    audit = audit_offer_fields(offer)
+    info = audit["fields"]["booking_request"]
+    assert info["method"] == "POST"
+
+
+def test_audit_dict_post_data_present_never_leaks_value():
+    """Dict com `post_data`: audit só marca presença, NUNCA conteúdo."""
+    offer = {
+        "booking_request": {
+            "post_data": "secret_form_body=secret_value&other=secret_param",
+        },
+    }
+    audit = audit_offer_fields(offer)
+    info = audit["fields"]["booking_request"]
+    assert info["post_data_present"] is True
+    serialized = json.dumps(audit)
+    assert "secret_form_body" not in serialized
+    assert "secret_value" not in serialized
+    assert "secret_param" not in serialized
+    # Apenas a flag booleana entra na saída
+    assert "post_data" in info.get("inner_keys", [])
+
+
+def test_audit_dict_post_data_empty_does_not_set_flag():
+    """post_data vazio (string vazia / None) não marca presença."""
+    audit_empty = audit_offer_fields({"booking_request": {"post_data": ""}})
+    assert "post_data_present" not in audit_empty["fields"]["booking_request"]
+    audit_none = audit_offer_fields({"booking_request": {"post_data": None}})
+    assert "post_data_present" not in audit_none["fields"]["booking_request"]
 
 
 def test_audit_never_leaks_token_value():
@@ -1056,19 +1130,30 @@ def test_cli_serpapi_smoke_debug_booking_fields(capsys):
     out = capsys.readouterr().out
     assert "debug-booking-fields: auditoria read-only" in out
     assert "oferta #1" in out
-    # 1ª oferta: booking_token presente
-    assert "booking_token: str, length=" in out
-    # 2ª oferta: booking_request como dict
-    assert "booking_request: dict, inner_keys=" in out
-    # 3ª oferta: url só domínio
-    assert "url: url, domínio=www.aa.com" in out
-    assert "link: url, domínio=booking.aa.com" in out
-    # 4ª oferta: todos ausentes
-    assert "ausente" in out
-    # Nenhum valor sensível leakado
+    # 1ª oferta: booking_token presente — só length
+    assert "booking_token: type=str, length=" in out
+    # 2ª oferta: booking_request dict + sub-campos
+    assert "booking_request: type=dict, inner_keys=" in out
+    assert "domínio=www.google.com" in out
+    assert "method=POST" in out
+    assert "post_data_presente=True" in out
+    # 3ª oferta: url/link só domínio
+    assert "url: domínio=www.aa.com" in out
+    assert "link: domínio=booking.aa.com" in out
+    # 4ª oferta: todos ausentes — usa o atalho consolidado
+    assert "todos os campos de booking auditados: ausentes" in out
+    # 5ª oferta: booking_options como list
+    assert "booking_options: type=list, length=2" in out
+    assert "first_inner_keys=" in out
+    # Nenhum valor sensível leakado em nenhuma oferta
     assert "secret_path_here" not in out
     assert "secret_cart_id" not in out
     assert "secret_payload_here" not in out
+    assert "secret_post_body" not in out
+    # Defesa: nenhuma URL completa nem post_data raw no log
+    assert "https://" not in out
+    assert "?secret_path" not in out
+    assert "param=value" not in out
 
 
 def test_cli_debug_booking_fields_does_not_trigger_booking_options(

@@ -485,17 +485,35 @@ def audit_offer_fields(
         if val is None:
             out["fields"][field] = {"present": True, "kind": "None"}
         elif isinstance(val, dict):
-            out["fields"][field] = {
+            info: dict = {
                 "present": True,
                 "kind": "dict",
                 "inner_keys": sorted(val.keys()),
             }
+            # Sub-campos seguros (sem leak):
+            # - url interno → só domínio
+            # - method → string curta, OK imprimir
+            # - post_data → só sinaliza presença, NUNCA conteúdo
+            inner_url = val.get("url")
+            if isinstance(inner_url, str) and _looks_like_url(inner_url):
+                info["domain"] = (
+                    url_domain(inner_url) or "(sem domínio)"
+                )
+            inner_method = val.get("method")
+            if isinstance(inner_method, str) and inner_method:
+                info["method"] = inner_method
+            if val.get("post_data"):
+                info["post_data_present"] = True
+            out["fields"][field] = info
         elif isinstance(val, list):
-            out["fields"][field] = {
+            info_l: dict = {
                 "present": True,
                 "kind": "list",
                 "len": len(val),
             }
+            if val and isinstance(val[0], dict):
+                info_l["first_inner_keys"] = sorted(val[0].keys())
+            out["fields"][field] = info_l
         elif isinstance(val, str) and field in _TOKEN_FIELDS:
             # Tokens: presença + length, NUNCA valor.
             out["fields"][field] = {
