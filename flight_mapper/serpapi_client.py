@@ -332,6 +332,67 @@ class SerpApiClient:
             raise SerpApiError(f"resposta não-JSON: {exc}") from exc
         return parse_booking_options(payload)
 
+    def fetch_departure_followup(
+        self,
+        *,
+        departure_token: str,
+        departure_id: str,
+        arrival_id: str,
+        outbound_date: str,
+        return_date: str | None = None,
+        travel_class: str | int = "business",
+        currency: str = "USD",
+    ) -> list["SerpApiOffer"]:
+        """2º hop SerpApi (round-trip): a partir do `departure_token`
+        da perna de IDA, devolve as opções de VOLTA — cada uma já com
+        `booking_token` round-trip.
+
+        Read-only: NUNCA loga o token bruto (caller deve usar
+        `audit_offer_fields` p/ qualquer log). NUNCA chama
+        booking_options, NUNCA toca PriceStore, NUNCA envia Telegram.
+
+        Reusa `parse_search` porque o payload do 2º hop tem o mesmo
+        shape de uma busca normal (best_flights / other_flights).
+        """
+        if not departure_token:
+            raise SerpApiError("departure_token obrigatório")
+        trip_type_param = "1" if return_date else "2"
+        params = {
+            "engine": "google_flights",
+            "departure_id": departure_id,
+            "arrival_id": arrival_id,
+            "outbound_date": outbound_date,
+            "type": trip_type_param,
+            "travel_class": _resolve_travel_class(travel_class),
+            "currency": currency,
+            "departure_token": departure_token,
+            "api_key": self.api_key,
+        }
+        if return_date:
+            params["return_date"] = return_date
+        url = f"{self.base_url}?{urlencode(params)}"
+        req = Request(url, headers={"Accept": "application/json"})
+        try:
+            with urlopen(req, timeout=self.timeout) as resp:
+                body = resp.read().decode("utf-8")
+        except HTTPError as exc:
+            try:
+                detail = exc.read().decode("utf-8")
+            except Exception:  # pragma: no cover
+                detail = "<sem corpo>"
+            if exc.code in (401, 403):
+                raise SerpApiAuthError(
+                    f"auth falhou ({exc.code}): {detail}"
+                ) from exc
+            raise SerpApiError(
+                f"HTTP {exc.code} {exc.reason}: {detail}"
+            ) from exc
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise SerpApiError(f"resposta não-JSON: {exc}") from exc
+        return parse_search(payload)
+
 
 @dataclass(frozen=True)
 class SerpApiBookingOption:

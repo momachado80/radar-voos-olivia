@@ -167,11 +167,16 @@ def test_workflow_dispatch_input_max_booking_options_exists():
     assert "1 a 3" in (spec.get("description") or ""), (
         "description deve declarar o intervalo 1..3"
     )
-    # Apenas os inputs autorizados (max_booking_options + debug_booking_fields).
+    # Apenas os inputs autorizados:
+    #   max_booking_options, debug_booking_fields,
+    #   departure_token_followup, max_departure_followups.
     # Rota / cabine / trip NÃO podem virar input — risco de varredura
     # em massa via dispatch.
     assert set(inputs.keys()) == {
-        "max_booking_options", "debug_booking_fields",
+        "max_booking_options",
+        "debug_booking_fields",
+        "departure_token_followup",
+        "max_departure_followups",
     }, (
         f"inputs não autorizados; achei: {sorted(inputs)}"
     )
@@ -209,7 +214,7 @@ def test_workflow_passes_debug_flag_only_when_input_truthy():
     assert 'EXTRA+=("--debug-booking-fields")' in raw
     # Log auto-diagnóstico: confirma estado do flag
     assert "--debug-booking-fields ENABLED" in raw
-    assert "--debug-booking-fields disabled" in raw
+    assert "--debug-booking-fields DISABLED" in raw
     # Log do comando real executado (humano consegue rastrear)
     assert "[debug] executing:" in raw
 
@@ -248,6 +253,95 @@ def test_workflow_shell_truthy_gate_simulation(tmp_path):
         assert _run(v) == "--debug-booking-fields", f"truthy '{v}' falhou"
     # Falsy
     for v in ["", "false", "FALSE", "no", "0", "abc", "TRUE TRUE"]:
+        assert _run(v) == "<empty>", f"falsy '{v}' disparou flag"
+
+
+def test_workflow_dispatch_input_departure_token_followup_exists():
+    """workflow_dispatch.inputs.departure_token_followup é boolean,
+    default false (2º hop opt-in)."""
+    doc = _load()
+    on = _on(doc)
+    wd = on.get("workflow_dispatch") or {}
+    inputs = wd.get("inputs") or {}
+    assert "departure_token_followup" in inputs
+    spec = inputs["departure_token_followup"]
+    assert spec.get("type") == "boolean"
+    assert spec.get("default") is False, "default deve ser false (opt-in)"
+    desc = (spec.get("description") or "").lower()
+    assert "read-only" in desc
+    assert "2" in desc  # menciona 2º hop
+
+
+def test_workflow_dispatch_input_max_departure_followups_exists():
+    """max_departure_followups com default '1' e descrição mencionando 1..3."""
+    doc = _load()
+    on = _on(doc)
+    wd = on.get("workflow_dispatch") or {}
+    inputs = wd.get("inputs") or {}
+    assert "max_departure_followups" in inputs
+    spec = inputs["max_departure_followups"]
+    assert str(spec.get("default")) == "1"
+    assert "1 a 3" in (spec.get("description") or "")
+
+
+def test_workflow_passes_departure_followup_flag_only_when_input_truthy():
+    """O step só passa --fetch-departure-token-followup +
+    --max-departure-followups quando o input vier como variante truthy."""
+    raw = WF.read_text(encoding="utf-8")
+    assert "RAW_DEPARTURE_TOKEN_FOLLOWUP" in raw
+    assert "RAW_MAX_DEPARTURE_FOLLOWUPS" in raw
+    # Mesmo gate tolerante reutilizado
+    assert 'EXTRA+=("--fetch-departure-token-followup")' in raw
+    assert 'EXTRA+=("--max-departure-followups" "$MAX_DEPARTURE_FOLLOWUPS")' in raw
+    # Auto-diagnóstico
+    assert "--fetch-departure-token-followup ENABLED" in raw
+    assert "--fetch-departure-token-followup DISABLED" in raw
+    assert "departure_token_followup=" in raw
+    assert "max_departure_followups=" in raw
+
+
+def test_workflow_caps_max_departure_followups_at_three():
+    """Defesa contra typo: cap a 3 no shell antes do CLI."""
+    raw = WF.read_text(encoding="utf-8")
+    # Cap explícito a 3 no shell
+    assert "MAX_DEPARTURE_FOLLOWUPS=3" in raw
+    # Nenhum literal --max-departure-followups N>3 no CLI
+    for n in range(4, 20):
+        assert f"--max-departure-followups {n}" not in raw, (
+            f"literal {n} não autorizado"
+        )
+
+
+def test_workflow_shell_departure_followup_gate_simulation(tmp_path):
+    """Sandbox bash: gate truthy/falsy do followup."""
+    import subprocess
+    script = tmp_path / "gate.sh"
+    script.write_text(
+        '#!/usr/bin/env bash\n'
+        'set -eu\n'
+        'RAW_DEPARTURE_TOKEN_FOLLOWUP="$1"\n'
+        'EXTRA=()\n'
+        'FOLLOWUP_NORM="$(printf \'%s\' "${RAW_DEPARTURE_TOKEN_FOLLOWUP}" '
+        '| tr \'[:upper:]\' \'[:lower:]\')"\n'
+        'if [[ "$FOLLOWUP_NORM" =~ ^(true|yes|y|1)$ ]]; then\n'
+        '  EXTRA+=("--fetch-departure-token-followup")\n'
+        'fi\n'
+        'echo "${EXTRA[*]:-<empty>}"\n',
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+
+    def _run(arg: str) -> str:
+        return subprocess.run(
+            ["bash", str(script), arg],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+
+    for v in ["true", "True", "TRUE", "yes", "Y", "1"]:
+        assert _run(v) == "--fetch-departure-token-followup", (
+            f"truthy '{v}' falhou"
+        )
+    for v in ["", "false", "FALSE", "no", "0", "abc"]:
         assert _run(v) == "<empty>", f"falsy '{v}' disparou flag"
 
 

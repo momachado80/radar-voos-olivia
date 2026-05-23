@@ -62,6 +62,12 @@ FIXTURE_SERPAPI_ONLY_ECONOMY = (
 FIXTURE_SERPAPI_AUDIT = (
     Path(__file__).parent / "fixtures" / "serpapi_offers_for_audit.json"
 )
+FIXTURE_SERPAPI_FIRST_HOP = (
+    Path(__file__).parent / "fixtures" / "serpapi_first_hop_departure.json"
+)
+FIXTURE_SERPAPI_DEPARTURE_FOLLOWUP = (
+    Path(__file__).parent / "fixtures" / "serpapi_departure_followup.json"
+)
 
 
 def _workflows_with(secret_name: str, tmp_path: Path) -> Path:
@@ -1199,6 +1205,264 @@ def test_cli_no_debug_flag_no_audit_output(capsys):
     out = capsys.readouterr().out
     assert "debug-booking-fields" not in out
     assert "auditoria read-only" not in out
+
+
+# ----------------- PR #46: departure_token follow-up (2º hop) -----------------
+
+
+# Strings sentinela usadas pelas fixtures p/ detectar leak. Qualquer
+# delas no stdout do CLI é falha imediata.
+_LEAK_SENTINELS = (
+    "DEP_TOKEN_THAT_MUST_NEVER_LEAK",
+    "BK_TOKEN_THAT_MUST_NEVER_LEAK",
+    "BR_secret_payload",
+    "BR_secret_post_body",
+    "BR_secret_param",
+    "BR_secret_ref",
+    "BR_secret_cart_value",
+    "BR_secret_iberia_path",
+)
+_LEAK_URL_FRAGMENTS = (
+    "https://",
+    "?token=",
+    "?ref=",
+    "?cart=",
+    "redirect",
+    "checkout",
+)
+
+
+def _live_followup_smoke(monkeypatch, first_hop: dict, followup: dict):
+    """Helper que injeta urlopen mockado: 1ª chamada = first_hop;
+    chamadas com departure_token na URL = followup."""
+    import flight_mapper.serpapi_client as sp
+    calls: dict = {"search": 0, "followup": 0, "tokens": []}
+
+    def _fake_urlopen(req, *a, **k):
+        url = getattr(req, "full_url", str(req))
+        if "departure_token=" in url:
+            calls["followup"] += 1
+            for part in url.split("&"):
+                if part.startswith("departure_token="):
+                    calls["tokens"].append(part.split("=", 1)[1])
+            return _FakeResp(json.dumps(followup).encode("utf-8"))
+        calls["search"] += 1
+        return _FakeResp(json.dumps(first_hop).encode("utf-8"))
+
+    monkeypatch.setattr(sp, "urlopen", _fake_urlopen)
+    monkeypatch.setenv("SERPAPI_API_KEY", "FAKE_KEY_NO_NETWORK")
+    return calls
+
+
+def test_select_departure_followup_targets_filters_by_cabin():
+    """1ª oferta business (LATAM) é elegível; economy (BoA) é pulada;
+    business COPA é elegível em 2º; AA em 3º."""
+    from flight_mapper.__main__ import _select_departure_followup_targets
+    from flight_mapper.serpapi_client import parse_search_from_file
+    offers = parse_search_from_file(str(FIXTURE_SERPAPI_FIRST_HOP))
+    selected = _select_departure_followup_targets(offers, "business", 3)
+    assert [o.carriers[0] for o in selected] == ["LATAM", "COPA", "American"]
+    # economy NÃO entra
+    assert all("Boliviana" not in o.carriers[0] for o in selected)
+
+
+def test_select_departure_followup_targets_respects_max():
+    from flight_mapper.__main__ import _select_departure_followup_targets
+    from flight_mapper.serpapi_client import parse_search_from_file
+    offers = parse_search_from_file(str(FIXTURE_SERPAPI_FIRST_HOP))
+    assert len(_select_departure_followup_targets(offers, "business", 1)) == 1
+    assert len(_select_departure_followup_targets(offers, "business", 2)) == 2
+    # Cap a 3: mesmo pedindo 99, retorna no máximo 3
+    assert len(_select_departure_followup_targets(offers, "business", 99)) == 3
+
+
+def test_select_departure_followup_targets_empty_if_no_compat():
+    """Se nenhuma oferta tem cabine compatível, retorna []."""
+    from flight_mapper.__main__ import _select_departure_followup_targets
+    from flight_mapper.serpapi_client import parse_search_from_file
+    offers = parse_search_from_file(str(FIXTURE_SERPAPI_FIRST_HOP))
+    assert _select_departure_followup_targets(offers, "first", 3) == []
+
+
+def test_fetch_departure_followup_requires_token():
+    client = SerpApiClient("KEY")
+    with pytest.raises(SerpApiError):
+        client.fetch_departure_followup(
+            departure_token="",
+            departure_id="GRU", arrival_id="MIA",
+            outbound_date="2026-09-10", return_date="2026-09-17",
+        )
+
+
+def test_fetch_departure_followup_uses_correct_url(monkeypatch):
+    """Chamada com departure_token: URL contém departure_token=...,
+    type=1 (round-trip pelo return_date), travel_class=3."""
+    import flight_mapper.serpapi_client as sp
+    followup = json.loads(
+        FIXTURE_SERPAPI_DEPARTURE_FOLLOWUP.read_text(encoding="utf-8")
+    )
+    captured: dict = {}
+
+    def _fake_urlopen(req, *a, **k):
+        captured["url"] = getattr(req, "full_url", str(req))
+        return _FakeResp(json.dumps(followup).encode("utf-8"))
+
+    monkeypatch.setattr(sp, "urlopen", _fake_urlopen)
+    offers = SerpApiClient("KEY").fetch_departure_followup(
+        departure_token="DEP_TKN_ABC", departure_id="GRU",
+        arrival_id="MIA", outbound_date="2026-09-10",
+        return_date="2026-09-17", travel_class="business",
+    )
+    assert len(offers) == 5  # 2 best + 3 other
+    assert "engine=google_flights" in captured["url"]
+    assert "departure_token=DEP_TKN_ABC" in captured["url"]
+    assert "type=1" in captured["url"]
+    assert "travel_class=3" in captured["url"]
+
+
+def test_cli_smoke_departure_followup_outputs_block(monkeypatch, capsys):
+    """Live mode com flag: bloco 🧭 aparece com return_offer audits."""
+    first = json.loads(FIXTURE_SERPAPI_FIRST_HOP.read_text(encoding="utf-8"))
+    followup = json.loads(
+        FIXTURE_SERPAPI_DEPARTURE_FOLLOWUP.read_text(encoding="utf-8")
+    )
+    calls = _live_followup_smoke(monkeypatch, first, followup)
+    rc = main([
+        "serpapi-smoke", "--route", "GRU-MIA", "--trip", "round_trip",
+        "--cabin", "business",
+        "--departure", "2026-09-10", "--return-date", "2026-09-17",
+        "--fetch-departure-token-followup",
+        "--max-departure-followups", "2",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    # Cabeçalho do bloco
+    assert "🧭 departure_token follow-up" in out
+    assert "2 offer(s) selecionada(s) (limite=2)" in out
+    # 2 followups feitos (LATAM + COPA business; BoA economy pulado)
+    assert calls["followup"] == 2
+    # Auditoria do payload de volta: vários formatos cobertos
+    assert "return_offer #1" in out
+    assert "booking_token: type=str, length=" in out
+    assert (
+        "booking_request: type=dict, inner_keys=['method', 'post_data', 'url'], "
+        "domínio=www.google.com, method=POST, post_data_presente=True"
+    ) in out
+    assert "url: domínio=www.aa.com" in out
+    assert "link: domínio=booking.aa.com" in out
+    assert "booking_options: type=list, length=2" in out
+    assert "todos os campos de booking auditados: ausentes" in out
+
+
+def test_cli_smoke_departure_followup_caps_to_one(monkeypatch, capsys):
+    """Sem --max-departure-followups (default 1) só dispara 1 chamada
+    mesmo havendo 3 business com departure_token."""
+    first = json.loads(FIXTURE_SERPAPI_FIRST_HOP.read_text(encoding="utf-8"))
+    followup = json.loads(
+        FIXTURE_SERPAPI_DEPARTURE_FOLLOWUP.read_text(encoding="utf-8")
+    )
+    calls = _live_followup_smoke(monkeypatch, first, followup)
+    rc = main([
+        "serpapi-smoke", "--route", "GRU-MIA", "--trip", "round_trip",
+        "--cabin", "business",
+        "--departure", "2026-09-10", "--return-date", "2026-09-17",
+        "--fetch-departure-token-followup",
+    ])
+    assert rc == 0
+    assert calls["followup"] == 1  # default cap = 1
+
+
+def test_cli_smoke_departure_followup_flag_off_no_call(monkeypatch, capsys):
+    """Sem --fetch-departure-token-followup, ZERO chamadas de 2º hop."""
+    first = json.loads(FIXTURE_SERPAPI_FIRST_HOP.read_text(encoding="utf-8"))
+    followup = json.loads(
+        FIXTURE_SERPAPI_DEPARTURE_FOLLOWUP.read_text(encoding="utf-8")
+    )
+    calls = _live_followup_smoke(monkeypatch, first, followup)
+    rc = main([
+        "serpapi-smoke", "--route", "GRU-MIA", "--trip", "round_trip",
+        "--cabin", "business",
+        "--departure", "2026-09-10", "--return-date", "2026-09-17",
+    ])
+    assert rc == 0
+    assert calls["followup"] == 0
+    out = capsys.readouterr().out
+    assert "🧭 departure_token follow-up" not in out
+
+
+def test_cli_smoke_departure_followup_only_compatible_cabin_makes_call(
+    monkeypatch, capsys,
+):
+    """Pedido com --cabin first NÃO encontra business compat → 0 chamadas
+    de 2º hop + mensagem honesta."""
+    first = json.loads(FIXTURE_SERPAPI_FIRST_HOP.read_text(encoding="utf-8"))
+    followup = json.loads(
+        FIXTURE_SERPAPI_DEPARTURE_FOLLOWUP.read_text(encoding="utf-8")
+    )
+    calls = _live_followup_smoke(monkeypatch, first, followup)
+    rc = main([
+        "serpapi-smoke", "--route", "GRU-MIA", "--trip", "round_trip",
+        "--cabin", "first",
+        "--departure", "2026-09-10", "--return-date", "2026-09-17",
+        "--fetch-departure-token-followup",
+        "--max-departure-followups", "3",
+    ])
+    assert rc == 0
+    assert calls["followup"] == 0
+    out = capsys.readouterr().out
+    assert (
+        "nenhuma oferta com cabine confirmada compatível E "
+        "departure_token para 2º hop"
+    ) in out
+
+
+def test_cli_smoke_departure_followup_no_secret_leak(monkeypatch, capsys):
+    """Defesa explícita: NENHUMA das sentinelas da fixture aparece no
+    stdout completo, mesmo com follow-up ativo e max=3."""
+    first = json.loads(FIXTURE_SERPAPI_FIRST_HOP.read_text(encoding="utf-8"))
+    followup = json.loads(
+        FIXTURE_SERPAPI_DEPARTURE_FOLLOWUP.read_text(encoding="utf-8")
+    )
+    _live_followup_smoke(monkeypatch, first, followup)
+    rc = main([
+        "serpapi-smoke", "--route", "GRU-MIA", "--trip", "round_trip",
+        "--cabin", "business",
+        "--departure", "2026-09-10", "--return-date", "2026-09-17",
+        "--fetch-departure-token-followup",
+        "--max-departure-followups", "3",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    for sentinel in _LEAK_SENTINELS:
+        assert sentinel not in out, f"LEAK: {sentinel!r}"
+    for fragment in _LEAK_URL_FRAGMENTS:
+        assert fragment not in out, f"URL fragment leaked: {fragment!r}"
+
+
+def test_cli_smoke_departure_followup_in_fixture_mode_is_noop(capsys):
+    """Em modo fixture, --fetch-departure-token-followup é no-op (2º
+    hop exige live)."""
+    rc = main([
+        "serpapi-smoke", "--route", "GRU-MIA", "--trip", "round_trip",
+        "--cabin", "business",
+        "--mock-file", str(FIXTURE_SERPAPI_FIRST_HOP),
+        "--fetch-departure-token-followup",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert (
+        "--fetch-departure-token-followup ignorado em modo fixture"
+    ) in out
+
+
+def test_departure_followup_not_consumed_by_pipeline_core():
+    """2º hop é só smoke CLI; NÃO pode aparecer em monitor/providers/
+    notifier/state."""
+    for mod in ("monitor.py", "providers.py", "notifier.py", "state.py"):
+        src = (Path("flight_mapper") / mod).read_text(encoding="utf-8")
+        assert "fetch_departure_followup" not in src, mod
+        assert "_select_departure_followup_targets" not in src, mod
+        assert "_print_departure_followup_block" not in src, mod
 
 
 # ----------------- Garantias gerais -----------------
