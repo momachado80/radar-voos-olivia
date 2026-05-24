@@ -42,10 +42,10 @@ def test_panel_always_full_even_zero_quotes():
     store._data = {}
     body = _build_message(_r(quotes_received=0), store, _NOW)
     for sec in (
-        "📌 Oportunidades confirmadas",
-        "📡 Sinais brutos de preço",
-        "💸 Possíveis promoções de econômica",
-        "🛡️ Alertas bloqueados por segurança",
+        "🟢 Executiva confirmada",
+        "👀 Sinais em observação",
+        "💸 Econômica possível",
+        "🛡️ Bloqueios de segurança",
         "🧭 Status das fontes",
     ):
         assert sec in body
@@ -67,7 +67,7 @@ def test_raw_signals_dedupe_and_trip_differentiated(tmp_path: Path):
     _q(store, "GRU-MIA-business-dup", "GRU", "MIA", 5000.0, trip="round_trip")
     body = _build_message(_r(), store, _NOW)
 
-    raw = body.split("📡 Sinais brutos de preço")[1].split("💸")[0]
+    raw = body.split("👀 Sinais em observação")[1].split("🛡️")[0]
     assert "[ida e volta]" in raw
     assert "[somente ida]" in raw
     # a duplicata exata round_trip não gera 3ª entrada
@@ -84,7 +84,7 @@ def test_unproven_currency_omitted(tmp_path: Path):
     assert "R$ 1.919" not in body
     assert "moeda não confirmada" not in body
     assert "Entradas legadas sem moeda comprovada (omitidas): 1" in body
-    assert "• Nenhum sinal bruto de preço no momento." in body
+    assert "• Nenhum sinal em observação no momento." in body
 
 
 # 7 — fechamento correto
