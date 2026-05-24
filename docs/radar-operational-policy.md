@@ -19,6 +19,27 @@ observação" (sem grade). Os gates de segurança (`cabine bloqueada`,
 `preço suspeito`, `câmbio ausente`, `entradas legadas sem moeda
 comprovada`) permanecem no bloco "🛡️ Bloqueios de segurança".
 
+**Validação SerpApi opcional (PR #52):** `flight_mapper/serpapi_validation.py`
+adiciona uma camada read-only que consulta SerpApi para sinais brutos
+com USD em banda "forte". Quando a validação confirma cabine business +
+booking option (mesmo que `google_post_only`), o sinal é elevado de
+"👀 Sinais em observação" para "🟡 Verificação manual" com nota indicando
+que SerpApi validou. Princípios estritos:
+- **SerpApi NUNCA gera link clicável.** Mesmo se `actionability` for
+  `airline_simple_link`, a sugestão é `CONFIRMED_MANUAL_CHECK` (🟡), nunca
+  `CONFIRMED_ACTIONABLE` (🟢). Motivo: SerpApi encapsula links via Google
+  e não podemos garantir que o link clicável funcione direto.
+- **Opt-in por env:** `SERPAPI_VALIDATION_ENABLED=true` (default false) +
+  `SERPAPI_API_KEY` obrigatórios. Sem qualquer um deles, pipeline atual
+  segue idêntico.
+- **Cap por ciclo:** `SERPAPI_VALIDATION_MAX_PER_CYCLE` default 1, máximo 3.
+- **Custo:** 2 queries por candidato one-way; 3 por round-trip.
+- **Falha silenciosa:** qualquer erro de rede/parse → resultado vazio com
+  reason code, sinal continua em observação. Relatório nunca quebra.
+- **Sem leak:** resultado nunca contém token bruto, URL completa, query
+  string ou post_data — só estrutura sanitizada (presença, domínio,
+  método, `post_data_presente=True/False`).
+
 ## 1. Estados decisórios
 
 O Radar agora classifica cada sinal em um de seis estados, computados
