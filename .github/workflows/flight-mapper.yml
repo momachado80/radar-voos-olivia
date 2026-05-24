@@ -2,7 +2,9 @@ name: flight-mapper
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    # 96 ciclos/dia (PR #54). Validação SerpApi protegida por
+    # SERPAPI_VALIDATION_DAILY_BUDGET no env do step Run cycle.
+    - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -32,12 +34,17 @@ jobs:
           TRAVELPAYOUTS_TOKEN: ${{ secrets.TRAVELPAYOUTS_TOKEN }}
           KIWI_API_KEY: ${{ secrets.KIWI_API_KEY }}
           USD_BRL_RATE: ${{ vars.USD_BRL_RATE }}
-          # Validação SerpApi opt-in (PR #52, ativada em PR #53):
-          # 1 candidato/ciclo no máximo. Falha silenciosa se key
-          # ausente; nunca quebra o ciclo. Nunca loga URL/token.
+          # Validação SerpApi opt-in (PR #52, ativada em PR #53,
+          # protegida com orçamento diário em PR #54):
+          # • cap intra-ciclo: 1 candidato;
+          # • cap diário UTC: 20 validações (persistido em
+          #   data/serpapi_validation_budget.json — apenas date+count,
+          #   nunca payload/token);
+          # • falha silenciosa se key ausente ou budget esgotado.
           SERPAPI_VALIDATION_ENABLED: "true"
           SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
           SERPAPI_VALIDATION_MAX_PER_CYCLE: "1"
+          SERPAPI_VALIDATION_DAILY_BUDGET: "20"
         run: python -m flight_mapper cycle
 
       - name: Commit state
