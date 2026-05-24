@@ -35,16 +35,18 @@ jobs:
           KIWI_API_KEY: ${{ secrets.KIWI_API_KEY }}
           USD_BRL_RATE: ${{ vars.USD_BRL_RATE }}
           # Validação SerpApi opt-in (PR #52, ativada em PR #53,
-          # protegida com orçamento diário em PR #54):
+          # protegida com orçamento MENSAL em PR #55):
           # • cap intra-ciclo: 1 candidato;
-          # • cap diário UTC: 20 validações (persistido em
-          #   data/serpapi_validation_budget.json — apenas date+count,
-          #   nunca payload/token);
+          # • cap mensal UTC: 90 queries (= ~30 validações × 3 queries),
+          #   persistido em data/serpapi_validation_budget.json
+          #   (apenas {month_utc, count}, nunca payload/token);
+          # • free-tier SerpApi típico: 100 queries/mês → 90 deixa
+          #   margem de segurança;
           # • falha silenciosa se key ausente ou budget esgotado.
           SERPAPI_VALIDATION_ENABLED: "true"
           SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
           SERPAPI_VALIDATION_MAX_PER_CYCLE: "1"
-          SERPAPI_VALIDATION_DAILY_BUDGET: "20"
+          SERPAPI_VALIDATION_MONTHLY_BUDGET: "90"
         run: python -m flight_mapper cycle
 
       - name: Commit state
