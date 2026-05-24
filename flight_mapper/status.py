@@ -381,9 +381,12 @@ def _format_economy_block(
         )
     elif h.baseline_weak:
         # Suficiente em volume, mas repetitivo / sem variação útil.
+        # Frase humana — termo técnico "cache repetitivo" fica só em
+        # reason codes / docs internas (booking_actionability.py).
         hist_line = (
             f"   Histórico interno: mediana {format_brl(h.median_brl)} "
-            f"(variação muito baixa — cache repetitivo, n={h.n})"
+            f"(variação muito baixa — a fonte vem repetindo valores "
+            f"muito parecidos, n={h.n})"
         )
     else:
         hist_line = (
