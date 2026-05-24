@@ -1,4 +1,4 @@
-"""Relatório: separa oportunidades confirmadas de sinais brutos.
+"""Relatório: separa executiva confirmada de sinais brutos.
 
 Travelpayouts/cabine não confirmada não pode ser rotulado como
 Executiva/Business/oportunidade confirmada. Sem rede, sem Telegram.
@@ -75,24 +75,26 @@ def test_unknown_cabin_is_raw_signal_not_executiva(tmp_path: Path):
 
     # R$ 1.166 one_way: incompatível c/ executiva, compatível c/ econômica
     # → entra em "Possíveis promoções de econômica" (multilinha).
-    assert "💸 Possíveis promoções de econômica" in body
-    eco = body.split("💸 Possíveis promoções de econômica")[1].split("🛡️")[0]
+    assert "💸 Econômica possível" in body
+    eco = body.split("💸 Econômica possível")[1].split("👀")[0]
     assert "São Paulo → Miami (GRU → MIA) — US$ 212 ≈ R$ 1.166" in eco
     assert "Fonte: Travelpayouts" in eco
     assert "Cabine: não confirmada" in eco
     assert "Tipo: somente ida" in eco
     assert "preço compatível com econômica promocional" in eco
     # seções de confiança presentes
-    assert "📡 Sinais brutos de preço" in body
+    assert "👀 Sinais em observação" in body
     assert "🧭 Status das fontes" in body
     assert "Travelpayouts: ativo, mas sem cabine confirmada." in body
-    # nunca rotulado como executiva/business/confirmada
-    assert "Executiva" not in body
-    assert "Business" not in body
+    # nunca rotulado como executiva/business/confirmada na seção econômica
+    # (o header "🟢 Executiva confirmada" aparece como título de seção
+    # vazia — isso é OK; o que NÃO pode é a rota ganhar o rótulo).
+    assert "Executiva" not in eco
+    assert "Business" not in eco
     assert "Melhor oportunidade confirmada" not in body
     # seção de confirmadas existe, porém vazia
-    assert "📌 Oportunidades confirmadas" in body
-    assert "• Nenhuma oportunidade confirmada agora." in body
+    assert "🟢 Executiva confirmada" in body
+    assert "• Nenhuma executiva confirmada agora." in body
 
 
 # 3 + 5
@@ -102,12 +104,12 @@ def test_confirmed_business_appears_as_confirmed(tmp_path: Path):
     store.save()
     body = _send(store, tmp_path)
 
-    assert "📌 Oportunidades confirmadas" in body
-    conf = body.split("📌 Oportunidades confirmadas")[1].split("📡")[0]
+    assert "🟢 Executiva confirmada" in body
+    conf = body.split("🟢 Executiva confirmada")[1].split("🟡")[0]
     assert "São Paulo → Paris (GRU → CDG)" in conf
     assert "Executiva" in conf
     assert "Conferir busca" in conf
-    assert "• Nenhuma oportunidade confirmada agora." not in conf
+    assert "• Nenhuma executiva confirmada agora." not in conf
 
 
 # 6
@@ -119,7 +121,7 @@ def test_raw_signals_not_under_old_watchlist_heading(tmp_path: Path):
 
     assert "📌 Melhores oportunidades monitoradas" not in body
     assert "São Paulo → Madri (GRU → MAD)" in body
-    raw = body.split("📡 Sinais brutos de preço")[1].split("🧭")[0]
+    raw = body.split("🟡 Verificação manual")[1].split("🧭")[0]
     assert "Cabine: não confirmada" in raw
     assert "Fonte: Travelpayouts" in raw
 
@@ -132,8 +134,8 @@ def test_confirmed_and_raw_coexist_in_separate_sections(tmp_path: Path):
     store.save()
     body = _send(store, tmp_path)
 
-    conf = body.split("📌 Oportunidades confirmadas")[1].split("📡")[0]
-    raw = body.split("📡 Sinais brutos de preço")[1].split("🧭")[0]
+    conf = body.split("🟢 Executiva confirmada")[1].split("🟡")[0]
+    raw = body.split("🟡 Verificação manual")[1].split("🧭")[0]
     assert "São Paulo → Londres (GRU → LHR)" in conf and "Executiva" in conf
     assert "São Paulo → Miami (GRU → MIA)" in raw
     assert "Cabine: não confirmada" in raw
@@ -157,7 +159,7 @@ def test_confirmed_but_suspicious_price_is_not_confirmed(tmp_path: Path):
     store.save()
     body = _send(store, tmp_path)
 
-    assert "• Nenhuma oportunidade confirmada agora." in body
+    assert "• Nenhuma executiva confirmada agora." in body
     assert "Cabine: não confirmada" in body  # cai em sinais brutos
 
 
@@ -186,7 +188,7 @@ def test_source_status_with_confirmed_kiwi(tmp_path: Path):
     assert "Kiwi: ativo (cabine confirmada)." in blk
     assert "Alertas executivos: 1 confirmada(s) neste ciclo." in blk
     # score só sobre confirmadas
-    assert "Score médio (oportunidades confirmadas):" in body
+    assert "Score médio (executiva confirmada):" in body
 
 
 # 7

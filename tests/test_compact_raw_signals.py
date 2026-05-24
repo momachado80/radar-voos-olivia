@@ -34,7 +34,7 @@ def _result():
 
 
 def _raw_section(body: str) -> str:
-    return body.split("📡 Sinais brutos de preço")[1].split("💸")[0]
+    return body.split("👀 Sinais em observação")[1].split("🛡️")[0]
 
 
 # 1+2+3+4 — homogêneos: cabeçalho único, sem "Executiva", [trip] por item
@@ -100,4 +100,4 @@ def test_mixed_sources_falls_back_to_multiline(tmp_path: Path):
 def test_empty_raw_section_keeps_placeholder(tmp_path: Path):
     store = PriceStore(tmp_path / "h.json")
     body = _build_message(_result(), store, _NOW)
-    assert "• Nenhum sinal bruto de preço no momento." in body
+    assert "• Nenhum sinal em observação no momento." in body

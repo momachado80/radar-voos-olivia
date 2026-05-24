@@ -89,8 +89,8 @@ def test_ignore_items_do_not_enter_economy_section(tmp_path: Path):
     )
     body = _build_message(_result(), store, _NOW)
 
-    eco = body.split("💸 Possíveis promoções de econômica")[1].split("🛡️")[0]
-    raw = body.split("📡 Sinais brutos de preço")[1].split("💸")[0]
+    eco = body.split("💸 Econômica possível")[1].split("👀")[0]
+    raw = body.split("👀 Sinais em observação")[1].split("🛡️")[0]
 
     # NUNCA dentro da seção de promoções
     assert "Classificação: ignorar" not in eco
@@ -112,7 +112,7 @@ def test_repetitive_history_does_not_show_misleading_zero_discount(tmp_path: Pat
         prices=[1216.0] * 12,
     )
     body = _build_message(_result(), store, _NOW)
-    eco = body.split("💸 Possíveis promoções de econômica")[1].split("🛡️")[0]
+    eco = body.split("💸 Econômica possível")[1].split("👀")[0]
 
     # Mensagem honesta no lugar do desconto enganoso
     assert "histórico interno ainda fraco" in eco.lower()
@@ -149,7 +149,7 @@ def test_raw_signals_still_appear_for_above_band_items(tmp_path: Path):
         store, "GRU-MIA-one_way-business", "MIA", 2475.0, usd=450.0,
     )
     body = _build_message(_result(), store, _NOW)
-    raw = body.split("📡 Sinais brutos de preço")[1].split("💸")[0]
+    raw = body.split("👀 Sinais em observação")[1].split("🛡️")[0]
     assert "São Paulo → Miami" in raw
     # Sinais brutos mantêm Fonte/Cabine
     assert "Cabine: não confirmada" in raw

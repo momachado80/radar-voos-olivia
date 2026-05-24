@@ -285,16 +285,16 @@ def _format_raw_block(
 def _format_raw_signals(
     raw: list[tuple[str, float]], store: PriceStore
 ) -> str:
-    """Bloco da seção "📡 Sinais brutos de preço".
+    """Bloco da seção "👀 Sinais em observação" (PR #51).
 
-    Compacta quando os itens compartilham a MESMA fonte (cabine e
-    interpretação já são fixas em sinais brutos): cabeçalho com Fonte/
-    Cabine/Interpretação uma única vez no topo + linhas numeradas com
-    `[trip]` por item. Se as fontes divergirem, cai no formato
-    multilinha por item (`_format_raw_block`) sem perder honestidade.
+    Inclui sinais sem cabine confirmada e sem grading de economia
+    promocional. Compacta quando os itens compartilham a MESMA fonte:
+    cabeçalho com Fonte/Cabine/Interpretação uma única vez no topo +
+    linhas numeradas com `[trip]` por item. Se as fontes divergirem,
+    cai no formato multilinha por item (`_format_raw_block`).
     """
     if not raw:
-        return "• Nenhum sinal bruto de preço no momento."
+        return "• Nenhum sinal em observação no momento."
     sources = {_source_name(store.get(key)) for key, _ in raw}
     if len(sources) != 1:
         return "\n".join(
@@ -447,7 +447,7 @@ def _security_block(result: MonitorResult) -> str:
         if active
         else "• Nenhum bloqueio de segurança neste ciclo."
     )
-    return "🛡️ Alertas bloqueados por segurança\n" + body
+    return "🛡️ Bloqueios de segurança\n" + body
 
 
 def _no_alert_reason(result: MonitorResult) -> str:
@@ -572,8 +572,25 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
     economy = sorted(economy_pool, key=lambda x: x[1])[:3]
     raw = sorted(raw_pool, key=lambda x: x[1])[:3]
 
-    if confirmed:
-        confirmed_lines = "\n".join(
+    # PR #51: partição decisória dos confirmados.
+    # Quem tem cabine confirmada + link clicável (Kiwi deep_link ou
+    # equivalente) → "🟢 Executiva confirmada" (CONFIRMED_ACTIONABLE).
+    # Quem tem cabine confirmada SEM link → "🟡 Verificação manual"
+    # (CONFIRMED_MANUAL_CHECK). Mesma cabine confirmada de antes,
+    # apenas split por presença de link acionável.
+    actionable_confirmed: list[tuple[str, float]] = []
+    manual_check_confirmed: list[tuple[str, float]] = []
+    for key, price in confirmed:
+        h = store.get(key)
+        parts = _split_route_key(key) or ("", "")
+        link = _actionable_link_from_history(h, *parts)
+        if link:
+            actionable_confirmed.append((key, price))
+        else:
+            manual_check_confirmed.append((key, price))
+
+    if actionable_confirmed:
+        actionable_lines = "\n".join(
             _format_confirmed_line(
                 i + 1,
                 key,
@@ -583,20 +600,40 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
                     store.get(key), *(_split_route_key(key) or ("", ""))
                 ),
             )
-            for i, (key, price) in enumerate(confirmed)
+            for i, (key, price) in enumerate(actionable_confirmed)
         )
-        avg_score = _compute_average_score(store, [k for k, _ in confirmed])
-        # Score só rotula oportunidades confirmadas — nunca sinais brutos.
-        confirmed_score_line = (
-            f"⭐ Score médio (oportunidades confirmadas): {avg_score}/100\n"
+        avg_score = _compute_average_score(
+            store, [k for k, _ in actionable_confirmed]
+        )
+        # Score só rotula executiva confirmada — nunca sinais brutos.
+        actionable_score_line = (
+            f"⭐ Score médio (executiva confirmada): {avg_score}/100\n"
             if avg_score is not None
             else ""
         )
     else:
-        confirmed_lines = "• Nenhuma oportunidade confirmada agora."
-        confirmed_score_line = ""
+        actionable_lines = "• Nenhuma executiva confirmada agora."
+        actionable_score_line = ""
 
-    raw_block = _format_raw_signals(raw, store)
+    if manual_check_confirmed:
+        manual_lines_list: list[str] = []
+        for i, (key, price) in enumerate(manual_check_confirmed):
+            base = _format_confirmed_line(
+                i + 1, key, store.get(key), price, link=None,
+            )
+            manual_lines_list.append(base)
+            # Texto humano de orientação para o usuário — sem URL,
+            # sem token, sem post_data.
+            manual_lines_list.append(
+                "   Booking encontrado, mas sem link simples. "
+                "Ação sugerida: verificar manualmente no Google "
+                "Flights ou na companhia."
+            )
+        manual_lines = "\n".join(manual_lines_list)
+    else:
+        manual_lines = "• Nenhuma oferta confirmada sem link agora."
+
+    observation_block = _format_raw_signals(raw, store)
     if economy:
         eco_items = "\n".join(
             _format_economy_block(i + 1, key, store.get(key), price)
@@ -606,6 +643,8 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
     else:
         economy_block = "• Nenhum sinal compatível com econômica promocional agora."
 
+    # `confirmed` (todos os cabin-confirmed) entra no source_status_block
+    # como antes — métrica de fontes não muda com a partição decisória.
     sources_block = _source_status_block(store, confirmed, raw + economy)
     security_block = _security_block(result)
     reason = _no_alert_reason(result)
@@ -627,13 +666,15 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         f"• Bloqueados por câmbio: {result.currency_blocked}\n"
         f"• Links comerciais indisponíveis: {result.non_actionable_links_skipped}\n"
         f"{legacy_line}\n"
-        "📌 Oportunidades confirmadas\n"
-        f"{confirmed_score_line}"
-        f"{confirmed_lines}\n\n"
-        "📡 Sinais brutos de preço\n"
-        f"{raw_block}\n\n"
-        "💸 Possíveis promoções de econômica\n"
+        "🟢 Executiva confirmada\n"
+        f"{actionable_score_line}"
+        f"{actionable_lines}\n\n"
+        "🟡 Verificação manual\n"
+        f"{manual_lines}\n\n"
+        "💸 Econômica possível\n"
         f"{economy_block}\n\n"
+        "👀 Sinais em observação\n"
+        f"{observation_block}\n\n"
         f"{security_block}\n\n"
         f"{sources_block}\n\n"
         f"{reason}"

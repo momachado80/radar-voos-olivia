@@ -152,7 +152,7 @@ def test_top3_ordering(tmp_path: Path):
 
     assert decision.action == "sent"
     body = notifier.sent[0]
-    raw = body.split("📡 Sinais brutos de preço")[1].split("💸")[0]
+    raw = body.split("👀 Sinais em observação")[1].split("🛡️")[0]
     miami_idx = raw.index("GRU → MIA")
     ord_idx = raw.index("GRU → ORD")
     lhr_idx = raw.index("GRU → LHR")
@@ -214,9 +214,9 @@ def test_status_includes_regional_best_section(tmp_path: Path):
 
     body = notifier.sent[0]
     # Sem last_quote → tudo é sinal bruto (cabine não confirmada).
-    assert "📌 Oportunidades confirmadas" in body
-    assert "• Nenhuma oportunidade confirmada agora." in body
-    assert "📡 Sinais brutos de preço" in body
+    assert "🟢 Executiva confirmada" in body
+    assert "• Nenhuma executiva confirmada agora." in body
+    assert "👀 Sinais em observação" in body
     assert "🧭 Status das fontes" in body
     # 3 mais baratas aparecem como sinal bruto: MIA(1207) ORD(1631) LHR(1800)
     assert "São Paulo → Miami (GRU → MIA)" in body
@@ -264,7 +264,7 @@ def test_daily_report_shows_link_when_last_quote_actionable(tmp_path: Path):
 
     body = notifier.sent[0]
     # confirmada (Kiwi business BRL) → seção de oportunidades + link
-    assert "📌 Oportunidades confirmadas" in body
+    assert "🟢 Executiva confirmada" in body
     assert "Executiva" in body
     assert "kiwi.com" in body
     assert "Conferir busca" in body
@@ -367,7 +367,11 @@ def test_status_includes_average_score_line(tmp_path: Path):
         "source": "kiwi", "currency": "BRL", "amount": 8000.0,
         "amount_brl_estimated": 8000.0, "cabin": "business",
         "cabin_confirmed": True, "trip_type": "round_trip",
-        "actionable_url": False,
+        # PR #51: score só pinta a seção 🟢 (Executiva confirmada com
+        # link clicável). Sem deep_link a rota cai em 🟡 (Verificação
+        # manual) e não recebe score — comportamento intencional.
+        "actionable_url": True,
+        "deep_link": "https://www.kiwi.com/deep/GRU-MIA-2026-11-10",
     }
     store.save()
     notifier = _StubNotifier()
@@ -381,7 +385,7 @@ def test_status_includes_average_score_line(tmp_path: Path):
     )
 
     body = notifier.sent[0]
-    assert "⭐ Score médio (oportunidades confirmadas):" in body
+    assert "⭐ Score médio (executiva confirmada):" in body
     assert "/100" in body
     # nunca o rótulo antigo (não pode parecer score de Top 3 bruto)
     assert "⭐ Score médio do Top 3:" not in body
@@ -403,8 +407,8 @@ def test_status_uses_watchlist_section_title(tmp_path: Path):
 
     body = notifier.sent[0]
     # novas seções
-    assert "📌 Oportunidades confirmadas" in body
-    assert "📡 Sinais brutos de preço" in body
+    assert "🟢 Executiva confirmada" in body
+    assert "👀 Sinais em observação" in body
     assert "🧭 Status das fontes" in body
     # estrutura/jargão antigos não vazam
     assert "📌 Melhores oportunidades monitoradas" not in body
@@ -482,7 +486,7 @@ def test_status_does_not_show_plain_brl_for_unproven_currency(tmp_path: Path):
     assert "R$ 1.919" not in body
     assert "moeda não confirmada" not in body
     assert "Entradas legadas sem moeda comprovada (omitidas): 1" in body
-    assert "• Nenhum sinal bruto de preço no momento." in body
+    assert "• Nenhum sinal em observação no momento." in body
 
 
 def test_top3_handles_unknown_airport(tmp_path: Path):
@@ -546,10 +550,10 @@ def test_zero_quotes_still_renders_full_panel(tmp_path: Path):
     # painel completo sempre
     assert "📊 Ciclo recente" in body
     assert "• Cotações obtidas: 0" in body
-    assert "📌 Oportunidades confirmadas" in body
-    assert "📡 Sinais brutos de preço" in body
-    assert "💸 Possíveis promoções de econômica" in body
-    assert "🛡️ Alertas bloqueados por segurança" in body
+    assert "🟢 Executiva confirmada" in body
+    assert "👀 Sinais em observação" in body
+    assert "💸 Econômica possível" in body
+    assert "🛡️ Bloqueios de segurança" in body
     assert "🧭 Status das fontes" in body
     # fallback antigo eliminado
     assert "Retornou 0 cotações" not in body
@@ -570,8 +574,8 @@ def test_empty_store_does_not_crash(tmp_path: Path):
 
     assert decision.action == "sent"
     body = notifier.sent[0]
-    assert "• Nenhuma oportunidade confirmada agora." in body
-    assert "• Nenhum sinal bruto de preço no momento." in body
+    assert "• Nenhuma executiva confirmada agora." in body
+    assert "• Nenhum sinal em observação no momento." in body
 
 
 def test_no_notifier_skips_cleanly(tmp_path: Path):

@@ -206,7 +206,7 @@ def test_economy_block_shows_classification_history_and_discount(tmp_path: Path)
         MonitorResult(scanned=20, quotes_received=10, alerts_sent=0, notes=[]),
         store, _NOW,
     )
-    eco = body.split("💸 Possíveis promoções de econômica")[1].split("🛡️")[0]
+    eco = body.split("💸 Econômica possível")[1].split("👀")[0]
 
     assert "São Paulo → Roma (GRU → FCO)" in eco
     assert "Classificação: muito forte (Europa/one_way)" in eco
@@ -238,7 +238,7 @@ def test_economy_block_history_insufficient_shows_so(tmp_path: Path):
         MonitorResult(scanned=20, quotes_received=10, alerts_sent=0, notes=[]),
         store, _NOW,
     )
-    eco = body.split("💸 Possíveis promoções de econômica")[1].split("🛡️")[0]
+    eco = body.split("💸 Econômica possível")[1].split("👀")[0]
     assert "Histórico interno: insuficiente" in eco
     assert "Desconto: histórico insuficiente" in eco
     # Banda USD forte sem histórico ainda promove a "muito forte"

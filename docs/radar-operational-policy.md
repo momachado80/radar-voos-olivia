@@ -1,12 +1,23 @@
 # Radar de Voos Olivia — Política Operacional
 
 **Status:** documentação de política, sem fonte normativa externa. Reflete o
-estado real do código em `flight_mapper/` após PRs #21-#50 e o que cada
+estado real do código em `flight_mapper/` após PRs #21-#51 e o que cada
 provider entrega hoje.
 
 Este documento explica **o que conta como alerta confirmado**, **o que vira
 oportunidade para verificação manual**, e por que algumas frentes
 (SerpApi Google POST, AirHint) **não viram link clicável** no Telegram.
+
+**Aplicação (PR #51):** o relatório diário em `flight_mapper/status.py`
+agora apresenta as ofertas em 6 blocos decisórios alinhados com a tabela
+da seção 1 deste doc. Cabine confirmada com `deep_link` acionável vai
+para "🟢 Executiva confirmada"; cabine confirmada sem link vai para
+"🟡 Verificação manual" com dica humana ao usuário ("verificar
+manualmente no Google Flights ou na companhia"). Sinais sem cabine
+seguem em "💸 Econômica possível" (preço bom) ou "👀 Sinais em
+observação" (sem grade). Os gates de segurança (`cabine bloqueada`,
+`preço suspeito`, `câmbio ausente`, `entradas legadas sem moeda
+comprovada`) permanecem no bloco "🛡️ Bloqueios de segurança".
 
 ## 1. Estados decisórios
 

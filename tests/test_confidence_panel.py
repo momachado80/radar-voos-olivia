@@ -52,8 +52,8 @@ def test_security_block_shows_counters(tmp_path: Path):
     )
     body = _build_message(result, store, _NOW)
 
-    assert "🛡️ Alertas bloqueados por segurança" in body
-    sec = body.split("🛡️ Alertas bloqueados por segurança")[1].split("🧭")[0]
+    assert "🛡️ Bloqueios de segurança" in body
+    sec = body.split("🛡️ Bloqueios de segurança")[1].split("🧭")[0]
     assert "cabine não confirmada: 12" in sec
     assert "preço economicamente suspeito: 3" in sec
     assert "câmbio ausente/ inválido: 1" in sec
@@ -83,8 +83,8 @@ def test_economy_section_separates_from_raw(tmp_path: Path):
     result = MonitorResult(scanned=20, quotes_received=10, alerts_sent=0, notes=[])
     body = _build_message(result, store, _NOW)
 
-    eco = body.split("💸 Possíveis promoções de econômica")[1].split("🛡️")[0]
-    raw = body.split("📡 Sinais brutos de preço")[1].split("💸")[0]
+    eco = body.split("💸 Econômica possível")[1].split("👀")[0]
+    raw = body.split("👀 Sinais em observação")[1].split("🛡️")[0]
     assert "São Paulo → Miami (GRU → MIA)" in eco
     assert "São Paulo → Paris (GRU → CDG)" in raw
     # sem linguagem enganosa em nenhuma das duas
