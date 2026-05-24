@@ -851,6 +851,14 @@ def cmd_serpapi_smoke(args: argparse.Namespace) -> int:
     max_followups = max(
         1, min(int(getattr(args, "max_departure_followups", 1) or 1), 3)
     )
+    expand_return_booking = bool(
+        getattr(args, "expand_return_booking_token", False)
+    )
+    max_return_expansions = max(
+        1, min(
+            int(getattr(args, "max_return_booking_expansions", 1) or 1), 3,
+        ),
+    )
 
     if args.mock_file:
         try:
@@ -877,6 +885,12 @@ def cmd_serpapi_smoke(args: argparse.Namespace) -> int:
             print(
                 "  ⚠️ --fetch-departure-token-followup ignorado em modo "
                 "fixture (2º hop requer chamada real; rode em live "
+                "mode com SERPAPI_API_KEY)."
+            )
+        if expand_return_booking:
+            print(
+                "  ⚠️ --expand-return-booking-token ignorado em modo "
+                "fixture (3º hop requer chamada real; rode em live "
                 "mode com SERPAPI_API_KEY)."
             )
         return 0
@@ -964,6 +978,7 @@ def cmd_serpapi_smoke(args: argparse.Namespace) -> int:
             f"  🧭 departure_token follow-up: {len(targets)} offer(s) "
             f"selecionada(s) (limite={max_followups})"
         )
+        return_expansions_done = 0
         for i, off in enumerate(targets, 1):
             try:
                 followup_offers = client.fetch_departure_followup(
@@ -983,6 +998,64 @@ def cmd_serpapi_smoke(args: argparse.Namespace) -> int:
                 print(f"    erro followup[{i}]: {msg}")
                 continue
             _print_departure_followup_block(i, off, followup_offers)
+
+            # 3º hop opcional: expande booking_token da 1ª return_offer
+            # compatível. Reusa `_select_expansion_target` (mesma forma:
+            # `SerpApiOffer` com `.booking_token` + `.cabin`). Cap total
+            # de expansões aplicado entre TODOS os followups.
+            if (
+                expand_return_booking
+                and return_expansions_done < max_return_expansions
+            ):
+                r_target = _select_expansion_target(
+                    followup_offers, args.cabin,
+                )
+                if r_target is None:
+                    print(
+                        "      ⚠️ nenhuma return_offer com cabine "
+                        "compatível E booking_token p/ expandir"
+                    )
+                    continue
+                r_idx = followup_offers.index(r_target) + 1
+                r_carriers = (
+                    ",".join(r_target.carriers)
+                    if r_target.carriers else "?"
+                )
+                r_price = (
+                    f"{r_target.currency} {r_target.price:.2f}"
+                    if r_target.price is not None else "?"
+                )
+                return_expansions_done += 1
+                print(
+                    f"      🔗 return booking_token expansion "
+                    f"[followup #{i} → return_offer #{r_idx}]: "
+                    f"cabin={r_target.cabin.value}, price={r_price}, "
+                    f"carriers={r_carriers} "
+                    f"(expansão {return_expansions_done}/"
+                    f"{max_return_expansions})"
+                )
+                try:
+                    options = client.fetch_booking_options(
+                        booking_token=r_target.booking_token,
+                        departure_id=args.route.split("-")[0],
+                        arrival_id=args.route.split("-")[1],
+                        outbound_date=args.departure,
+                        return_date=args.return_date,
+                        travel_class=args.cabin,
+                    )
+                except SerpApiError as exc:
+                    msg = str(exc)
+                    if len(msg) > 200:
+                        msg = msg[:200] + "…"
+                    print(
+                        f"        erro return_booking_options "
+                        f"[followup #{i}]: {msg}"
+                    )
+                    continue
+                _print_booking_options(
+                    0, options,
+                    indent="        ", item_indent="          ",
+                )
 
     return 0
 
@@ -1195,17 +1268,24 @@ def _print_departure_followup_block(
         )
 
 
-def _print_booking_options(idx: int, options) -> None:
+def _print_booking_options(
+    idx: int, options, *,
+    indent: str = "    ", item_indent: str = "      ",
+) -> None:
     """Imprime opções de booking de UM booking_token. Read-only:
-    NUNCA abre o link, NUNCA envia Telegram, NUNCA toca PriceStore."""
+    NUNCA abre o link, NUNCA envia Telegram, NUNCA toca PriceStore.
+
+    `indent` / `item_indent` permitem reuso por blocos mais aninhados
+    (ex.: expansão de booking_token dentro de departure_token follow-up).
+    """
     from .serpapi_client import url_domain
     if not options:
         print(
-            f"    booking_options[{idx}]: booking_token existe, mas "
+            f"{indent}booking_options[{idx}]: booking_token existe, mas "
             f"booking options não trouxeram link aproveitável."
         )
         return
-    print(f"    booking_options[{idx}]: {len(options)} opção(ões)")
+    print(f"{indent}booking_options[{idx}]: {len(options)} opção(ões)")
     for j, opt in enumerate(options, 1):
         price = (
             f"{opt.currency} {opt.price:.2f}"
@@ -1219,7 +1299,7 @@ def _print_booking_options(idx: int, options) -> None:
         else:
             link_info = "sem URL clicável"
         print(
-            f"      {j}. {opt.provider_raw} | {price} | {link_info}"
+            f"{item_indent}{j}. {opt.provider_raw} | {price} | {link_info}"
         )
 
 
@@ -1438,6 +1518,24 @@ def main(argv: list[str] | None = None) -> int:
         default=1,
         help=(
             "Máximo de 2º-hops por execução (default 1, cap 1..3)."
+        ),
+    )
+    p_sp.add_argument(
+        "--expand-return-booking-token",
+        action="store_true",
+        help=(
+            "3º hop SerpApi round-trip: para a 1ª return_offer compatível "
+            "do 2º hop com booking_token, chama booking_options (read-only). "
+            "Exige --fetch-departure-token-followup."
+        ),
+    )
+    p_sp.add_argument(
+        "--max-return-booking-expansions",
+        type=int,
+        default=1,
+        help=(
+            "Máximo TOTAL de expansões de booking_token de return_offer "
+            "(default 1, cap 1..3) — somado entre todos os followups."
         ),
     )
     p_sp.set_defaults(func=cmd_serpapi_smoke)
