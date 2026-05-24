@@ -344,23 +344,58 @@ def _eval_history_deal(history: RouteHistory, key: str, price: float):
     )
 
 
+def _validation_priority_key(
+    item: tuple[str, float], store: PriceStore,
+) -> tuple[int, float]:
+    """Chave de ordenação p/ priorizar candidatos a validação SerpApi.
+
+    Ordem (PR #56):
+    1. deal "muito_forte" (região_band="forte") vem primeiro;
+    2. depois deal "boa";
+    3. dentro do mesmo deal, menor preço.
+
+    `ev.deal` é o rótulo canônico de `deal_intelligence` (constantes
+    DEAL_VERY_STRONG / DEAL_GOOD / DEAL_IGNORE). Quanto menor o
+    `deal_rank`, mais forte.
+    """
+    from .deal_intelligence import DEAL_GOOD, DEAL_IGNORE, DEAL_VERY_STRONG
+    key, price = item
+    h = store.get(key)
+    ev = _eval_history_deal(h, key, price)
+    deal_rank = {
+        DEAL_VERY_STRONG: 0,
+        DEAL_GOOD: 1,
+        DEAL_IGNORE: 2,
+    }.get(ev.deal, 3)
+    return (deal_rank, float(price))
+
+
 def _select_serpapi_validation_candidates(
     store: PriceStore,
-    raw_pool: list[tuple[str, float]],
+    pool: list[tuple[str, float]],
     *,
     max_n: int,
 ) -> list:
-    """Filtra `raw_pool` p/ candidatos elegíveis a validação SerpApi:
+    """Filtra `pool` p/ candidatos elegíveis a validação SerpApi.
+
+    PR #56: `pool` agora é tipicamente `economy_pool + raw_pool`
+    (todos os sinais sem cabine confirmada). Antes filtrávamos só
+    raw_pool, perdendo os candidatos mais fortes que já tinham sido
+    classificados em economy_pool.
+
+    Critérios (em ordem):
     - rota business (chave contém '-business');
-    - USD price em banda 'forte' (mais conservador que 'boa');
+    - USD price em banda 'forte' OU 'boa' (priorização garantida pelo
+      sort prévio via `_validation_priority_key`);
     - last_quote com origin/destination/departure_date utilizáveis.
 
     Devolve até `max_n` `SerpApiValidationCandidate`. Pure — não chama
-    rede, não toca PriceStore além de leitura.
+    rede, não toca PriceStore além de leitura. Caller deve sortear o
+    pool antes de chamar (ordem decide quem ganha o slot do cap).
     """
     from .serpapi_validation import SerpApiValidationCandidate
     out: list = []
-    for key, price in raw_pool:
+    for key, price in pool:
         if len(out) >= max_n:
             break
         if "-business" not in key:
@@ -372,8 +407,10 @@ def _select_serpapi_validation_candidates(
         if not lq:
             continue
         ev = _eval_history_deal(h, key, price)
-        if ev.region_band != "forte":
-            # Só "forte" qualifica — "boa" + None ficam fora p/ economizar cota.
+        if ev.region_band not in ("forte", "boa"):
+            # PR #56: aceitamos "forte" (deal=muito_forte) E "boa"
+            # (deal=boa). Sort por _validation_priority_key garante
+            # que "forte" é escolhido primeiro.
             continue
         parts = _split_route_key(key) or (None, None)
         origin = lq.get("origin") or parts[0]
@@ -400,12 +437,18 @@ def _select_serpapi_validation_candidates(
 
 
 def _maybe_validate_with_serpapi(
-    store: PriceStore, raw_pool: list[tuple[str, float]],
+    store: PriceStore, pool: list[tuple[str, float]],
 ) -> dict:
-    """Wrapper: lê config do ambiente, filtra candidatos, roda
+    """Wrapper: lê config do ambiente, ordena o `pool` por prioridade
+    (muito_forte > boa > preço), filtra candidatos, roda
     `validate_cycle_candidates`. Default DESLIGADO. Falha silenciosa
     em qualquer erro — sempre devolve dict (vazio se desabilitado /
-    sem chave / cap zero / sem candidatos / budget diário esgotado)."""
+    sem chave / cap zero / sem candidatos / budget mensal esgotado).
+
+    PR #56: `pool` agora deve ser `economy_pool + raw_pool` para que
+    os sinais mais fortes (que normalmente caem em economy_pool após
+    o gate de `_economy_plausible`) tenham chance de virar 🟡.
+    """
     from .config import Config
     from .serpapi_validation import (
         SerpApiValidationConfig, validate_cycle_candidates,
@@ -415,8 +458,13 @@ def _maybe_validate_with_serpapi(
         return {}
     if not config.api_key:
         return {}
+    # Ordena por prioridade ANTES de filtrar candidatos. O cap intra-
+    # ciclo (max_per_cycle=1) seleciona o 1º elegível segundo a ordem.
+    sorted_pool = sorted(
+        pool, key=lambda it: _validation_priority_key(it, store),
+    )
     candidates = _select_serpapi_validation_candidates(
-        store, raw_pool, max_n=config.max_per_cycle,
+        store, sorted_pool, max_n=config.max_per_cycle,
     )
     if not candidates:
         return {}
@@ -663,26 +711,39 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
     economy = sorted(economy_pool, key=lambda x: x[1])[:3]
     raw = sorted(raw_pool, key=lambda x: x[1])[:3]
 
-    # PR #52: validação opcional SerpApi para sinais brutos com USD
-    # forte. Read-only, opt-in via SERPAPI_VALIDATION_ENABLED. Quando
-    # SerpApi confirmar cabine business + booking option utilizável,
-    # eleva o sinal de 👀 para 🟡 Verificação manual (NUNCA 🟢 — vide
-    # princípio em docs/radar-operational-policy.md). Falha silenciosa
-    # em qualquer erro / sem chave / cap atingido.
-    serpapi_validations = _maybe_validate_with_serpapi(store, raw_pool)
+    # PR #52: validação opcional SerpApi para sinais sem cabine
+    # confirmada (read-only, opt-in via SERPAPI_VALIDATION_ENABLED).
+    # PR #56: pool combinado economy_pool + raw_pool, priorizado por
+    # deal_intelligence (muito_forte > boa > preço). Antes só raw_pool
+    # entrava, deixando os candidatos mais fortes (que caem em
+    # economy_pool após gate de _economy_plausible) sem chance de virar
+    # 🟡. Quando SerpApi confirma cabine business + booking option, o
+    # sinal sobe para 🟡 Verificação manual (NUNCA 🟢 — vide princípio
+    # em docs/radar-operational-policy.md).
+    validation_pool = economy_pool + raw_pool
+    serpapi_validations = _maybe_validate_with_serpapi(store, validation_pool)
     # Lista de (key, price, result) que foram elevadas via validação.
     elevated_via_serpapi: list[tuple[str, float, object]] = []
     if serpapi_validations:
         from .booking_actionability import OperationalDecision as _OD
+        # Lookup unificado p/ recuperar o preço original do candidato
+        # independentemente de qual pool ele estava (economy ou raw).
+        price_lookup = {key: price for key, price in validation_pool}
         elevated_keys: set[str] = set()
-        for key, price in raw_pool:
-            res = serpapi_validations.get(key)
-            if res and res.suggested_decision == _OD.CONFIRMED_MANUAL_CHECK:
-                elevated_via_serpapi.append((key, price, res))
+        for key, res in serpapi_validations.items():
+            if (
+                res.suggested_decision == _OD.CONFIRMED_MANUAL_CHECK
+                and key in price_lookup
+            ):
+                elevated_via_serpapi.append((key, price_lookup[key], res))
                 elevated_keys.add(key)
         if elevated_keys:
-            # Remove dos pools 👀 e do top-3 já calculado.
+            # Remove dos AMBOS os pools (💸 e 👀) e do top-3 já calculado.
+            economy_pool = [
+                e for e in economy_pool if e[0] not in elevated_keys
+            ]
             raw_pool = [r for r in raw_pool if r[0] not in elevated_keys]
+            economy = sorted(economy_pool, key=lambda x: x[1])[:3]
             raw = sorted(raw_pool, key=lambda x: x[1])[:3]
 
     # PR #51: partição decisória dos confirmados.
