@@ -38,10 +38,18 @@ from .serpapi_client import (
 )
 
 
-# Default conservador. Com cron a cada 15min (96 ciclos/dia) e
-# max_per_cycle=1, isso limita o consumo SerpApi a no máximo
-# 20 validações × até 3 queries cada = 60 queries/dia.
-DEFAULT_DAILY_BUDGET = 20
+# Default conservador para o plano gratuito SerpApi (~100 queries/mês).
+# Reserva margem de segurança: 90 queries/mês = 30 validações/mês (cada
+# validação custa até 3 queries — ver `ESTIMATED_QUERIES_PER_VALIDATION`).
+# Pode ser ajustado pelo workflow via env SERPAPI_VALIDATION_MONTHLY_BUDGET
+# sem precisar rebuild de código.
+DEFAULT_MONTHLY_BUDGET = 90
+
+# Custo conservador (queries SerpApi) por validação tentada. Cobre tanto
+# o caminho one-way (2 queries: search + booking_options) quanto
+# round-trip (3 queries: search + departure_followup + booking_options).
+# Sempre reservamos o pior caso para nunca estourar o orçamento.
+ESTIMATED_QUERIES_PER_VALIDATION = 3
 
 
 @dataclass(frozen=True)
@@ -50,7 +58,7 @@ class SerpApiValidationConfig:
 
     enabled: bool = False
     max_per_cycle: int = 1
-    daily_budget: int = DEFAULT_DAILY_BUDGET
+    monthly_budget: int = DEFAULT_MONTHLY_BUDGET
     api_key: str | None = None
 
     @classmethod
@@ -67,74 +75,83 @@ class SerpApiValidationConfig:
             n = 1
         max_per_cycle = max(1, min(n, 3))
         raw_budget = str(
-            e.get("SERPAPI_VALIDATION_DAILY_BUDGET", str(DEFAULT_DAILY_BUDGET))
-            or str(DEFAULT_DAILY_BUDGET)
+            e.get(
+                "SERPAPI_VALIDATION_MONTHLY_BUDGET",
+                str(DEFAULT_MONTHLY_BUDGET),
+            ) or str(DEFAULT_MONTHLY_BUDGET)
         )
         try:
             b = int(raw_budget)
         except (TypeError, ValueError):
-            b = DEFAULT_DAILY_BUDGET
-        # Cap inferior 0 (=desliga), superior generoso (300 cobre cron
-        # 5min × 1 validação/ciclo × 3 queries com folga).
-        daily_budget = max(0, min(b, 300))
+            b = DEFAULT_MONTHLY_BUDGET
+        # Cap inferior 0 (=desliga validação); cap superior 10000 cobre
+        # planos pagos generosos sem permitir typo cataclísmico.
+        monthly_budget = max(0, min(b, 10000))
         api_key = e.get("SERPAPI_API_KEY") or None
         return cls(
             enabled=enabled,
             max_per_cycle=max_per_cycle,
-            daily_budget=daily_budget,
+            monthly_budget=monthly_budget,
             api_key=api_key,
         )
 
 
 @dataclass(frozen=True)
 class SerpApiValidationBudget:
-    """Snapshot diário do orçamento. PERSISTÊNCIA MÍNIMA: apenas data
-    UTC + contador inteiro. NUNCA armazena token, URL, post_data nem
-    qualquer payload sensível — schema fechado em (date_utc, count).
+    """Snapshot MENSAL do orçamento. PERSISTÊNCIA MÍNIMA: apenas
+    mês UTC + contador de queries estimadas consumidas. NUNCA armazena
+    token, URL, post_data, payload, carriers, preço, rota ou qualquer
+    dado sensível — schema fechado em (month_utc, count).
     """
 
-    date_utc: str  # "YYYY-MM-DD" (UTC)
-    count: int     # número de validações tentadas hoje
+    month_utc: str  # "YYYY-MM" (UTC)
+    count: int      # queries SerpApi estimadas consumidas neste mês
 
     @classmethod
     def load(cls, path: Path | None) -> "SerpApiValidationBudget":
         """Carrega do disco. Se arquivo ausente / inválido / com schema
-        diferente do esperado, retorna budget zero do dia atual (UTC).
+        diferente do esperado, retorna budget zero do mês atual (UTC).
 
-        Defensivo: NÃO propaga JSON malformado nem campos extras —
-        ignora silenciosamente e devolve um budget novo. Isso garante
-        que um arquivo corrompido nunca quebra o relatório.
+        Defensivo: NÃO propaga JSON malformado, campo extra ou schema
+        antigo (date_utc) — ignora silenciosamente e devolve budget
+        novo. Garante que arquivo corrompido nunca quebra o relatório.
         """
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        this_month = datetime.now(timezone.utc).strftime("%Y-%m")
         if path is None or not path.exists():
-            return cls(date_utc=today, count=0)
+            return cls(month_utc=this_month, count=0)
         try:
             raw = json.loads(path.read_text(encoding="utf-8") or "{}")
         except (OSError, json.JSONDecodeError):
-            return cls(date_utc=today, count=0)
+            return cls(month_utc=this_month, count=0)
         if not isinstance(raw, dict):
-            return cls(date_utc=today, count=0)
-        date_utc = str(raw.get("date_utc") or today)
+            return cls(month_utc=this_month, count=0)
+        # Detecta schema antigo do PR #54 ({date_utc, count}) sem
+        # `month_utc` → migração silenciosa para schema novo, descartando
+        # o `count` legado (a contagem diária não traduz pra mensal).
+        if "month_utc" not in raw:
+            return cls(month_utc=this_month, count=0)
+        month_utc = str(raw["month_utc"] or this_month)
         try:
             count = max(0, int(raw.get("count") or 0))
         except (TypeError, ValueError):
             count = 0
-        # Schema-strict: ignoramos qualquer chave extra que tenha
-        # eventualmente sido escrita por engano.
-        return cls(date_utc=date_utc, count=count)
+        # Schema-strict: ignoramos qualquer chave extra (incluindo
+        # date_utc legado) que tenha sido escrita por engano.
+        return cls(month_utc=month_utc, count=count)
 
     def save(self, path: Path | None) -> None:
         """Grava o snapshot mínimo. Schema fechado garante zero leak.
 
-        NUNCA grava token, URL, post_data, payload. Se `path` for
-        None, no-op silencioso (útil em testes / fixture mode)."""
+        NUNCA grava token, URL, post_data, payload, carriers, preço ou
+        rota. Se `path` for None, no-op silencioso (útil em testes /
+        fixture mode)."""
         if path is None:
             return
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(
                 json.dumps(
-                    {"date_utc": self.date_utc, "count": self.count},
+                    {"month_utc": self.month_utc, "count": self.count},
                     ensure_ascii=False,
                 ),
                 encoding="utf-8",
@@ -143,21 +160,27 @@ class SerpApiValidationBudget:
             # Defensivo — falha de I/O não pode derrubar o ciclo.
             pass
 
-    def reset_if_new_day(self, today_utc: str) -> "SerpApiValidationBudget":
-        """Se mudou o dia UTC, devolve budget zerado. Caso contrário,
+    def reset_if_new_month(
+        self, this_month_utc: str,
+    ) -> "SerpApiValidationBudget":
+        """Se mudou o mês UTC, devolve budget zerado. Caso contrário,
         devolve `self` (imutável — não há side effect)."""
-        if self.date_utc != today_utc:
-            return SerpApiValidationBudget(date_utc=today_utc, count=0)
+        if self.month_utc != this_month_utc:
+            return SerpApiValidationBudget(
+                month_utc=this_month_utc, count=0,
+            )
         return self
 
-    def increment(self) -> "SerpApiValidationBudget":
+    def add_queries(self, n: int) -> "SerpApiValidationBudget":
+        """Incrementa o contador pelo custo estimado em queries.
+        Imutável."""
         return SerpApiValidationBudget(
-            date_utc=self.date_utc,
-            count=self.count + 1,
+            month_utc=self.month_utc,
+            count=self.count + max(0, int(n)),
         )
 
-    def remaining(self, daily_budget: int) -> int:
-        return max(0, daily_budget - self.count)
+    def remaining(self, monthly_budget: int) -> int:
+        return max(0, monthly_budget - self.count)
 
 
 @dataclass(frozen=True)
@@ -203,7 +226,7 @@ class SerpApiValidationResult:
 RC_DISABLED = "validation_disabled"
 RC_NO_API_KEY = "no_api_key"
 RC_OVER_QUOTA_CAP = "over_cycle_cap"
-RC_DAILY_BUDGET_EXHAUSTED = "daily_budget_exhausted"
+RC_MONTHLY_BUDGET_EXHAUSTED = "monthly_budget_exhausted"
 RC_SEARCH_FAILED = "search_failed"
 RC_NO_DEPARTURE_TARGET = "no_departure_token_candidate"
 RC_FOLLOWUP_FAILED = "departure_followup_failed"
@@ -389,12 +412,15 @@ def validate_cycle_candidates(
     1. `config.enabled` obrigatório;
     2. `SERPAPI_API_KEY` obrigatório (sem ele, retorna dict vazio);
     3. `max_per_cycle` aplicado (cap intra-ciclo);
-    4. **Orçamento diário** persistido (cap inter-ciclo):
+    4. **Orçamento mensal** persistido (cap inter-mês):
        - `budget_path` aponta para `data/serpapi_validation_budget.json`
-         (arquivo mínimo: só `{date_utc, count}`, nunca payload);
-       - reset automático em UTC date change;
-       - se `count >= config.daily_budget`, retorna dict vazio sem
-         chamar SerpApi.
+         (arquivo mínimo: só `{month_utc, count}`, nunca payload);
+       - reset automático em virada de mês UTC;
+       - `count` rastreia queries SerpApi estimadas consumidas no mês;
+       - antes de cada validação, verifica
+         `remaining >= ESTIMATED_QUERIES_PER_VALIDATION`;
+       - sem orçamento → retorna dict vazio (sinal permanece sem
+         elevar; ciclo continua normal).
 
     `client_factory` é opcional p/ injeção em testes — recebe `api_key`
     e devolve um `SerpApiClient`. Default constrói o real.
@@ -409,21 +435,21 @@ def validate_cycle_candidates(
         return {}
     if not candidates:
         return {}
-    if config.daily_budget <= 0:
+    if config.monthly_budget <= 0:
         # Budget zero = validação desligada explicitamente.
         return {}
 
-    # Orçamento diário (cap inter-ciclo). Reset em virada de UTC date.
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    budget = SerpApiValidationBudget.load(budget_path).reset_if_new_day(today)
-    remaining = budget.remaining(config.daily_budget)
-    if remaining <= 0:
-        # Cota diária esgotada — registra estado e sai sem chamar SerpApi.
+    # Orçamento mensal (cap inter-ciclo, reset na virada do mês UTC).
+    this_month = datetime.now(timezone.utc).strftime("%Y-%m")
+    budget = SerpApiValidationBudget.load(budget_path).reset_if_new_month(
+        this_month,
+    )
+    remaining = budget.remaining(config.monthly_budget)
+    if remaining < ESTIMATED_QUERIES_PER_VALIDATION:
+        # Cota mensal esgotada (sem cobertura sequer para 1 validação).
+        # Registra estado e sai sem chamar SerpApi.
         budget.save(budget_path)
         return {}
-
-    # Cap efetivo: menor entre max_per_cycle e remaining_budget.
-    effective_cap = min(config.max_per_cycle, remaining)
 
     if client_factory is None:
         client_factory = lambda key: SerpApiClient(key)
@@ -434,16 +460,20 @@ def validate_cycle_candidates(
         return {}
 
     out: dict[str, SerpApiValidationResult] = {}
-    for cand in candidates[:effective_cap]:
+    for cand in candidates[: config.max_per_cycle]:
+        # Re-check do budget dentro do loop — múltiplos candidatos podem
+        # esgotar a cota dentro do mesmo ciclo.
+        if budget.remaining(config.monthly_budget) < ESTIMATED_QUERIES_PER_VALIDATION:
+            break
         try:
             res = validate_with_serpapi(cand, client)
         except Exception:
             res = _empty_result(cand.key, RC_SEARCH_FAILED)
         out[cand.key] = res
-        # Incrementa o contador a cada VALIDAÇÃO TENTADA — sucesso ou
-        # falha. SerpApi cobra qualquer hop disparado; contar tentativas
-        # é a métrica conservadora.
-        budget = budget.increment()
+        # Incrementa pelo CUSTO ESTIMADO — pior caso (3 queries) cobre
+        # tanto one-way (2 hops) quanto round-trip (3 hops). Sempre
+        # conservador p/ não estourar o budget.
+        budget = budget.add_queries(ESTIMATED_QUERIES_PER_VALIDATION)
 
     # Persistência final — uma escrita por ciclo (não por candidato).
     budget.save(budget_path)
