@@ -405,7 +405,8 @@ def _maybe_validate_with_serpapi(
     """Wrapper: lê config do ambiente, filtra candidatos, roda
     `validate_cycle_candidates`. Default DESLIGADO. Falha silenciosa
     em qualquer erro — sempre devolve dict (vazio se desabilitado /
-    sem chave / cap zero / sem candidatos)."""
+    sem chave / cap zero / sem candidatos / budget diário esgotado)."""
+    from .config import Config
     from .serpapi_validation import (
         SerpApiValidationConfig, validate_cycle_candidates,
     )
@@ -420,7 +421,15 @@ def _maybe_validate_with_serpapi(
     if not candidates:
         return {}
     try:
-        return validate_cycle_candidates(candidates, config)
+        app_config = Config.from_env()
+        budget_path = app_config.serpapi_validation_budget_path
+    except Exception:
+        # Defensivo — se o config base falhar, roda sem persistência.
+        budget_path = None
+    try:
+        return validate_cycle_candidates(
+            candidates, config, budget_path=budget_path,
+        )
     except Exception:
         # Defesa final: NUNCA propaga erro p/ o relatório.
         return {}

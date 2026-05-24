@@ -50,3 +50,10 @@ class Config:
     @property
     def status_path(self) -> Path:
         return self.data_dir / "status.json"
+
+    @property
+    def serpapi_validation_budget_path(self) -> Path:
+        """Arquivo mínimo p/ orçamento diário da validação SerpApi.
+        Armazena APENAS data UTC + contador. NUNCA token / URL /
+        post_data / qualquer payload sensível."""
+        return self.data_dir / "serpapi_validation_budget.json"

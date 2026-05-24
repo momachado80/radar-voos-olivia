@@ -19,8 +19,11 @@ Gates duros:
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
 
 from .booking_actionability import (
     BookingActionability,
@@ -35,12 +38,19 @@ from .serpapi_client import (
 )
 
 
+# Default conservador. Com cron a cada 15min (96 ciclos/dia) e
+# max_per_cycle=1, isso limita o consumo SerpApi a no máximo
+# 20 validações × até 3 queries cada = 60 queries/dia.
+DEFAULT_DAILY_BUDGET = 20
+
+
 @dataclass(frozen=True)
 class SerpApiValidationConfig:
     """Configuração do validador a partir de env vars."""
 
     enabled: bool = False
     max_per_cycle: int = 1
+    daily_budget: int = DEFAULT_DAILY_BUDGET
     api_key: str | None = None
 
     @classmethod
@@ -56,12 +66,98 @@ class SerpApiValidationConfig:
         except (TypeError, ValueError):
             n = 1
         max_per_cycle = max(1, min(n, 3))
+        raw_budget = str(
+            e.get("SERPAPI_VALIDATION_DAILY_BUDGET", str(DEFAULT_DAILY_BUDGET))
+            or str(DEFAULT_DAILY_BUDGET)
+        )
+        try:
+            b = int(raw_budget)
+        except (TypeError, ValueError):
+            b = DEFAULT_DAILY_BUDGET
+        # Cap inferior 0 (=desliga), superior generoso (300 cobre cron
+        # 5min × 1 validação/ciclo × 3 queries com folga).
+        daily_budget = max(0, min(b, 300))
         api_key = e.get("SERPAPI_API_KEY") or None
         return cls(
             enabled=enabled,
             max_per_cycle=max_per_cycle,
+            daily_budget=daily_budget,
             api_key=api_key,
         )
+
+
+@dataclass(frozen=True)
+class SerpApiValidationBudget:
+    """Snapshot diário do orçamento. PERSISTÊNCIA MÍNIMA: apenas data
+    UTC + contador inteiro. NUNCA armazena token, URL, post_data nem
+    qualquer payload sensível — schema fechado em (date_utc, count).
+    """
+
+    date_utc: str  # "YYYY-MM-DD" (UTC)
+    count: int     # número de validações tentadas hoje
+
+    @classmethod
+    def load(cls, path: Path | None) -> "SerpApiValidationBudget":
+        """Carrega do disco. Se arquivo ausente / inválido / com schema
+        diferente do esperado, retorna budget zero do dia atual (UTC).
+
+        Defensivo: NÃO propaga JSON malformado nem campos extras —
+        ignora silenciosamente e devolve um budget novo. Isso garante
+        que um arquivo corrompido nunca quebra o relatório.
+        """
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        if path is None or not path.exists():
+            return cls(date_utc=today, count=0)
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8") or "{}")
+        except (OSError, json.JSONDecodeError):
+            return cls(date_utc=today, count=0)
+        if not isinstance(raw, dict):
+            return cls(date_utc=today, count=0)
+        date_utc = str(raw.get("date_utc") or today)
+        try:
+            count = max(0, int(raw.get("count") or 0))
+        except (TypeError, ValueError):
+            count = 0
+        # Schema-strict: ignoramos qualquer chave extra que tenha
+        # eventualmente sido escrita por engano.
+        return cls(date_utc=date_utc, count=count)
+
+    def save(self, path: Path | None) -> None:
+        """Grava o snapshot mínimo. Schema fechado garante zero leak.
+
+        NUNCA grava token, URL, post_data, payload. Se `path` for
+        None, no-op silencioso (útil em testes / fixture mode)."""
+        if path is None:
+            return
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(
+                    {"date_utc": self.date_utc, "count": self.count},
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+        except OSError:
+            # Defensivo — falha de I/O não pode derrubar o ciclo.
+            pass
+
+    def reset_if_new_day(self, today_utc: str) -> "SerpApiValidationBudget":
+        """Se mudou o dia UTC, devolve budget zerado. Caso contrário,
+        devolve `self` (imutável — não há side effect)."""
+        if self.date_utc != today_utc:
+            return SerpApiValidationBudget(date_utc=today_utc, count=0)
+        return self
+
+    def increment(self) -> "SerpApiValidationBudget":
+        return SerpApiValidationBudget(
+            date_utc=self.date_utc,
+            count=self.count + 1,
+        )
+
+    def remaining(self, daily_budget: int) -> int:
+        return max(0, daily_budget - self.count)
 
 
 @dataclass(frozen=True)
@@ -107,6 +203,7 @@ class SerpApiValidationResult:
 RC_DISABLED = "validation_disabled"
 RC_NO_API_KEY = "no_api_key"
 RC_OVER_QUOTA_CAP = "over_cycle_cap"
+RC_DAILY_BUDGET_EXHAUSTED = "daily_budget_exhausted"
 RC_SEARCH_FAILED = "search_failed"
 RC_NO_DEPARTURE_TARGET = "no_departure_token_candidate"
 RC_FOLLOWUP_FAILED = "departure_followup_failed"
@@ -284,13 +381,20 @@ def validate_cycle_candidates(
     candidates: list[SerpApiValidationCandidate],
     config: SerpApiValidationConfig,
     client_factory=None,
+    budget_path: Path | None = None,
 ) -> dict[str, SerpApiValidationResult]:
     """Orquestrador top-level. Devolve {route_key: SerpApiValidationResult}.
 
-    Aplica os gates duros antes de criar o client:
-    - config.enabled obrigatório;
-    - SERPAPI_API_KEY obrigatório (sem ele, retorna dict vazio);
-    - max_per_cycle aplicado (descarta candidatos além do limite).
+    Gates duros (em ordem):
+    1. `config.enabled` obrigatório;
+    2. `SERPAPI_API_KEY` obrigatório (sem ele, retorna dict vazio);
+    3. `max_per_cycle` aplicado (cap intra-ciclo);
+    4. **Orçamento diário** persistido (cap inter-ciclo):
+       - `budget_path` aponta para `data/serpapi_validation_budget.json`
+         (arquivo mínimo: só `{date_utc, count}`, nunca payload);
+       - reset automático em UTC date change;
+       - se `count >= config.daily_budget`, retorna dict vazio sem
+         chamar SerpApi.
 
     `client_factory` é opcional p/ injeção em testes — recebe `api_key`
     e devolve um `SerpApiClient`. Default constrói o real.
@@ -305,6 +409,21 @@ def validate_cycle_candidates(
         return {}
     if not candidates:
         return {}
+    if config.daily_budget <= 0:
+        # Budget zero = validação desligada explicitamente.
+        return {}
+
+    # Orçamento diário (cap inter-ciclo). Reset em virada de UTC date.
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    budget = SerpApiValidationBudget.load(budget_path).reset_if_new_day(today)
+    remaining = budget.remaining(config.daily_budget)
+    if remaining <= 0:
+        # Cota diária esgotada — registra estado e sai sem chamar SerpApi.
+        budget.save(budget_path)
+        return {}
+
+    # Cap efetivo: menor entre max_per_cycle e remaining_budget.
+    effective_cap = min(config.max_per_cycle, remaining)
 
     if client_factory is None:
         client_factory = lambda key: SerpApiClient(key)
@@ -315,12 +434,19 @@ def validate_cycle_candidates(
         return {}
 
     out: dict[str, SerpApiValidationResult] = {}
-    for cand in candidates[: config.max_per_cycle]:
+    for cand in candidates[:effective_cap]:
         try:
             res = validate_with_serpapi(cand, client)
         except Exception:
             res = _empty_result(cand.key, RC_SEARCH_FAILED)
         out[cand.key] = res
+        # Incrementa o contador a cada VALIDAÇÃO TENTADA — sucesso ou
+        # falha. SerpApi cobra qualquer hop disparado; contar tentativas
+        # é a métrica conservadora.
+        budget = budget.increment()
+
+    # Persistência final — uma escrita por ciclo (não por candidato).
+    budget.save(budget_path)
     return out
 
 

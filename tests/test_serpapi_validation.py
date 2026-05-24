@@ -482,13 +482,32 @@ def test_build_message_enabled_without_api_key_is_silent(monkeypatch):
     assert "Validado por SerpApi" not in body
 
 
-def test_build_message_enabled_elevates_to_manual_check(monkeypatch):
+def _patch_config_data_dir(monkeypatch, tmp_path):
+    """Redireciona Config.from_env().data_dir para tmp — evita poluir
+    data/* real do repo com `data/serpapi_validation_budget.json`
+    durante testes de integração."""
+    from flight_mapper.config import Config
+    real_from_env = Config.from_env
+
+    @classmethod
+    def _fake_from_env(cls, repo_root=None):
+        cfg = real_from_env(repo_root=repo_root)
+        cfg.data_dir = tmp_path / "data"
+        return cfg
+
+    monkeypatch.setattr(Config, "from_env", _fake_from_env)
+
+
+def test_build_message_enabled_elevates_to_manual_check(monkeypatch, tmp_path):
     """Cenário real: env ligada + SERPAPI_API_KEY + USD forte → SerpApi
     confirma cabine business + google_post_only → 🟡 com nota."""
     # Sinal forte: USD 220 < 250 (piso forte EUA one_way)
     monkeypatch.setenv("SERPAPI_VALIDATION_ENABLED", "true")
     monkeypatch.setenv("SERPAPI_API_KEY", "FAKE_NO_NETWORK")
     monkeypatch.setenv("SERPAPI_VALIDATION_MAX_PER_CYCLE", "1")
+    # PR #54: integração com Config p/ budget_path — redireciona
+    # data_dir para tmp p/ não escrever em data/* real do repo.
+    _patch_config_data_dir(monkeypatch, tmp_path)
 
     search_payload = _hop1_oneway_with_booking_token()
     booking_payload = _booking_options_google_post()
@@ -529,11 +548,12 @@ def test_build_message_enabled_elevates_to_manual_check(monkeypatch):
     assert "São Paulo → Miami" not in actionable
 
 
-def test_build_message_validation_error_does_not_crash(monkeypatch):
+def test_build_message_validation_error_does_not_crash(monkeypatch, tmp_path):
     """Erro do SerpApi em qualquer hop: relatório continua, sinal
     permanece em observação."""
     monkeypatch.setenv("SERPAPI_VALIDATION_ENABLED", "true")
     monkeypatch.setenv("SERPAPI_API_KEY", "FAKE_NO_NETWORK")
+    _patch_config_data_dir(monkeypatch, tmp_path)
 
     def _fake_urlopen(req, *a, **k):
         raise SerpApiError("simulated outage")
@@ -556,11 +576,12 @@ def test_build_message_validation_error_does_not_crash(monkeypatch):
 # ----------------- defesa global de leak -----------------
 
 
-def test_build_message_with_validation_no_leak(monkeypatch):
+def test_build_message_with_validation_no_leak(monkeypatch, tmp_path):
     """Mesmo com validação rodando: stdout do relatório NUNCA contém
     token bruto, URL completa, query string nem post_data."""
     monkeypatch.setenv("SERPAPI_VALIDATION_ENABLED", "true")
     monkeypatch.setenv("SERPAPI_API_KEY", "FAKE_NO_NETWORK")
+    _patch_config_data_dir(monkeypatch, tmp_path)
 
     search_payload = _hop1_oneway_with_booking_token()
     booking_payload = _booking_options_google_post()
