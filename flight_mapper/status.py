@@ -344,6 +344,88 @@ def _eval_history_deal(history: RouteHistory, key: str, price: float):
     )
 
 
+def _select_serpapi_validation_candidates(
+    store: PriceStore,
+    raw_pool: list[tuple[str, float]],
+    *,
+    max_n: int,
+) -> list:
+    """Filtra `raw_pool` p/ candidatos elegíveis a validação SerpApi:
+    - rota business (chave contém '-business');
+    - USD price em banda 'forte' (mais conservador que 'boa');
+    - last_quote com origin/destination/departure_date utilizáveis.
+
+    Devolve até `max_n` `SerpApiValidationCandidate`. Pure — não chama
+    rede, não toca PriceStore além de leitura.
+    """
+    from .serpapi_validation import SerpApiValidationCandidate
+    out: list = []
+    for key, price in raw_pool:
+        if len(out) >= max_n:
+            break
+        if "-business" not in key:
+            # PR #52: por enquanto só validamos rotas business
+            # (econômica não vira "executiva" mesmo se confirmada).
+            continue
+        h = store.get(key)
+        lq = _lq(h)
+        if not lq:
+            continue
+        ev = _eval_history_deal(h, key, price)
+        if ev.region_band != "forte":
+            # Só "forte" qualifica — "boa" + None ficam fora p/ economizar cota.
+            continue
+        parts = _split_route_key(key) or (None, None)
+        origin = lq.get("origin") or parts[0]
+        destination = lq.get("destination") or parts[1]
+        departure = lq.get("departure_date")
+        if not (origin and destination and departure):
+            continue
+        usd = None
+        if str(lq.get("currency") or "").upper() == "USD":
+            try:
+                usd = float(lq.get("amount")) if lq.get("amount") is not None else None
+            except (TypeError, ValueError):
+                usd = None
+        out.append(SerpApiValidationCandidate(
+            key=key,
+            origin=str(origin),
+            destination=str(destination),
+            outbound_date=str(departure),
+            return_date=lq.get("return_date") or None,
+            travel_class="business",
+            expected_usd=usd,
+        ))
+    return out
+
+
+def _maybe_validate_with_serpapi(
+    store: PriceStore, raw_pool: list[tuple[str, float]],
+) -> dict:
+    """Wrapper: lê config do ambiente, filtra candidatos, roda
+    `validate_cycle_candidates`. Default DESLIGADO. Falha silenciosa
+    em qualquer erro — sempre devolve dict (vazio se desabilitado /
+    sem chave / cap zero / sem candidatos)."""
+    from .serpapi_validation import (
+        SerpApiValidationConfig, validate_cycle_candidates,
+    )
+    config = SerpApiValidationConfig.from_env()
+    if not config.enabled:
+        return {}
+    if not config.api_key:
+        return {}
+    candidates = _select_serpapi_validation_candidates(
+        store, raw_pool, max_n=config.max_per_cycle,
+    )
+    if not candidates:
+        return {}
+    try:
+        return validate_cycle_candidates(candidates, config)
+    except Exception:
+        # Defesa final: NUNCA propaga erro p/ o relatório.
+        return {}
+
+
 def _format_economy_block(
     index: int, key: str, history: RouteHistory, price: float
 ) -> str:
@@ -572,6 +654,28 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
     economy = sorted(economy_pool, key=lambda x: x[1])[:3]
     raw = sorted(raw_pool, key=lambda x: x[1])[:3]
 
+    # PR #52: validação opcional SerpApi para sinais brutos com USD
+    # forte. Read-only, opt-in via SERPAPI_VALIDATION_ENABLED. Quando
+    # SerpApi confirmar cabine business + booking option utilizável,
+    # eleva o sinal de 👀 para 🟡 Verificação manual (NUNCA 🟢 — vide
+    # princípio em docs/radar-operational-policy.md). Falha silenciosa
+    # em qualquer erro / sem chave / cap atingido.
+    serpapi_validations = _maybe_validate_with_serpapi(store, raw_pool)
+    # Lista de (key, price, result) que foram elevadas via validação.
+    elevated_via_serpapi: list[tuple[str, float, object]] = []
+    if serpapi_validations:
+        from .booking_actionability import OperationalDecision as _OD
+        elevated_keys: set[str] = set()
+        for key, price in raw_pool:
+            res = serpapi_validations.get(key)
+            if res and res.suggested_decision == _OD.CONFIRMED_MANUAL_CHECK:
+                elevated_via_serpapi.append((key, price, res))
+                elevated_keys.add(key)
+        if elevated_keys:
+            # Remove dos pools 👀 e do top-3 já calculado.
+            raw_pool = [r for r in raw_pool if r[0] not in elevated_keys]
+            raw = sorted(raw_pool, key=lambda x: x[1])[:3]
+
     # PR #51: partição decisória dos confirmados.
     # Quem tem cabine confirmada + link clicável (Kiwi deep_link ou
     # equivalente) → "🟢 Executiva confirmada" (CONFIRMED_ACTIONABLE).
@@ -615,20 +719,36 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         actionable_lines = "• Nenhuma executiva confirmada agora."
         actionable_score_line = ""
 
-    if manual_check_confirmed:
-        manual_lines_list: list[str] = []
-        for i, (key, price) in enumerate(manual_check_confirmed):
+    manual_lines_list: list[str] = []
+    item_num = 0
+    for key, price in manual_check_confirmed:
+        item_num += 1
+        base = _format_confirmed_line(
+            item_num, key, store.get(key), price, link=None,
+        )
+        manual_lines_list.append(base)
+        # Texto humano de orientação para o usuário — sem URL,
+        # sem token, sem post_data.
+        manual_lines_list.append(
+            "   Booking encontrado, mas sem link simples. "
+            "Ação sugerida: verificar manualmente no Google "
+            "Flights ou na companhia."
+        )
+    # PR #52: itens elevados via validação SerpApi entram aqui mesmo —
+    # mesma seção 🟡 com nota indicando que cabine/booking foram
+    # validados pela SerpApi (mas o link não é hyperlink simples).
+    if elevated_via_serpapi:
+        if manual_lines_list:
+            manual_lines_list.append("")  # separador visual
+        for key, price, res in elevated_via_serpapi:
+            from .serpapi_validation import humanize_validation_note
+            item_num += 1
             base = _format_confirmed_line(
-                i + 1, key, store.get(key), price, link=None,
+                item_num, key, store.get(key), price, link=None,
             )
             manual_lines_list.append(base)
-            # Texto humano de orientação para o usuário — sem URL,
-            # sem token, sem post_data.
-            manual_lines_list.append(
-                "   Booking encontrado, mas sem link simples. "
-                "Ação sugerida: verificar manualmente no Google "
-                "Flights ou na companhia."
-            )
+            manual_lines_list.append("   " + humanize_validation_note(res))
+    if manual_lines_list:
         manual_lines = "\n".join(manual_lines_list)
     else:
         manual_lines = "• Nenhuma oferta confirmada sem link agora."
