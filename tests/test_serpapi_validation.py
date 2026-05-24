@@ -398,16 +398,32 @@ def test_select_candidates_skips_non_business():
     assert cands == []
 
 
-def test_select_candidates_skips_weak_price():
-    """USD 280 (entre forte 250 e boa 350) NÃO qualifica (só "forte")."""
+def test_select_candidates_skips_above_band_price():
+    """PR #56: agora aceitamos "forte" E "boa". Preços ACIMA da banda
+    "boa" (region_band=None) continuam fora — não há ganho em validar
+    sinal sem grading econômico."""
     with tempfile.TemporaryDirectory() as tmp:
         store = PriceStore(Path(tmp) / "h.json")
-        # 280 > 250 (forte EUA one_way) → cai em "boa", não "forte"
+        # USD 400 > 350 (piso "boa" EUA one_way) → region_band=None
+        _tp_signal(store, "GRU-MIA-one_way-business", "GRU", "MIA", 400.0, 2200.0)
+        cands = _select_serpapi_validation_candidates(
+            store, [("GRU-MIA-one_way-business", 2200.0)], max_n=3,
+        )
+    assert cands == []
+
+
+def test_select_candidates_accepts_good_band():
+    """PR #56: USD na banda "boa" (entre piso forte e piso boa) agora
+    qualifica para validação (antes só "forte" entrava)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        store = PriceStore(Path(tmp) / "h.json")
+        # USD 280 entre 250 (forte) e 350 (boa) → region_band="boa"
         _tp_signal(store, "GRU-MIA-one_way-business", "GRU", "MIA", 280.0, 1540.0)
         cands = _select_serpapi_validation_candidates(
             store, [("GRU-MIA-one_way-business", 1540.0)], max_n=3,
         )
-    assert cands == []
+    assert len(cands) == 1
+    assert cands[0].travel_class == "business"
 
 
 def test_select_candidates_picks_strong_price():
