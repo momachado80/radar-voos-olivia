@@ -32,6 +32,12 @@ jobs:
           TRAVELPAYOUTS_TOKEN: ${{ secrets.TRAVELPAYOUTS_TOKEN }}
           KIWI_API_KEY: ${{ secrets.KIWI_API_KEY }}
           USD_BRL_RATE: ${{ vars.USD_BRL_RATE }}
+          # Validação SerpApi opt-in (PR #52, ativada em PR #53):
+          # 1 candidato/ciclo no máximo. Falha silenciosa se key
+          # ausente; nunca quebra o ciclo. Nunca loga URL/token.
+          SERPAPI_VALIDATION_ENABLED: "true"
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          SERPAPI_VALIDATION_MAX_PER_CYCLE: "1"
         run: python -m flight_mapper cycle
 
       - name: Commit state
