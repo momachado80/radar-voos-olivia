@@ -438,26 +438,66 @@ def _select_serpapi_validation_candidates(
 
 def _maybe_validate_with_serpapi(
     store: PriceStore, pool: list[tuple[str, float]],
-) -> dict:
+) -> tuple[dict, "object"]:
     """Wrapper: lê config do ambiente, ordena o `pool` por prioridade
     (muito_forte > boa > preço), filtra candidatos, roda
     `validate_cycle_candidates`. Default DESLIGADO. Falha silenciosa
-    em qualquer erro — sempre devolve dict (vazio se desabilitado /
-    sem chave / cap zero / sem candidatos / budget mensal esgotado).
+    em qualquer erro.
 
-    PR #56: `pool` agora deve ser `economy_pool + raw_pool` para que
-    os sinais mais fortes (que normalmente caem em economy_pool após
-    o gate de `_economy_plausible`) tenham chance de virar 🟡.
+    PR #57 (observability): retorna agora tupla
+    `(results_dict, SerpApiValidationSummary)` — o summary é sempre
+    populado (mesmo quando desabilitado / sem chave / cap zero), p/
+    o relatório poder renderizar o status correto no 🧭. `summary`
+    NUNCA contém token, URL, payload, post_data nem dados de rota.
+
+    PR #56: `pool` é `economy_pool + raw_pool` para que sinais fortes
+    em economy_pool tenham chance de virar 🟡.
     """
     from .config import Config
     from .serpapi_validation import (
-        SerpApiValidationConfig, validate_cycle_candidates,
+        SerpApiValidationBudget,
+        SerpApiValidationConfig,
+        SerpApiValidationSummary,
+        validate_cycle_candidates,
     )
+
     config = SerpApiValidationConfig.from_env()
+    # Tenta carregar budget mesmo quando desabilitado — usuário precisa
+    # ver "X/90 queries usadas" no relatório mesmo com flag off, p/
+    # entender histórico de consumo.
+    try:
+        app_config = Config.from_env()
+        budget_path = app_config.serpapi_validation_budget_path
+    except Exception:
+        budget_path = None
+    try:
+        budget_now = SerpApiValidationBudget.load(budget_path)
+    except Exception:
+        # Defesa contra arquivo corrompido / I/O — não quebra relatório.
+        budget_now = None
+    monthly_used = budget_now.count if budget_now is not None else 0
+
+    def _summary(
+        considered: int = 0,
+        attempted: int = 0,
+        skipped: str | None = None,
+    ) -> SerpApiValidationSummary:
+        return SerpApiValidationSummary(
+            enabled=config.enabled,
+            api_key_present=bool(config.api_key),
+            monthly_budget=config.monthly_budget,
+            monthly_used=monthly_used,
+            candidates_considered=considered,
+            validations_attempted=attempted,
+            elevated_to_manual_check=0,
+            skipped_reason=skipped,
+        )
+
     if not config.enabled:
-        return {}
+        return {}, _summary(skipped="validation_disabled")
     if not config.api_key:
-        return {}
+        return {}, _summary(skipped="no_api_key")
+
     # Ordena por prioridade ANTES de filtrar candidatos. O cap intra-
     # ciclo (max_per_cycle=1) seleciona o 1º elegível segundo a ordem.
     sorted_pool = sorted(
@@ -467,20 +507,25 @@ def _maybe_validate_with_serpapi(
         store, sorted_pool, max_n=config.max_per_cycle,
     )
     if not candidates:
-        return {}
+        return {}, _summary(skipped="no_eligible_candidate")
+
     try:
-        app_config = Config.from_env()
-        budget_path = app_config.serpapi_validation_budget_path
-    except Exception:
-        # Defensivo — se o config base falhar, roda sem persistência.
-        budget_path = None
-    try:
-        return validate_cycle_candidates(
+        results = validate_cycle_candidates(
             candidates, config, budget_path=budget_path,
         )
     except Exception:
         # Defesa final: NUNCA propaga erro p/ o relatório.
-        return {}
+        return {}, _summary(
+            considered=len(candidates), skipped="validation_error",
+        )
+
+    attempted = len(results)
+    skipped = None
+    if attempted == 0:
+        skipped = "monthly_budget_exhausted"
+    return results, _summary(
+        considered=len(candidates), attempted=attempted, skipped=skipped,
+    )
 
 
 def _format_economy_block(
@@ -618,8 +663,14 @@ def _source_status_block(
     store: PriceStore,
     confirmed: list[tuple[str, float]],
     raw: list[tuple[str, float]],
+    serpapi_summary: object | None = None,
 ) -> str:
-    """🧭 Status das fontes — derivado do ciclo, sem rede."""
+    """🧭 Status das fontes — derivado do ciclo, sem rede.
+
+    PR #57: aceita `serpapi_summary` (SerpApiValidationSummary ou None)
+    p/ adicionar uma linha humana de observabilidade da validação
+    SerpApi. Linha NUNCA contém token, URL, payload ou rota.
+    """
 
     def _sources(items: list[tuple[str, float]]) -> set[str]:
         out: set[str] = set()
@@ -651,12 +702,22 @@ def _source_status_block(
     else:
         execs = "aguardando fonte com cabine confirmada."
 
-    return (
-        "🧭 Status das fontes\n"
-        f"• Travelpayouts: {tp}\n"
-        f"• Kiwi: {kiwi}\n"
-        f"• Alertas executivos: {execs}"
-    )
+    lines = [
+        "🧭 Status das fontes",
+        f"• Travelpayouts: {tp}",
+        f"• Kiwi: {kiwi}",
+        f"• Alertas executivos: {execs}",
+    ]
+    if serpapi_summary is not None:
+        try:
+            from .serpapi_validation import humanize_validation_summary
+            line = humanize_validation_summary(serpapi_summary)
+            lines.append(f"• {line}")
+        except Exception:
+            # Defesa final: erro na renderização da linha SerpApi NÃO
+            # pode derrubar o relatório inteiro.
+            pass
+    return "\n".join(lines)
 
 
 def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> str:
@@ -721,7 +782,9 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
     # sinal sobe para 🟡 Verificação manual (NUNCA 🟢 — vide princípio
     # em docs/radar-operational-policy.md).
     validation_pool = economy_pool + raw_pool
-    serpapi_validations = _maybe_validate_with_serpapi(store, validation_pool)
+    serpapi_validations, serpapi_summary = _maybe_validate_with_serpapi(
+        store, validation_pool,
+    )
     # Lista de (key, price, result) que foram elevadas via validação.
     elevated_via_serpapi: list[tuple[str, float, object]] = []
     if serpapi_validations:
@@ -745,6 +808,15 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
             raw_pool = [r for r in raw_pool if r[0] not in elevated_keys]
             economy = sorted(economy_pool, key=lambda x: x[1])[:3]
             raw = sorted(raw_pool, key=lambda x: x[1])[:3]
+
+    # PR #57: atualiza summary com a contagem final de elevações p/
+    # o relatório saber renderizar "1 candidato validado e movido para
+    # Verificação manual" no 🧭 Status das fontes.
+    from dataclasses import replace as _dc_replace
+    serpapi_summary = _dc_replace(
+        serpapi_summary,
+        elevated_to_manual_check=len(elevated_via_serpapi),
+    )
 
     # PR #51: partição decisória dos confirmados.
     # Quem tem cabine confirmada + link clicável (Kiwi deep_link ou
@@ -835,7 +907,10 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
 
     # `confirmed` (todos os cabin-confirmed) entra no source_status_block
     # como antes — métrica de fontes não muda com a partição decisória.
-    sources_block = _source_status_block(store, confirmed, raw + economy)
+    sources_block = _source_status_block(
+        store, confirmed, raw + economy,
+        serpapi_summary=serpapi_summary,
+    )
     security_block = _security_block(result)
     reason = _no_alert_reason(result)
     legacy_line = (

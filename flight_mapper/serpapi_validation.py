@@ -222,6 +222,77 @@ class SerpApiValidationResult:
     reason_codes: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class SerpApiValidationSummary:
+    """Snapshot SANITIZADO da validação SerpApi em UM ciclo, p/ render
+    no bloco 🧭 Status das fontes do Telegram.
+
+    NUNCA contém:
+    - token bruto;
+    - URL completa nem query string;
+    - post_data nem payload;
+    - raw response nem raw exception;
+    - rota, preço, carriers de candidatos individuais.
+
+    Apenas contadores agregados + booleanos derivados de env/budget.
+    """
+
+    enabled: bool
+    api_key_present: bool
+    monthly_budget: int
+    monthly_used: int                 # = budget.count antes do ciclo
+    candidates_considered: int        # tamanho do pool filtrado
+    validations_attempted: int        # quantas chamadas SerpApi rodaram
+    elevated_to_manual_check: int     # quantos viraram 🟡
+    skipped_reason: str | None        # reason code interno (snake_case)
+
+
+def humanize_validation_summary(
+    summary: SerpApiValidationSummary,
+) -> str:
+    """Frase humana p/ aparecer no 🧭 Status das fontes. NUNCA
+    contém token, URL, payload, post_data, query string nem rota."""
+    if not summary.enabled:
+        return "SerpApi: validação desativada."
+    if not summary.api_key_present:
+        return (
+            "SerpApi: configurada, mas sem chave disponível nos "
+            "Actions Secrets."
+        )
+    used = max(0, summary.monthly_used)
+    budget = max(0, summary.monthly_budget)
+    # Sem budget OU sem cobertura sequer para 1 validação (3 queries) →
+    # tratamos como esgotado.
+    if budget <= 0 or (budget - used) < ESTIMATED_QUERIES_PER_VALIDATION:
+        return (
+            f"SerpApi: orçamento mensal esgotado ({used}/{budget} "
+            "queries usadas); validação pausada até a virada do "
+            "mês UTC."
+        )
+    prefix = f"SerpApi: ativa; {used}/{budget} queries usadas no mês."
+    elevated = max(0, summary.elevated_to_manual_check)
+    attempted = max(0, summary.validations_attempted)
+    considered = max(0, summary.candidates_considered)
+    if elevated > 0:
+        plural = "" if elevated == 1 else "s"
+        return (
+            f"{prefix} {elevated} candidato{plural} validado{plural} "
+            "e movido(s) para Verificação manual."
+        )
+    if attempted > 0:
+        plural = "" if attempted == 1 else "s"
+        return (
+            f"{prefix} Validação tentou {attempted} candidato{plural} "
+            "neste ciclo, mas não confirmou executiva."
+        )
+    if considered == 0:
+        return f"{prefix} Nenhum candidato forte elegível neste ciclo."
+    return (
+        f"{prefix} Tentativa não conclusiva neste ciclo. O radar "
+        "seguiu sem promover o sinal."
+    )
+
+
 # Reason codes — todos snake_case, nunca contêm payload sensível.
 RC_DISABLED = "validation_disabled"
 RC_NO_API_KEY = "no_api_key"
