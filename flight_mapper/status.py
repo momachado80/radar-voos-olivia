@@ -919,9 +919,27 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         else ""
     )
 
+    # PR #58: 🧠 Leitura do ciclo + 📈 Mudanças desde o último ciclo.
+    # Build snapshot atual ANTES de renderizar, compara com prev
+    # snapshot, persiste atual. Defensivo: qualquer erro nesse bloco
+    # cai p/ frase neutra e o relatório segue.
+    cycle_block, changes_block = _render_cycle_overview(
+        store=store,
+        result=result,
+        actionable_confirmed=actionable_confirmed,
+        manual_check_confirmed=manual_check_confirmed,
+        elevated_via_serpapi=elevated_via_serpapi,
+        economy=economy,
+        raw=raw,
+        serpapi_summary=serpapi_summary,
+        deduped=deduped,
+    )
+
     return (
         "🛰️ <b>Radar de Voos Olivia — relatório diário</b>\n"
         f"Robô ativo. Último ciclo: {timestamp}\n\n"
+        f"{cycle_block}\n\n"
+        f"{changes_block}\n\n"
         "📊 Ciclo recente\n"
         f"• Rotas escaneadas: {result.scanned}\n"
         f"• Cotações obtidas: {result.quotes_received}\n"
@@ -944,6 +962,127 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         f"{sources_block}\n\n"
         f"{reason}"
     )
+
+
+def _render_cycle_overview(
+    *,
+    store: PriceStore,
+    result: MonitorResult,
+    actionable_confirmed: list[tuple[str, float]],
+    manual_check_confirmed: list[tuple[str, float]],
+    elevated_via_serpapi: list[tuple[str, float, object]],
+    economy: list[tuple[str, float]],
+    raw: list[tuple[str, float]],
+    serpapi_summary: object,
+    deduped: list[tuple[str, float]],
+) -> tuple[str, str]:
+    """Constrói (🧠 block, 📈 block) e persiste o snapshot atual.
+    Defensivo: qualquer falha → frases neutras + relatório segue."""
+    try:
+        from .config import Config
+        from .cycle_summary import (
+            CycleSnapshot,
+            compute_changes,
+            derive_main_bottleneck,
+            format_executive_reading,
+        )
+        from .serpapi_validation import humanize_validation_summary
+    except Exception:
+        return ("🧠 Leitura do ciclo\n• (leitura indisponível)",
+                "📈 Mudanças desde o último ciclo\n• (sem dados)")
+
+    # Best signal: prioriza economy (preço bom + econ plausível) > raw
+    best_label: str | None = None
+    best_has_cabin = False
+    best_source = economy if economy else raw
+    if best_source:
+        b_key, b_price = sorted(best_source, key=lambda x: x[1])[0]
+        h = store.get(b_key)
+        lq = h.last_quote if isinstance(h.last_quote, dict) else {}
+        route_human = _humanize_route_for_overview(b_key)
+        # Preço em USD quando disponível; fallback BRL
+        usd = None
+        if str(lq.get("currency") or "").upper() == "USD":
+            try:
+                usd = float(lq.get("amount")) if lq.get("amount") is not None else None
+            except (TypeError, ValueError):
+                usd = None
+        if usd is not None:
+            best_label = f"{route_human} por US$ {usd:.0f}"
+        else:
+            best_label = f"{route_human} por R$ {b_price:,.0f}".replace(",", ".")
+        best_has_cabin = bool(lq.get("cabin_confirmed"))
+
+    serpapi_line = ""
+    try:
+        serpapi_line = humanize_validation_summary(serpapi_summary)
+    except Exception:
+        serpapi_line = ""
+
+    bottleneck = derive_main_bottleneck(
+        cabin_blocked=getattr(result, "cabin_blocked", 0),
+        suspicious_blocked=getattr(result, "suspicious_blocked", 0),
+        currency_blocked=getattr(result, "currency_blocked", 0),
+        non_actionable_links_skipped=getattr(
+            result, "non_actionable_links_skipped", 0,
+        ),
+    )
+
+    reading = format_executive_reading(
+        actionable_count=len(actionable_confirmed),
+        manual_check_count=(
+            len(manual_check_confirmed) + len(elevated_via_serpapi)
+        ),
+        best_signal_label=best_label,
+        best_signal_has_cabin=best_has_cabin,
+        serpapi_one_liner=serpapi_line,
+        main_bottleneck=bottleneck,
+    )
+    cycle_block = "🧠 Leitura do ciclo\n" + reading
+
+    # 📈 Mudanças
+    try:
+        app_config = Config.from_env()
+        snapshot_path = app_config.cycle_snapshot_path
+    except Exception:
+        snapshot_path = None
+    prev = CycleSnapshot.load(snapshot_path)
+    # Atual:
+    current_prices: dict[str, float] = {k: float(p) for k, p in deduped}
+    manual_keys: list[str] = [k for k, _ in manual_check_confirmed]
+    manual_keys += [k for k, _, _ in elevated_via_serpapi]
+    s_used = getattr(serpapi_summary, "monthly_used", 0) or 0
+    s_elevated = getattr(serpapi_summary, "elevated_to_manual_check", 0) or 0
+    current = CycleSnapshot(
+        snapshot_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        latest_prices=current_prices,
+        manual_check_keys=tuple(manual_keys),
+        serpapi_used=int(s_used),
+        serpapi_elevated=int(s_elevated),
+    )
+    changes = compute_changes(prev, current)
+    if changes:
+        changes_block = "📈 Mudanças desde o último ciclo\n" + "\n".join(
+            f"• {line}" for line in changes
+        )
+    else:
+        changes_block = (
+            "📈 Mudanças desde o último ciclo\n"
+            "• Sem mudança relevante desde o último ciclo."
+        )
+
+    # Persistência (defensiva)
+    current.save(snapshot_path)
+
+    return cycle_block, changes_block
+
+
+def _humanize_route_for_overview(key: str) -> str:
+    """`GRU-MIA-one_way-business` → `GRU → MIA`. Sem rede."""
+    parts = key.split("-")
+    if len(parts) >= 2:
+        return f"{parts[0]} → {parts[1]}"
+    return key
 
 
 def explain_deals(store: PriceStore, top: int = 5) -> str:

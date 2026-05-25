@@ -57,3 +57,10 @@ class Config:
         Armazena APENAS data UTC + contador. NUNCA token / URL /
         post_data / qualquer payload sensível."""
         return self.data_dir / "serpapi_validation_budget.json"
+
+    @property
+    def cycle_snapshot_path(self) -> Path:
+        """Snapshot mínimo do ciclo anterior p/ detecção de mudança.
+        Armazena APENAS preços + chaves de rotas em 🟡 + contadores
+        SerpApi. NUNCA token / URL / payload / carriers / post_data."""
+        return self.data_dir / "cycle_snapshot.json"
