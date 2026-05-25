@@ -19,6 +19,23 @@ observação" (sem grade). Os gates de segurança (`cabine bloqueada`,
 `preço suspeito`, `câmbio ausente`, `entradas legadas sem moeda
 comprovada`) permanecem no bloco "🛡️ Bloqueios de segurança".
 
+**Observabilidade SerpApi (PR #57):** o relatório diário do Telegram
+inclui uma linha **"SerpApi: ..."** dentro do bloco **🧭 Status das
+fontes** mostrando o estado da validação no ciclo:
+
+- `SerpApi: validação desativada.` — env `SERPAPI_VALIDATION_ENABLED=false` ou ausente.
+- `SerpApi: configurada, mas sem chave disponível nos Actions Secrets.` — env ligada mas `SERPAPI_API_KEY` ausente.
+- `SerpApi: ativa; N/90 queries usadas no mês. Nenhum candidato forte elegível neste ciclo.` — env+key OK mas nenhum sinal qualificou (region_band não é "forte" nem "boa").
+- `SerpApi: ativa; N/90 queries usadas no mês. Validação tentou X candidato(s) neste ciclo, mas não confirmou executiva.` — SerpApi rodou mas não confirmou cabine business / actionability útil.
+- `SerpApi: ativa; N/90 queries usadas no mês. X candidato(s) validado(s) e movido(s) para Verificação manual.` — SerpApi confirmou e elevou para 🟡.
+- `SerpApi: orçamento mensal esgotado (N/90 queries usadas); validação pausada até a virada do mês UTC.` — `remaining < 3` (custo estimado).
+
+A linha consome apenas dados sanitizados (contadores agregados +
+booleanos) — `SerpApiValidationSummary` em `serpapi_validation.py`
+documenta o schema fechado. Garantia testada: o relatório nunca
+contém token, URL completa, query string, post_data ou payload bruto
+do SerpApi.
+
 **Validação SerpApi opcional (PR #52):** `flight_mapper/serpapi_validation.py`
 adiciona uma camada read-only que consulta SerpApi para sinais brutos
 com USD em banda "forte". Quando a validação confirma cabine business +
