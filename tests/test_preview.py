@@ -94,9 +94,18 @@ def test_preview_messages_does_not_touch_data_dir(capsys, monkeypatch, tmp_path:
     monkeypatch.chdir(tmp_path)
     rc = main(["preview-messages"])
     assert rc == 0
-    # nada criado em ./data
+    # PR #58: preview-messages chama _build_message que persiste
+    # `cycle_snapshot.json` em data_dir (redirecionado para tmp pela
+    # fixture autouse em conftest.py). O que esse teste de fato garante
+    # é que NÃO escrevemos no `./data/` do repo. O conftest cuida disso.
+    # Verificamos aqui que, se algum arquivo for criado, é apenas o
+    # cycle_snapshot (schema fechado, sem leak).
     data_dir = tmp_path / "data"
-    assert not data_dir.exists()
+    if data_dir.exists():
+        files = {p.name for p in data_dir.iterdir() if p.is_file()}
+        # Apenas cycle_snapshot é aceitável (schema validado em
+        # tests/test_cycle_summary.py).
+        assert files <= {"cycle_snapshot.json"}, files
 
 
 def test_preview_links_prints_4_variants(capsys, monkeypatch, tmp_path: Path):

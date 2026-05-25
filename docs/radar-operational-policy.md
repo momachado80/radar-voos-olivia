@@ -19,6 +19,33 @@ observação" (sem grade). Os gates de segurança (`cabine bloqueada`,
 `preço suspeito`, `câmbio ausente`, `entradas legadas sem moeda
 comprovada`) permanecem no bloco "🛡️ Bloqueios de segurança".
 
+**Resumo executivo do ciclo (PR #58):** o topo do relatório agora
+começa com dois blocos curtos que respondem "o que aconteceu nesse
+ciclo?" em segundos:
+
+- **🧠 Leitura do ciclo** — frase humana com até 3 sentenças:
+  - quantas oportunidades executivas acionáveis;
+  - quantos candidatos em Verificação manual;
+  - melhor sinal bruto/econômica (rota + preço + status de cabine);
+  - linha SerpApi (reuso da PR #57);
+  - gargalo principal (maior contador de bloqueio do ciclo).
+- **📈 Mudanças desde o último ciclo** — até 5 linhas, prioridade
+  decrescente:
+  1. novos candidatos em 🟡 Verificação manual;
+  2. quedas de preço > 5%;
+  3. altas de preço > 5%;
+  4. novas rotas cotadas;
+  5. delta de consumo SerpApi (confirmou / só tentou).
+
+Persistência: `data/cycle_snapshot.json` com schema fechado
+`{snapshot_at, latest_prices, manual_check_keys, serpapi_used,
+serpapi_elevated}`. NUNCA contém token, URL, post_data, payload,
+carriers nem rota de SerpApi — apenas `route_key → price_brl` (chaves
+já são públicas — `GRU-MIA-business`, etc.) + lista de chaves em 🟡 +
+2 contadores agregados. Defensivo: arquivo ausente ou corrompido →
+`empty()` (sem crash, sem regressão visual). Primeiro ciclo registrado
+(sem snapshot prévio) → "Sem mudança relevante desde o último ciclo".
+
 **Observabilidade SerpApi (PR #57):** o relatório diário do Telegram
 inclui uma linha **"SerpApi: ..."** dentro do bloco **🧭 Status das
 fontes** mostrando o estado da validação no ciclo:
