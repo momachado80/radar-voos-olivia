@@ -112,6 +112,23 @@ def cmd_cycle(args: argparse.Namespace) -> int:
         throttle_hours=config.status_throttle_hours,
     )
     print(f"status action={decision.action} reason={decision.reason}")
+    # PR #59: visibilidade operacional. Se o Telegram falhar ou o
+    # heartbeat for pulado por motivo não-trivial, imprimimos um aviso
+    # explícito p/ o workflow log do GitHub Actions. NUNCA loga token
+    # nem chat_id.
+    if decision.action == "failed":
+        print(
+            "  ⚠️ Telegram heartbeat FAILED — verifique se "
+            "TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID estão presentes "
+            "nos Actions Secrets e se o bot ainda está autorizado "
+            "no chat. State NÃO atualizado; próximo ciclo tentará "
+            "novamente."
+        )
+    elif decision.action == "skipped" and decision.reason == "no_notifier":
+        print(
+            "  ⚠️ Heartbeat skipped: notifier ausente. Verifique "
+            "TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID nos Actions Secrets."
+        )
     return 0
 
 

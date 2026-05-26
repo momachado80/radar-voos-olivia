@@ -25,11 +25,16 @@ class StatusState:
 
     @classmethod
     def load(cls, path: Path) -> "StatusState":
+        """Carrega o estado. Defensivo: arquivo ausente, malformado ou
+        com erro de I/O → estado vazio (last_report_at=None). Garante
+        que erro em data/status.json NUNCA derruba o ciclo."""
         if not path.exists():
             return cls()
         try:
             raw = json.loads(path.read_text(encoding="utf-8") or "{}")
-        except json.JSONDecodeError:
+        except (OSError, json.JSONDecodeError):
+            return cls()
+        if not isinstance(raw, dict):
             return cls()
         return cls(last_report_at=raw.get("last_report_at"))
 
@@ -1253,10 +1258,22 @@ def maybe_send_status(
             last = datetime.fromisoformat(state.last_report_at)
             if last.tzinfo is None:
                 last = last.replace(tzinfo=timezone.utc)
-            if now - last < timedelta(hours=throttle_hours):
+            delta = now - last
+            # PR #59: defesa contra clock skew. Se `last_report_at`
+            # acabar gravado no FUTURO (relógio adiantado em um run
+            # anterior, edição manual, restore de backup antigo), o
+            # delta vira negativo e a checagem `delta < 24h` sempre
+            # passaria, deixando o bot mudo p/ sempre. Tratamos como
+            # estado inválido → manda o heartbeat e re-escreve com
+            # timestamp correto.
+            if delta < timedelta(0):
+                reason = "first_run_clock_skew"
+            elif delta < timedelta(hours=throttle_hours):
                 return StatusDecision(action="skipped", reason="throttled")
-            reason = "window_elapsed"
+            else:
+                reason = "window_elapsed"
         except ValueError:
+            # ISO inválido → trata como primeiro run, sobrescreve.
             reason = "first_run"
     else:
         reason = "first_run"
