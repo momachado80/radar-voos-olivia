@@ -19,6 +19,36 @@ observação" (sem grade). Os gates de segurança (`cabine bloqueada`,
 `preço suspeito`, `câmbio ausente`, `entradas legadas sem moeda
 comprovada`) permanecem no bloco "🛡️ Bloqueios de segurança".
 
+**Compatibilidade de preço na validação SerpApi (PR #60):** o teste
+de elevação para 🟡 Verificação manual agora exige **DOIS** sinais
+simultâneos:
+
+1. SerpApi confirma cabine business para a rota.
+2. O preço retornado pela SerpApi é compatível com o preço do
+   sinal original Travelpayouts.
+
+Critério de compatibilidade (puro, em `serpapi_validation.price_is_compatible`):
+
+> SerpApi ≤ expected × 1.25 **OU** |Δ| ≤ USD 100.
+
+Faltando o `expected_usd` ou o `price_usd` SerpApi → conservador,
+considera incompatível para elevação.
+
+Caso incompatível: o candidato **permanece** em 💸/👀 e ganha uma nota
+informativa do tipo "*SerpApi encontrou executiva na rota por ~USD X,
+mas não confirmou a tarifa original de US$ Y*". O bloco 🧭 Status das
+fontes distingue claramente: `validado e movido` vs `encontrou
+executiva em preço diferente` vs `tentou e não confirmou`. A frase
+final do relatório (sem alerta) também é coerente — quando há manual
+check existente diz "há verificação manual"; quando há só price-mismatch
+diz que a tarifa original não foi confirmada.
+
+Justificativa: SerpApi achar business em US$ 1137 enquanto o sinal
+Travelpayouts diz US$ 208 NÃO é "validar a tarifa US$ 208 como business".
+É evidência de que existe executiva na rota, mas em outro nível de preço.
+Tratar como "validação" induziria o usuário a achar que o sinal barato
+foi confirmado.
+
 **Resumo executivo do ciclo (PR #58):** o topo do relatório agora
 começa com dois blocos curtos que respondem "o que aconteceu nesse
 ciclo?" em segundos:

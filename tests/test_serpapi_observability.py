@@ -479,6 +479,7 @@ def test_summary_dataclass_never_contains_sensitive_fields():
         "monthly_budget", "monthly_used",
         "candidates_considered",
         "validations_attempted", "elevated_to_manual_check",
+        "price_mismatched",  # PR #60: contador de cabin OK mas preço incompatível
         "skipped_reason",
     }
     assert field_names == allowed, (
