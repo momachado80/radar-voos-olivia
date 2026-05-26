@@ -533,6 +533,75 @@ def _maybe_validate_with_serpapi(
     )
 
 
+def _expected_usd_from_route(
+    store: PriceStore, key: str,
+) -> float | None:
+    """Recupera o `expected_usd` do sinal original Travelpayouts a
+    partir do `last_quote` da rota (quando currency=='USD')."""
+    try:
+        lq = _lq(store.get(key))
+    except Exception:
+        return None
+    if str(lq.get("currency") or "").upper() != "USD":
+        return None
+    try:
+        return float(lq.get("amount")) if lq.get("amount") is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _informational_validation_line(
+    store: PriceStore,
+    key: str,
+    informational_validations: dict,
+) -> str | None:
+    """PR #60: frase humana p/ price-mismatch SerpApi (cabine confirmada
+    mas preço incompatível). Retorna None se a rota não tem nota
+    informativa associada. NUNCA contém token/URL/post_data."""
+    res = informational_validations.get(key)
+    if res is None:
+        return None
+    try:
+        from .serpapi_validation import humanize_price_mismatch_note
+        return humanize_price_mismatch_note(
+            res, _expected_usd_from_route(store, key),
+        )
+    except Exception:
+        return None
+
+
+def _append_informational_validation_notes(
+    block_text: str,
+    items: list[tuple[str, float]],
+    informational_validations: dict,
+    store: PriceStore,
+) -> str:
+    """PR #60: anexa notas informativas SerpApi (price mismatch) ao
+    final do bloco 👀, indentadas para combinar com o estilo do bloco.
+    Cada nota inclui o rótulo da rota + preço SerpApi + preço original.
+    """
+    if not informational_validations:
+        return block_text
+    note_lines: list[str] = []
+    for key, _price in items:
+        if key not in informational_validations:
+            continue
+        line = _informational_validation_line(
+            store, key, informational_validations,
+        )
+        if not line:
+            continue
+        parts = _split_route_key(key) or (None, None)
+        if parts and parts[0] and parts[1]:
+            label = humanize_route(*parts)
+            note_lines.append(f"   {label}: {line}")
+        else:
+            note_lines.append(f"   {line}")
+    if not note_lines:
+        return block_text
+    return block_text + "\n" + "\n".join(note_lines)
+
+
 def _format_economy_block(
     index: int, key: str, history: RouteHistory, price: float
 ) -> str:
@@ -639,9 +708,33 @@ def _security_block(result: MonitorResult) -> str:
     return "🛡️ Bloqueios de segurança\n" + body
 
 
-def _no_alert_reason(result: MonitorResult) -> str:
+def _no_alert_reason(
+    result: MonitorResult,
+    *,
+    manual_check_present: bool = False,
+    serpapi_price_mismatch_only: bool = False,
+) -> str:
+    """PR #60: aceita contexto p/ evitar contradição com as outras
+    seções. Se já existe Verificação manual no relatório, a frase
+    final reconhece isso em vez de dizer só "sem oportunidade".
+    Se SerpApi encontrou business em preço diferente, a frase indica
+    explicitamente que o preço original NÃO foi confirmado.
+    """
     if result.alerts_sent > 0:
         return f"🔥 {result.alerts_sent} alerta(s) enviado(s) neste ciclo."
+    # PR #60: prioriza a frase mais informativa quando há sinais
+    # parciais. Evita contradição visual com 🟡 (Verificação manual).
+    if manual_check_present:
+        return (
+            "ℹ️ Sem alerta automático: há verificação manual, mas sem "
+            "link simples. Conferir o bloco 🟡."
+        )
+    if serpapi_price_mismatch_only:
+        return (
+            "ℹ️ Sem alerta confirmado: SerpApi encontrou executiva na "
+            "rota, mas em preço diferente do sinal original — a tarifa "
+            "original não foi confirmada como executiva."
+        )
     motives: list[str] = []
     if result.cabin_blocked:
         motives.append(
@@ -792,6 +885,10 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
     )
     # Lista de (key, price, result) que foram elevadas via validação.
     elevated_via_serpapi: list[tuple[str, float, object]] = []
+    # PR #60: notas informativas (cabine business confirmada MAS preço
+    # SerpApi incompatível com o sinal Travelpayouts). Candidato fica
+    # no bloco original (💸/👀) com a nota.
+    informational_validations: dict[str, object] = {}
     if serpapi_validations:
         from .booking_actionability import OperationalDecision as _OD
         # Lookup unificado p/ recuperar o preço original do candidato
@@ -805,6 +902,14 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
             ):
                 elevated_via_serpapi.append((key, price_lookup[key], res))
                 elevated_keys.add(key)
+            elif (
+                # PR #60: cabine business confirmada mas preço incompatível
+                # com sinal original → não eleva, só anota.
+                getattr(res, "cabin_confirmed", False)
+                and not getattr(res, "price_compatible", False)
+                and key in price_lookup
+            ):
+                informational_validations[key] = res
         if elevated_keys:
             # Remove dos AMBOS os pools (💸 e 👀) e do top-3 já calculado.
             economy_pool = [
@@ -814,13 +919,14 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
             economy = sorted(economy_pool, key=lambda x: x[1])[:3]
             raw = sorted(raw_pool, key=lambda x: x[1])[:3]
 
-    # PR #57: atualiza summary com a contagem final de elevações p/
-    # o relatório saber renderizar "1 candidato validado e movido para
-    # Verificação manual" no 🧭 Status das fontes.
+    # PR #57/60: atualiza summary com contagens finais p/ o 🧭
+    # renderizar a frase correta — "validado/movido" vs "encontrou
+    # executiva mas em preço diferente" vs "tentou e não confirmou".
     from dataclasses import replace as _dc_replace
     serpapi_summary = _dc_replace(
         serpapi_summary,
         elevated_to_manual_check=len(elevated_via_serpapi),
+        price_mismatched=len(informational_validations),
     )
 
     # PR #51: partição decisória dos confirmados.
@@ -901,11 +1007,22 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         manual_lines = "• Nenhuma oferta confirmada sem link agora."
 
     observation_block = _format_raw_signals(raw, store)
+    # PR #60: anexa nota informativa SerpApi (price mismatch) ao item
+    # em 👀 quando aplicável, sem alterar a estrutura do bloco raw.
+    observation_block = _append_informational_validation_notes(
+        observation_block, raw, informational_validations, store,
+    )
     if economy:
-        eco_items = "\n".join(
-            _format_economy_block(i + 1, key, store.get(key), price)
-            for i, (key, price) in enumerate(economy)
-        )
+        eco_lines: list[str] = []
+        for i, (key, price) in enumerate(economy):
+            block = _format_economy_block(i + 1, key, store.get(key), price)
+            note = _informational_validation_line(
+                store, key, informational_validations,
+            )
+            if note:
+                block = block + "\n   " + note
+            eco_lines.append(block)
+        eco_items = "\n".join(eco_lines)
         economy_block = f"{eco_items}\n\n{_ECONOMY_WARNING}"
     else:
         economy_block = "• Nenhum sinal compatível com econômica promocional agora."
@@ -917,7 +1034,20 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
         serpapi_summary=serpapi_summary,
     )
     security_block = _security_block(result)
-    reason = _no_alert_reason(result)
+    # PR #60: passa contexto p/ evitar frase final contraditória.
+    _has_manual_check = bool(
+        manual_check_confirmed or elevated_via_serpapi
+    )
+    _serpapi_mismatch_only = (
+        not _has_manual_check
+        and not actionable_confirmed
+        and bool(informational_validations)
+    )
+    reason = _no_alert_reason(
+        result,
+        manual_check_present=_has_manual_check,
+        serpapi_price_mismatch_only=_serpapi_mismatch_only,
+    )
     legacy_line = (
         f"• Entradas legadas sem moeda comprovada (omitidas): {legacy_omitted}\n"
         if legacy_omitted

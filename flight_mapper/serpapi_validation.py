@@ -220,6 +220,11 @@ class SerpApiValidationResult:
     actionability: BookingActionability
     suggested_decision: OperationalDecision
     reason_codes: tuple[str, ...]
+    # PR #60: cabine business é UMA evidência; preço diferente do
+    # sinal original significa que SerpApi achou OUTRA executiva, não
+    # validou a tarifa do Travelpayouts. `price_compatible=False` impede
+    # elevação para 🟡 (vide compute_decision em status.py).
+    price_compatible: bool = False
 
 
 @dataclass(frozen=True)
@@ -243,8 +248,11 @@ class SerpApiValidationSummary:
     monthly_used: int                 # = budget.count antes do ciclo
     candidates_considered: int        # tamanho do pool filtrado
     validations_attempted: int        # quantas chamadas SerpApi rodaram
-    elevated_to_manual_check: int     # quantos viraram 🟡
-    skipped_reason: str | None        # reason code interno (snake_case)
+    elevated_to_manual_check: int     # quantos viraram 🟡 (cabin OK + preço OK)
+    # PR #60: cabin business confirmada MAS preço SerpApi diverge muito
+    # do sinal original — NÃO eleva, apenas informa.
+    price_mismatched: int = 0
+    skipped_reason: str | None = None  # reason code interno (snake_case)
 
 
 def humanize_validation_summary(
@@ -273,11 +281,22 @@ def humanize_validation_summary(
     elevated = max(0, summary.elevated_to_manual_check)
     attempted = max(0, summary.validations_attempted)
     considered = max(0, summary.candidates_considered)
+    mismatched = max(0, getattr(summary, "price_mismatched", 0))
     if elevated > 0:
         plural = "" if elevated == 1 else "s"
         return (
             f"{prefix} {elevated} candidato{plural} validado{plural} "
             "e movido(s) para Verificação manual."
+        )
+    if mismatched > 0:
+        # PR #60: SerpApi encontrou cabine business mas em preço
+        # diferente do sinal Travelpayouts original. NÃO eleva — só
+        # informa. Mensagem honesta evita induzir o usuário.
+        plural = "" if mismatched == 1 else "s"
+        return (
+            f"{prefix} SerpApi encontrou executiva em {mismatched} "
+            f"rota{plural}, mas em preço diferente do sinal original — "
+            "não confirmou a tarifa."
         )
     if attempted > 0:
         plural = "" if attempted == 1 else "s"
@@ -305,7 +324,50 @@ RC_NO_BOOKING_TOKEN_IN_RETURN = "no_booking_token_in_return_offers"
 RC_NO_BOOKING_TOKEN_IN_SEARCH = "no_booking_token_in_search"
 RC_BOOKING_OPTIONS_FAILED = "booking_options_failed"
 RC_CABIN_NOT_CONFIRMED = "cabin_not_confirmed"
+RC_PRICE_MISMATCH = "price_mismatch_with_signal"
 RC_VALIDATION_OK = "validation_ok"
+
+
+# PR #60: tolerância de preço entre o sinal Travelpayouts e o preço
+# que a SerpApi devolveu para a oferta business. Sem isso, US$ 208
+# Travelpayouts + US$ 1137 SerpApi (5.4×) era "validado" como
+# executiva, induzindo o usuário a achar que a tarifa original tinha
+# sido confirmada como business.
+PRICE_COMPATIBILITY_RATIO = 1.25     # SerpApi ≤ expected × 1.25
+PRICE_COMPATIBILITY_ABS_USD = 100.0  # OU |delta| ≤ USD 100
+
+
+def price_is_compatible(
+    expected_usd: float | None,
+    serpapi_usd: float | None,
+) -> bool:
+    """Compara preço esperado (sinal Travelpayouts) com preço SerpApi
+    da oferta business. Compatível se SerpApi ≤ expected×1.25 OU
+    |delta| ≤ USD 100. Conservador: ambos os valores são obrigatórios;
+    None em qualquer um → incompatível.
+
+    Exemplos:
+    - 208 vs 1137 → False (5.4×, |Δ|=929)
+    - 1000 vs 1070 → True  (1.07×)
+    - 1000 vs 1300 → False (1.3×, |Δ|=300)
+    - 1000 vs 1099 → True  (1.099×)
+    - 1000 vs 950  → True  (0.95×)
+    - None vs anything → False
+    """
+    if expected_usd is None or serpapi_usd is None:
+        return False
+    try:
+        exp = float(expected_usd)
+        sp = float(serpapi_usd)
+    except (TypeError, ValueError):
+        return False
+    if exp <= 0:
+        return False
+    if sp <= exp * PRICE_COMPATIBILITY_RATIO:
+        return True
+    if abs(sp - exp) <= PRICE_COMPATIBILITY_ABS_USD:
+        return True
+    return False
 
 
 def _select_offer_with_token(
@@ -436,11 +498,26 @@ def validate_with_serpapi(
         actionability = classify_actionability(options)
         reason_extra = ()
 
+    # PR #60: compatibilidade de preço. Cabine business é evidência;
+    # preço diferente do sinal original significa que SerpApi achou
+    # OUTRA executiva, não validou a tarifa do Travelpayouts. Só
+    # eleva para 🟡 quando cabine + preço batem com o sinal original.
+    compatible = (
+        price_is_compatible(candidate.expected_usd, price_usd)
+        if cabin_confirmed else False
+    )
+
     # Decisão sugerida — NUNCA CONFIRMED_ACTIONABLE via validação SerpApi.
-    # SerpApi não vira fonte de link de compra (princípio do PR).
+    # SerpApi não vira fonte de link de compra (princípio do PR #52).
     if not cabin_confirmed:
         suggested = OperationalDecision.RAW_SIGNAL
         rc_main = RC_CABIN_NOT_CONFIRMED
+    elif not compatible:
+        # PR #60: cabine business confirmada mas preço diverge muito do
+        # sinal original. NÃO eleva para 🟡 — o relatório usa o resultado
+        # como nota informativa no bloco original (💸/👀).
+        suggested = OperationalDecision.RAW_SIGNAL
+        rc_main = RC_PRICE_MISMATCH
     elif actionability in (
         BookingActionability.AIRLINE_SIMPLE_LINK,
         BookingActionability.OTA_SIMPLE_LINK,
@@ -453,8 +530,8 @@ def validate_with_serpapi(
         rc_main = RC_VALIDATION_OK
     else:
         # NO_CLICKABLE_URL / EMPTY / ERROR / UNKNOWN: cabine confirmada
-        # mas booking sem caminho útil → ainda manual_check (cabine
-        # confirmada já é informação valiosa).
+        # + preço bate, mas booking sem caminho útil → ainda manual_check
+        # (cabine confirmada + preço compatível já é informação valiosa).
         suggested = OperationalDecision.CONFIRMED_MANUAL_CHECK
         rc_main = RC_VALIDATION_OK
 
@@ -468,6 +545,7 @@ def validate_with_serpapi(
         actionability=actionability,
         suggested_decision=suggested,
         reason_codes=(rc_main,) + reason_extra,
+        price_compatible=compatible,
     )
 
 
@@ -587,4 +665,31 @@ def humanize_validation_note(result: SerpApiValidationResult) -> str:
         ", ".join(parts)
         + ". Ação sugerida: verificar manualmente no Google Flights "
         "ou na companhia."
+    )
+
+
+def humanize_price_mismatch_note(
+    result: SerpApiValidationResult,
+    expected_usd: float | None,
+) -> str:
+    """PR #60: nota informativa quando SerpApi encontra cabine business
+    mas em preço diferente do sinal original (incompatível). O
+    candidato permanece em 💸/👀 — esta linha NÃO sugere ação de
+    compra. NUNCA inclui token, URL, post_data.
+    """
+    sp = result.price_usd
+    if sp is not None and expected_usd is not None:
+        return (
+            f"SerpApi encontrou executiva na rota por ~USD "
+            f"{sp:.0f}, mas não confirmou a tarifa original de "
+            f"US$ {expected_usd:.0f}."
+        )
+    if sp is not None:
+        return (
+            f"SerpApi encontrou executiva na rota por ~USD "
+            f"{sp:.0f}, mas não confirmou a tarifa original do sinal."
+        )
+    return (
+        "SerpApi encontrou cabine business na rota, mas em preço "
+        "diferente do sinal original."
     )
