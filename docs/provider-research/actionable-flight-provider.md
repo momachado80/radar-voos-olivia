@@ -266,3 +266,71 @@ então o produto **deve aceitar conscientemente** que o radar funciona
 como ferramenta de observação (👀/💸/🟡 informativos) sem prometer
 alerta acionável. O honesto pricing já está implementado. Tentar forçar
 "alerta acionável" sem provider B2B → produtos enganosos.
+
+---
+
+## 8. Como rodar o readiness real do Kiwi (smoke manual)
+
+Disponível para validar a hipótese do spike (`PR #61`) com a chave
+`KIWI_API_KEY` real. Custo: **1 query Tequila por disparo**, manual,
+sem efeitos colaterais.
+
+### 8.1 Via GitHub Actions (recomendado)
+
+Workflow: `.github/workflows/kiwi-readiness-smoke.yml`
+(workflow_dispatch only, nunca cron / push / PR).
+
+Acesse `Actions → Kiwi readiness smoke → Run workflow` e escolha:
+
+- `route`: `GRU-MIA` | `GRU-JFK` | `GRU-LIS` | `GRU-MAD` | `GRU-LHR`
+  (máx. 5 rotas, choice fechado)
+- `trip`: `one_way` | `round_trip`
+- `departure`: `YYYY-MM-DD` (vazio = hoje+90d)
+- `return_date`: `YYYY-MM-DD` (vazio = +7d sobre partida; só round_trip)
+
+Regras invioláveis do workflow:
+
+- `permissions: contents: read` — não toca `data/`, não commita, não
+  empurra.
+- Único secret consumido: `KIWI_API_KEY`. Sem `TELEGRAM_*`, sem
+  `SERPAPI_KEY`, sem `AMADEUS_*`.
+- Não dispara `monitor`/`detector`. Não envia Telegram.
+- Saída sanitizada: apenas domínio do `deep_link` (`kiwi.com`),
+  nunca URL completa nem query string.
+
+### 8.2 Via CLI local (opcional)
+
+```bash
+KIWI_API_KEY="<sua_chave>" python -m flight_mapper provider-readiness \
+  --provider kiwi --route GRU-MIA --cabin business \
+  --trip one_way --real
+```
+
+Flags adicionais: `--departure YYYY-MM-DD`, `--return-date YYYY-MM-DD`.
+
+### 8.3 Critério de decisão sobre o output
+
+O output `format_actionability_report(...)` traz `decision:` e
+`blockers:` em uma linha curta. Decisões esperadas:
+
+- `candidate_for_integration` → cabine business confirmada (`C`),
+  `deep_link` presente e domínio `kiwi.com`, preço acima de zero.
+  **Hipótese de PR #61 validada na rota testada.**
+- `validator_only` → cabine confirmada mas sem `deep_link` válido /
+  preço ausente. Serve só para validar SerpApi, não para alerta.
+- `insufficient` → payload pobre (sem itinerário utilizável).
+- `not_suitable` → payload sem candidato (rota sem oferta business no
+  dia, ou bloqueador transparente: `live_http_429`, `live_network_error`,
+  `live_invalid_json_response`).
+
+### 8.4 O que NÃO fazer com o output
+
+- ❌ Não disparar Telegram com o resultado (workflow não tem secret de
+  canal; rodar manualmente também não deve copiar payload para
+  Telegram).
+- ❌ Não persistir o payload em `data/`. O workflow é read-only.
+- ❌ Não usar o `deep_link` retornado para "alerta acionável" em
+  produção até a validação comercial concluir (plano Tequila atual
+  pode não cobrir business internacional comercialmente — ver §5).
+- ❌ Não rodar em loop / cron. O workflow é `workflow_dispatch` only
+  por design.

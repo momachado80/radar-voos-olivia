@@ -53,6 +53,7 @@ class ActionabilityReport:
     route: str                       # "GRU-MIA"
     outbound_date: str | None
     return_date: str | None
+    trip_type: str                   # "one_way" | "round_trip" | "unknown"
     cabin_confirmed: bool
     price_amount: float | None
     price_currency: str | None
@@ -98,7 +99,7 @@ def parse_amadeus_for_actionability(
     if not offers:
         return ActionabilityReport(
             provider="amadeus", route=route,
-            outbound_date=None, return_date=None,
+            outbound_date=None, return_date=None, trip_type="unknown",
             cabin_confirmed=False, price_amount=None,
             price_currency=None, airlines=(),
             actionable_url=False, booking_flow="none",
@@ -120,10 +121,12 @@ def parse_amadeus_for_actionability(
         actionable_url=False,
         has_price=price is not None,
     )
+    _ret = getattr(first, "return_date", None)
     return ActionabilityReport(
         provider="amadeus", route=route,
         outbound_date=getattr(first, "departure_date", None),
-        return_date=getattr(first, "return_date", None),
+        return_date=_ret,
+        trip_type="round_trip" if _ret else "one_way",
         cabin_confirmed=cabin_confirmed,
         price_amount=float(price) if price is not None else None,
         price_currency=currency,
@@ -151,7 +154,7 @@ def parse_serpapi_for_actionability(
     if not offers:
         return ActionabilityReport(
             provider="serpapi", route=route,
-            outbound_date=None, return_date=None,
+            outbound_date=None, return_date=None, trip_type="unknown",
             cabin_confirmed=False, price_amount=None,
             price_currency=None, airlines=(),
             actionable_url=False, booking_flow="none",
@@ -226,6 +229,7 @@ def parse_serpapi_for_actionability(
         provider="serpapi", route=route,
         outbound_date=selected.departure_date or None,
         return_date=selected.return_date,
+        trip_type="round_trip" if selected.return_date else "one_way",
         cabin_confirmed=cabin_confirmed,
         price_amount=selected.price,
         price_currency=selected.currency,
@@ -254,15 +258,20 @@ def parse_kiwi_for_actionability(
     Payload esperado: {"data": [{...}, ...]} no formato Tequila Search.
     """
     items = (payload or {}).get("data") or []
+    # PR #62: `kiwi_live_search` injeta `_blocker` em erros de rede/HTTP.
+    live_blocker = (payload or {}).get("_blocker") if isinstance(payload, dict) else None
     if not items:
+        empty_blockers = ("empty_payload",)
+        if isinstance(live_blocker, str) and live_blocker:
+            empty_blockers = ("empty_payload", f"live_{live_blocker}")
         return ActionabilityReport(
             provider="kiwi", route=route,
-            outbound_date=None, return_date=None,
+            outbound_date=None, return_date=None, trip_type="unknown",
             cabin_confirmed=False, price_amount=None,
             price_currency=None, airlines=(),
             actionable_url=False, booking_flow="none",
             booking_domain=None,
-            blockers=("empty_payload",),
+            blockers=empty_blockers,
             decision=DECISION_NOT_SUITABLE,
         )
     item = items[0]
@@ -284,10 +293,23 @@ def parse_kiwi_for_actionability(
         actionable_url=actionable_url,
         has_price=price is not None,
     )
+    # PR #62: Tequila one-way response não traz return date; round-trip
+    # traz `route` com pernas de ida + volta. Inferimos trip_type a
+    # partir do número de segmentos quando possível.
+    out_date = item.get("local_departure", "")[:10] if isinstance(item, dict) else None
+    ret_date = None
+    if isinstance(item, dict):
+        legs = item.get("route") or []
+        if isinstance(legs, list) and len(legs) >= 2:
+            last = legs[-1]
+            if isinstance(last, dict):
+                ret_date = (last.get("local_departure", "") or "")[:10] or None
+    trip_type = "round_trip" if ret_date else "one_way"
     return ActionabilityReport(
         provider="kiwi", route=route,
-        outbound_date=item.get("local_departure", "")[:10] if isinstance(item, dict) else None,
-        return_date=item.get("local_arrival", "")[:10] if isinstance(item, dict) else None,
+        outbound_date=out_date,
+        return_date=ret_date,
+        trip_type=trip_type,
         cabin_confirmed=cabin_confirmed,
         price_amount=float(price) if price is not None else None,
         price_currency=currency,
@@ -298,6 +320,92 @@ def parse_kiwi_for_actionability(
         blockers=tuple(blockers),
         decision=decision,
     )
+
+
+# ----------------- Kiwi live (PR #62) -----------------
+
+
+KIWI_TEQUILA_URL = "https://api.tequila.kiwi.com/v2/search"
+
+
+def kiwi_live_search(
+    *,
+    api_key: str,
+    origin: str,
+    destination: str,
+    trip_type: str,
+    outbound_date,
+    return_date=None,
+    currency: str = "BRL",
+    timeout: int = 20,
+    urlopen_impl=None,
+) -> dict:
+    """Lança UMA query real ao Kiwi Tequila p/ rota+cabine business.
+    Read-only. NUNCA loga URL completa nem header `apikey`. Em qualquer
+    erro de rede/HTTP, devolve `{'data': [], '_blocker': <code>}` —
+    nunca propaga exceção. Caller usa o blocker como informação extra
+    no `ActionabilityReport`.
+
+    `urlopen_impl` é injetável para testes (default = urllib.request.urlopen).
+    """
+    from datetime import date as _date
+    from urllib.parse import urlencode
+    from urllib.request import Request
+    from urllib.error import HTTPError, URLError
+
+    if urlopen_impl is None:
+        from urllib.request import urlopen as urlopen_impl  # type: ignore
+
+    fmt = lambda d: d.strftime("%d/%m/%Y")
+    if isinstance(outbound_date, str):
+        from datetime import datetime as _dt
+        outbound_date = _dt.strptime(outbound_date, "%Y-%m-%d").date()
+    if isinstance(return_date, str) and return_date:
+        from datetime import datetime as _dt
+        return_date = _dt.strptime(return_date, "%Y-%m-%d").date()
+    elif return_date == "":
+        return_date = None
+
+    params = {
+        "fly_from": origin,
+        "fly_to": destination,
+        "date_from": fmt(outbound_date),
+        "date_to": fmt(outbound_date),
+        "selected_cabins": "C",
+        "curr": currency,
+        "limit": 1,
+        "sort": "price",
+    }
+    is_round = (trip_type or "").strip().lower() == "round_trip"
+    if not is_round:
+        params["flight_type"] = "oneway"
+    else:
+        if return_date is not None:
+            nights = max(1, (return_date - outbound_date).days)
+        else:
+            nights = 7
+        params["nights_in_dst_from"] = nights
+        params["nights_in_dst_to"] = nights
+
+    url = f"{KIWI_TEQUILA_URL}?{urlencode(params)}"
+    req = Request(
+        url,
+        headers={"apikey": api_key, "accept": "application/json"},
+    )
+    try:
+        with urlopen_impl(req, timeout=timeout) as resp:
+            body = resp.read()
+        return json.loads(body.decode("utf-8"))
+    except HTTPError as exc:
+        return {"data": [], "_blocker": f"http_{exc.code}"}
+    except URLError:
+        return {"data": [], "_blocker": "network_error"}
+    except json.JSONDecodeError:
+        return {"data": [], "_blocker": "invalid_json_response"}
+    except Exception:
+        # Defesa final — qualquer outra exceção (inclusive timeout)
+        # vira no-op silencioso, sem vazar detalhes.
+        return {"data": [], "_blocker": "unknown_error"}
 
 
 # ----------------- Travelpayouts -----------------
@@ -317,7 +425,7 @@ def parse_travelpayouts_for_actionability(
     if not data:
         return ActionabilityReport(
             provider="travelpayouts", route=route,
-            outbound_date=None, return_date=None,
+            outbound_date=None, return_date=None, trip_type="unknown",
             cabin_confirmed=False, price_amount=None,
             price_currency=None, airlines=(),
             actionable_url=False, booking_flow="none",
@@ -333,7 +441,7 @@ def parse_travelpayouts_for_actionability(
     )
     return ActionabilityReport(
         provider="travelpayouts", route=route,
-        outbound_date=None, return_date=None,
+        outbound_date=None, return_date=None, trip_type="unknown",
         cabin_confirmed=False,
         price_amount=None,  # spike não extrai preço — só sinaliza estado
         price_currency=None,
@@ -358,6 +466,7 @@ def format_actionability_report(report: ActionabilityReport) -> str:
     lines = [
         f"provider:        {report.provider}",
         f"route:           {report.route}",
+        f"trip_type:       {report.trip_type}",
         f"outbound_date:   {report.outbound_date or '(n/a)'}",
         f"return_date:     {report.return_date or '(n/a)'}",
         f"cabin_confirmed: {_fmt_yes_no(report.cabin_confirmed)}",
