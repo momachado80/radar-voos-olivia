@@ -38,6 +38,9 @@ class Quote:
     trip_type: TripType = TripType.ROUND_TRIP
     cabin_confirmed: bool = False
     suspicious: bool = False
+    # Companhia aérea (código IATA, ex.: "CM"). Opcional; hoje só
+    # preenchido pelo provider Duffel para exibição no alerta confirmado.
+    airline: str | None = None
 
     def __post_init__(self) -> None:
         # Caminho legado/testes: só `price_brl` informado → assume BRL

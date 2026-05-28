@@ -129,7 +129,18 @@ def format_alert(
     if is_ceiling:
         extras.append("⚠️ Preço pode mudar rápido. Conferir agora.")
 
-    if quote.source == "manual_purchase":
+    if quote.source == "duffel":
+        # Duffel: oferta business CONFIRMADA via order_flow. NÃO há link
+        # clicável (booking é API server-to-server). NUNCA expomos
+        # offer_id / token / payload — só fonte, carrier e a ação manual
+        # de verificação no painel do Duffel.
+        extras.append("🟢 Oferta confirmada por Duffel; sem compra automática.")
+        extras.append("🛒 Fonte: Duffel (Offer Request, cabine business confirmada)")
+        if quote.airline:
+            extras.append(f"🛫 Companhia: {quote.airline}")
+        extras.append("booking_flow: order_flow (sem link direto de compra)")
+        extras.append("Ação: verificar no Duffel Dashboard.")
+    elif quote.source == "manual_purchase":
         # Manual purchase fallback: preço veio do Travelpayouts mas não há
         # link comercial acionável (Kiwi indisponível, Aviasales bloqueado).
         # Em vez de hyperlink comercial, oferecemos links auxiliares de
