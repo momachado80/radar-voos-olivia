@@ -1,0 +1,38 @@
+{
+  "data": {
+    "offers": [
+      {
+        "id": "off_fixture_business_001",
+        "total_amount": "4321.50",
+        "total_currency": "USD",
+        "owner": {
+          "iata_code": "LA",
+          "name": "LATAM Airlines"
+        },
+        "slices": [
+          {
+            "origin": {"iata_code": "GRU"},
+            "destination": {"iata_code": "MIA"},
+            "segments": [
+              {
+                "departing_at": "2026-09-10T22:30:00",
+                "arriving_at": "2026-09-11T07:55:00",
+                "marketing_carrier": {"iata_code": "LA"},
+                "passengers": [
+                  {"cabin_class": "business", "cabin_class_marketing_name": "Premium Business"}
+                ]
+              }
+            ]
+          }
+        ],
+        "passengers": [
+          {"id": "pas_fixture_001", "type": "adult"}
+        ],
+        "payment_requirements": {
+          "requires_instant_payment": false,
+          "price_guarantee_expires_at": "2026-09-09T12:00:00Z"
+        }
+      }
+    ]
+  }
+}

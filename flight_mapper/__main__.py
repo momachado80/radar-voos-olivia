@@ -773,31 +773,21 @@ def cmd_provider_readiness(args: argparse.Namespace) -> int:
     # Modo actionability spike — exige --provider + (--mock-file OU --real).
     if getattr(args, "provider", None):
         from .actionability_readiness import (
+            duffel_live_search,
             format_actionability_report,
             kiwi_live_search,
             load_and_parse,
+            parse_duffel_for_actionability,
             parse_kiwi_for_actionability,
         )
         mock_file = getattr(args, "mock_file", None)
         real_mode = bool(getattr(args, "real", False))
-        # PR #62: modo --real só p/ Kiwi (único candidate_for_integration
-        # confirmado em PR #61). Gate explícito p/ não usar SerpApi cota
-        # nem chamar Amadeus por engano.
+        # PR #62: modo --real p/ Kiwi. PR #63: também Duffel (sem booking).
         if real_mode:
-            if args.provider != "kiwi":
+            if args.provider not in ("kiwi", "duffel"):
                 print(
-                    "--real só suportado para --provider kiwi neste "
-                    "spike (PR #62). Outros providers continuam apenas "
-                    "via --mock-file.",
-                    file=sys.stderr,
-                )
-                return 2
-            api_key = _os.environ.get("KIWI_API_KEY")
-            if not api_key:
-                print(
-                    "KIWI_API_KEY ausente — não é possível rodar modo "
-                    "--real. Configure no env do Actions Secrets ou exporte "
-                    "localmente.",
+                    "--real suportado apenas para --provider kiwi ou duffel. "
+                    "Outros providers continuam apenas via --mock-file.",
                     file=sys.stderr,
                 )
                 return 2
@@ -818,23 +808,54 @@ def cmd_provider_readiness(args: argparse.Namespace) -> int:
             if not (origin and destination):
                 print(f"rota inválida: {route_str!r}", file=sys.stderr)
                 return 2
-            payload = kiwi_live_search(
-                api_key=api_key,
+            cabin_requested = getattr(args, "cabin", None) or "business"
+            if args.provider == "kiwi":
+                api_key = _os.environ.get("KIWI_API_KEY")
+                if not api_key:
+                    print(
+                        "KIWI_API_KEY ausente — não é possível rodar modo "
+                        "--real. Configure no env do Actions Secrets ou exporte "
+                        "localmente.",
+                        file=sys.stderr,
+                    )
+                    return 2
+                payload = kiwi_live_search(
+                    api_key=api_key,
+                    origin=origin, destination=destination,
+                    trip_type=trip_type,
+                    outbound_date=outbound, return_date=return_dt,
+                )
+                report = parse_kiwi_for_actionability(
+                    payload, route=route_str, requested_cabin=cabin_requested,
+                )
+                print(format_actionability_report(report))
+                return 0
+            # provider == "duffel" — PR #63 spike.
+            access_token = _os.environ.get("DUFFEL_ACCESS_TOKEN")
+            if not access_token:
+                print(
+                    "DUFFEL_ACCESS_TOKEN ausente — não é possível rodar "
+                    "modo --real para Duffel. Configure no env do Actions "
+                    "Secrets ou exporte localmente.",
+                    file=sys.stderr,
+                )
+                return 2
+            payload = duffel_live_search(
+                access_token=access_token,
                 origin=origin, destination=destination,
                 trip_type=trip_type,
                 outbound_date=outbound, return_date=return_dt,
+                cabin_class=cabin_requested,
             )
-            report = parse_kiwi_for_actionability(
-                payload,
-                route=route_str,
-                requested_cabin=getattr(args, "cabin", None) or "business",
+            report = parse_duffel_for_actionability(
+                payload, route=route_str, requested_cabin=cabin_requested,
             )
             print(format_actionability_report(report))
             return 0
         # Modo fixture (PR #61 — preservado).
         if not mock_file:
             print(
-                "--provider exige --mock-file PATH (ou --real para Kiwi).",
+                "--provider exige --mock-file PATH (ou --real para Kiwi/Duffel).",
                 file=sys.stderr,
             )
             return 2
@@ -1579,7 +1600,7 @@ def main(argv: list[str] | None = None) -> int:
     # PR #61: spike actionability.
     p_pr.add_argument(
         "--provider",
-        choices=("amadeus", "serpapi", "kiwi", "travelpayouts"),
+        choices=("amadeus", "serpapi", "kiwi", "travelpayouts", "duffel"),
         default=None,
         help=(
             "Spike actionability: avalia provider quanto a cabin+link+price."
@@ -1608,8 +1629,9 @@ def main(argv: list[str] | None = None) -> int:
     p_pr.add_argument(
         "--real", action="store_true",
         help=(
-            "Faz chamada real ao provider (só Kiwi neste spike). Exige "
-            "KIWI_API_KEY no env. Sem Telegram, sem alertas, sem booking."
+            "Faz chamada real ao provider (Kiwi ou Duffel). Exige "
+            "KIWI_API_KEY ou DUFFEL_ACCESS_TOKEN no env conforme o "
+            "provider. Sem Telegram, sem alertas, sem booking/order."
         ),
     )
     p_pr.add_argument(

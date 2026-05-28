@@ -46,8 +46,9 @@ def test_real_refused_without_real_flag(monkeypatch, capsys):
 
 
 def test_real_refused_for_non_kiwi_provider(monkeypatch, capsys):
-    """--real só funciona p/ Kiwi. Amadeus/SerpApi/Travelpayouts são
-    rejeitados claramente (sem chamar a rede do provider errado)."""
+    """--real só funciona p/ Kiwi ou Duffel (PR #63). Amadeus/SerpApi/
+    Travelpayouts são rejeitados claramente (sem chamar a rede do
+    provider errado)."""
     monkeypatch.setenv("KIWI_API_KEY", "FAKE")
     rc = main([
         "provider-readiness", "--provider", "amadeus",
@@ -55,7 +56,8 @@ def test_real_refused_for_non_kiwi_provider(monkeypatch, capsys):
     ])
     assert rc == 2
     err = capsys.readouterr().err
-    assert "--real só suportado para --provider kiwi" in err
+    assert "kiwi" in err.lower() and "duffel" in err.lower()
+    assert "--real" in err
 
 
 def test_real_missing_kiwi_api_key_handled(monkeypatch, capsys):

@@ -298,7 +298,7 @@ def test_load_and_parse_serpapi_with_booking():
 def test_load_and_parse_unknown_provider_raises():
     with pytest.raises(ValueError):
         load_and_parse(
-            "duffel",  # não implementado
+            "bogus_provider_xyz",  # não implementado
             FIX / "amadeus_business.json",
             route="GRU-MIA",
         )

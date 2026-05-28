@@ -11,11 +11,23 @@ novo em produção. Apenas avalia, com fixtures, qual dos providers atuais
 5. link clicável simples ou fluxo de booking documentado
 6. cobertura Brasil → EUA/Europa
 
-**Resumo executivo:** após o spike, **Kiwi Tequila é o único candidato real**
-no repositório atual — desde que `KIWI_API_KEY` esteja ativo e o plano
-Tequila suporte as rotas necessárias. Amadeus e SerpApi viram
-**validator_only**. Travelpayouts é **not_suitable** para alerta executivo.
-Duffel é candidato externo a avaliar comercialmente.
+**Resumo executivo (atualizado PR #63):**
+- **Kiwi Tequila:** parser confirmou-o como `candidate_for_integration`
+  em fixture (PR #61) e o smoke real existe (PR #62). Porém **`KIWI_API_KEY`
+  não está disponível** — Kiwi não respondeu ao contato comercial.
+  Status executável: **bloqueado** até resposta. Não pode bloquear o produto.
+- **Duffel:** promovido a próximo candidato executável (PR #63). Tem API
+  pública documentada (`/air/offer_requests` → `/air/offers` → `/air/orders`),
+  retorna cabine `business` confirmada por segmento + preço final + airline.
+  Sem deep_link público (booking via order_flow). Decisão de produto:
+  **se Duffel devolver cabin+price+order_flow em rota real,
+  `candidate_for_integration`** (booking_flow API conta como fluxo
+  documentado de ação).
+- Amadeus e SerpApi seguem **validator_only**. Travelpayouts segue
+  **not_suitable** para alerta executivo.
+- **Conclusão honesta:** se nem Kiwi nem Duffel se confirmarem, o produto
+  aceita que radar é **observação** (👀/💸/🟡 informativos), não alerta
+  executivo de compra.
 
 ---
 
@@ -71,7 +83,15 @@ query string, post_data nem payload bruto. Apenas o domínio do link
 
 ## 3. Avaliação por provider
 
-### 3.1 Kiwi Tequila — `candidate_for_integration`
+### 3.1 Kiwi Tequila — `candidate_for_integration` (bloqueado por chave)
+
+> **STATUS PR #63:** marcado como **bloqueado**. O parser e o smoke
+> live (PR #62) continuam válidos, mas **não há `KIWI_API_KEY` disponível**
+> — Kiwi não respondeu ao contato comercial da Olivia. Enquanto isso,
+> Kiwi não é executável e **não pode bloquear o produto**. A frente
+> Duffel (§3.5) é prioritária por ser efetivamente testável.
+
+
 
 Fixture: `tests/fixtures/kiwi_tequila_business_gru_mia.json`
 (reflete payload Tequila Search com `selected_cabins=C`).
@@ -194,52 +214,107 @@ anterior (redirecionamento para experiência russa). Útil apenas como
 **sinal cru de preço** para alimentar a banda econômica — fora do
 escopo deste spike.
 
+### 3.5 Duffel — `candidate_for_integration` (em fixture; live pendente de token)
+
+Fixtures: `tests/fixtures/duffel_business_gru_mia.json`,
+`tests/fixtures/duffel_economy_gru_mia.json`,
+`tests/fixtures/duffel_empty.json`.
+
+```
+provider:        duffel
+route:           GRU-MIA
+trip_type:       one_way
+outbound_date:   2026-09-10
+return_date:     (n/a)
+cabin_confirmed: yes
+price_amount:    4321.50
+price_currency:  USD
+airlines:        LA
+actionable_url:  no
+booking_flow:    order_flow
+booking_domain:  (n/a)
+blockers:        no_clickable_deep_link_in_payload,requires_duffel_orders_api_for_booking
+decision:        candidate_for_integration
+```
+
+**Veredito:** **candidato executável** — promovido em PR #63 enquanto
+Kiwi segue bloqueado.
+
+- Endpoint `/air/offer_requests` (POST) retorna lista de `offers` com
+  `cabin_class` por passageiro/segmento, `total_amount`/`total_currency`,
+  `owner.iata_code` e segmentos com `marketing_carrier`. O parser exige
+  que **todos os passageiros do 1º segmento** tenham
+  `cabin_class == "business"` para marcar `cabin_confirmed=yes` —
+  conservador, evita falso positivo de "mixed cabin".
+- **Não há deep_link público** (`actionable_url=no`). Booking acontece
+  por `/air/orders` (server-to-server) — fluxo de API, não URL
+  clicável. Esse é o `booking_flow: order_flow`.
+- Regra de decisão **específica de Duffel** (diferente das regras
+  puras de `apply_decision`, que exigem `actionable_url=yes`): o goal
+  PR #63 estabelece que **`order_flow` documentado conta como fluxo
+  de ação**, então:
+  - cabin + price → `candidate_for_integration`
+  - cabin sem price → `validator_only`
+  - sem cabin → `not_suitable`
+- Cobertura Brasil → EUA/Europa: Duffel agrega mais de 350 cias (LATAM,
+  AA, BA, IB, AF, LH etc.); cobertura existe **comercialmente em
+  teoria**, mas só o smoke real (§9) confirma para a chave da Olivia.
+- Custo do spike: 1 query `offer_requests` por disparo manual. NÃO cria
+  order. NÃO cria payment.
+
+**Pré-condições para alerta executivo:**
+1. `DUFFEL_ACCESS_TOKEN` ativo em `secrets`.
+2. Smoke real (§9) devolve `decision: candidate_for_integration` na
+   rota testada.
+3. Decisão de produto: aceitar que o "clique" da Olivia abre o app/site
+   da própria cia (não o Duffel) — ou abrir frente futura de
+   `/air/orders` com pagamento (fora deste spike).
+
 ---
 
-## 4. Candidato externo: Duffel
+## 4. Outros candidatos externos avaliados
 
-Não está no repo. Avaliação externa apenas (não testado neste spike):
+Frente a Duffel já promovido (§3.5) e Kiwi bloqueado (§3.1), **nenhum
+outro candidato externo está em avaliação ativa**. Possibilidades
+descartadas ou parqueadas:
 
-- API transacional moderna (booking flow completo: offers → confirm
-  → order → tickets).
-- Cobertura Brasil → EUA/Europa: precisa confirmar comercialmente.
-- Modelo: B2B com contrato. Não há free tier acessível para teste
-  individual.
-- Vantagem teórica: payload de offer já trazendo `cabin_class=business`
-  e `links` para o booking — se confirmado, viraria `candidate_for_integration`
-  como Kiwi.
-- Desvantagem: outro contrato comercial pago a perseguir, em paralelo
-  ao Tequila. Recomendação: **só investigar se Kiwi Tequila falhar
-  comercialmente** (caso a conta Olivia não tenha plano que cubra
-  Brasil→EUA/Europa em business).
+- **Scraping de OTAs / Google Flights:** descartado por ToS e por já
+  termos SerpApi cobrindo o canal Google quando útil.
+- **APIs de cias diretas (LATAM, BA, AA NDC):** cada uma exige contrato
+  individual; custo de manter parsers separados é alto e o benefício
+  vs. Duffel agregador é baixo. Parqueado.
+- **Travel Coordinator / fornecedores brancos:** sem APIs públicas
+  testáveis nesta janela.
 
-Esse spike não cria fixture Duffel nem implementa parser — fica para
-um PR futuro condicionado ao Kiwi falhar.
+Critério de retomada: se Duffel **também** não devolver
+`candidate_for_integration` em rota real, a decisão é **§7 — matar
+a frente** (radar segue como observação, não como alerta de compra).
 
 ---
 
 ## 5. Recomendação operacional
 
-Em ordem de prioridade:
+Em ordem de prioridade (revisada PR #63):
 
-1. **Confirmar comercialmente o acesso Tequila/Kiwi atual.** O parser
-   já existe. A peça que falta é se o plano cobre rotas business
-   Brasil→US/Europa com `selected_cabins=C`. Resposta esperada do
-   suporte Kiwi: lista de mercados/cabines incluídas no SKU contratado.
-2. **Se Kiwi cobrir:** abrir PR de integração efetiva. O
-   `KiwiTequilaProvider` em `providers.py` já está pronto; o que precisa
-   é (a) garantir que rotas business sejam consultadas com
-   `selected_cabins=C`, (b) verificar que `deep_link` está no payload
-   real (não só fixture), (c) confiar no `_actionable_link_from_history`
-   e nas regras de gate atuais (PR #51/#60).
-3. **Se Kiwi não cobrir** (plano TPF mais barato sem business
-   internacional): abrir frente Duffel ou voltar ao status quo, mantendo
-   o radar como "honesto mas não acionável" e usando Travelpayouts +
-   SerpApi como sinais sem alerta automático.
-4. **Não integrar SerpApi como fonte de alerta.** Mantém como validador
+1. **Rodar smoke real do Duffel (§9)** com `DUFFEL_ACCESS_TOKEN` na rota
+   GRU-MIA business para confirmar `decision: candidate_for_integration`
+   em payload de produção. Custo: 1 query `/air/offer_requests`, sem
+   order, sem payment.
+2. **Se Duffel devolver `candidate_for_integration` real:** abrir PR
+   futuro de integração efetiva — `DuffelProvider` em `providers.py`
+   consumindo `/air/offer_requests`, sem ainda criar order. Alerta
+   executivo cita preço + cabine + carrier e instrui usuário a comprar
+   pela cia (sem clique automático). Decisão de avançar para
+   `/air/orders` (booking real) fica para frente comercial separada.
+3. **Kiwi destravado depois:** se `KIWI_API_KEY` finalmente liberar,
+   `KiwiTequilaProvider` já existe — pode coexistir com Duffel como
+   segunda fonte (Kiwi tem deep_link nativo, Duffel não).
+4. **Se nem Duffel nem Kiwi confirmarem:** §7 — assumir radar como
+   observação informativa e não prometer alerta acionável.
+5. **Não integrar SerpApi como fonte de alerta.** Mantém como validador
    opcional + observabilidade. PR #60 já mitiga o risco de
    "validação enganosa".
-5. **Não fazer scraping.** Nem Aviasales, nem Google Flights direto,
+6. **Não fazer scraping.** Nem Aviasales, nem Google Flights direto,
    nem qualquer site. Sem ToS = sem integração.
 
 ---
@@ -334,3 +409,85 @@ O output `format_actionability_report(...)` traz `decision:` e
   pode não cobrir business internacional comercialmente — ver §5).
 - ❌ Não rodar em loop / cron. O workflow é `workflow_dispatch` only
   por design.
+
+---
+
+## 9. Como rodar o readiness real do Duffel (smoke manual — PR #63)
+
+Disponível para validar a hipótese do spike Duffel (§3.5) com
+`DUFFEL_ACCESS_TOKEN` real. Custo: **1 query `/air/offer_requests`
+por disparo**, manual, **sem criar order, sem payment**.
+
+### 9.1 Via GitHub Actions (recomendado)
+
+Workflow: `.github/workflows/duffel-readiness-smoke.yml`
+(workflow_dispatch only, nunca cron / push / PR).
+
+Acesse `Actions → Duffel readiness smoke → Run workflow` e escolha:
+
+- `route`: 1 rota IATA `ORG-DEST` (máx. 1 por disparo, choice fechado:
+  `GRU-MIA` | `GRU-JFK` | `GRU-LIS` | `GRU-MAD` | `GRU-LHR`)
+- `trip`: `one_way` | `round_trip`
+- `departure`: `YYYY-MM-DD` (vazio = hoje+90d)
+- `return_date`: `YYYY-MM-DD` (vazio = +7d sobre partida; só round_trip)
+
+Regras invioláveis do workflow:
+
+- `permissions: contents: read` — não toca `data/`, não commita, não
+  empurra.
+- Único secret consumido: `DUFFEL_ACCESS_TOKEN`. Sem `TELEGRAM_*`, sem
+  `SERPAPI_API_KEY`, sem `AMADEUS_*`, sem `KIWI_API_KEY`.
+- **Não chama `/air/orders`. Não cria payment. Não toca booking.**
+- Não dispara `monitor`/`detector`. Não envia Telegram. Não faz scraping.
+- Saída sanitizada: nunca URL completa, nunca token, nunca order/offer
+  id, nunca passenger data.
+
+### 9.2 Via CLI local (opcional)
+
+```bash
+DUFFEL_ACCESS_TOKEN="<seu_token>" python -m flight_mapper provider-readiness \
+  --provider duffel --route GRU-MIA --cabin business \
+  --trip one_way --real
+```
+
+Flags adicionais: `--departure YYYY-MM-DD`, `--return-date YYYY-MM-DD`.
+
+### 9.3 Critério de decisão sobre o output
+
+O output `format_actionability_report(...)` traz `decision:` e
+`blockers:` em uma linha curta. Decisões esperadas para Duffel:
+
+- `candidate_for_integration` → cabine business confirmada (todos os
+  passageiros do 1º segmento com `cabin_class == business`), preço
+  presente, `booking_flow: order_flow` documentado. **Hipótese PR #63
+  validada na rota testada.** Abrir frente de `DuffelProvider` em
+  `providers.py`.
+- `validator_only` → cabine confirmada mas preço ausente. Útil só
+  como segundo signal de cabine, não para alerta.
+- `not_suitable` → sem cabine confirmada OU payload vazio OU bloqueador
+  de rede (`live_http_429`, `live_network_error`,
+  `live_invalid_json_response`). Tenta outra rota/data antes de
+  concluir que Duffel não cobre.
+
+### 9.4 O que NÃO fazer com o output
+
+- ❌ Não disparar Telegram com o resultado (workflow não tem secret de
+  canal).
+- ❌ Não criar order via `/air/orders` (mesmo se o token tiver permissão
+  test mode — fora do escopo deste spike).
+- ❌ Não persistir o payload em `data/`. O workflow é read-only.
+- ❌ Não copiar `offer_id`, `passenger_id` ou `order_id` para logs,
+  Telegram ou docs — o parser e o formatter já garantem isso, manter
+  no operacional também.
+- ❌ Não rodar em loop / cron. O workflow é `workflow_dispatch` only
+  por design.
+
+### 9.5 Regra dura de decisão executiva
+
+> Se Duffel real devolver `candidate_for_integration` na rota
+> business GRU→US/Europa: **Duffel vira a fonte transacional do
+> radar** (PR futuro separado de integração). Se devolver
+> `validator_only` ou `not_suitable` em todas as rotas testadas:
+> **nenhuma fonte atual resolve alerta executivo acionável** — o
+> produto cai no critério §7 (radar como observação, não como
+> alerta de compra).
