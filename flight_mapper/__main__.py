@@ -752,13 +752,56 @@ def cmd_explain_deals(args: argparse.Namespace) -> int:
 
 
 def cmd_provider_readiness(args: argparse.Namespace) -> int:
-    """Read-only: audita prontidão de provedores (Kiwi/Travelpayouts/
-    Amadeus/SerpApi) sem revelar valores de secrets. Sem rede, sem
-    Telegram, sem modificações em estado."""
+    """Read-only: dois modos.
+
+    Modo audit (default — comportamento original):
+      python -m flight_mapper provider-readiness
+      → audita prontidão de provedores (Kiwi/Travelpayouts/Amadeus/SerpApi)
+        sem revelar valores de secrets.
+
+    Modo actionability spike (PR #61):
+      python -m flight_mapper provider-readiness \\
+        --provider {amadeus|serpapi|kiwi|travelpayouts} \\
+        --route GRU-MIA --cabin business --mock-file PATH
+      → roda parser sanitizado sobre fixture, imprime ActionabilityReport
+        determinístico (cabin/preço/link/decision). Sem rede, sem Telegram,
+        sem alteração de produção.
+    """
     import json as _json
     import os as _os
-    from .provider_readiness import audit_all, format_report
 
+    # Modo actionability spike — exige --provider + --mock-file.
+    if getattr(args, "provider", None):
+        from .actionability_readiness import (
+            format_actionability_report,
+            load_and_parse,
+        )
+        mock_file = getattr(args, "mock_file", None)
+        if not mock_file:
+            print(
+                "--provider exige --mock-file PATH (spike read-only, sem rede)",
+                file=sys.stderr,
+            )
+            return 2
+        booking_path = getattr(args, "booking_options_file", None)
+        try:
+            report = load_and_parse(
+                args.provider,
+                Path(mock_file),
+                route=getattr(args, "route", None) or "GRU-MIA",
+                requested_cabin=getattr(args, "cabin", None) or "business",
+                booking_options_path=(
+                    Path(booking_path) if booking_path else None
+                ),
+            )
+        except ValueError as exc:
+            print(f"erro: {exc}", file=sys.stderr)
+            return 2
+        print(format_actionability_report(report))
+        return 0
+
+    # Modo audit original.
+    from .provider_readiness import audit_all, format_report
     config = Config.from_env()
     history: dict = {}
     if config.history_path.exists():
@@ -1472,7 +1515,39 @@ def main(argv: list[str] | None = None) -> int:
 
     p_pr = sub.add_parser(
         "provider-readiness",
-        help="Audita prontidão de provedores (read-only, sem revelar secrets).",
+        help=(
+            "Audita prontidão de provedores (read-only). Sem args = "
+            "audit de secrets/workflows. Com --provider + --mock-file = "
+            "spike de actionability (cabin/link/decision) via fixture."
+        ),
+    )
+    # PR #61: spike actionability.
+    p_pr.add_argument(
+        "--provider",
+        choices=("amadeus", "serpapi", "kiwi", "travelpayouts"),
+        default=None,
+        help=(
+            "Spike actionability: avalia provider quanto a cabin+link+price."
+        ),
+    )
+    p_pr.add_argument(
+        "--route", default="GRU-MIA",
+        help="Rota no formato ORIGIN-DEST (default GRU-MIA).",
+    )
+    p_pr.add_argument(
+        "--cabin", default="business",
+        help="Cabine pedida (default business).",
+    )
+    p_pr.add_argument(
+        "--mock-file", dest="mock_file", default=None,
+        help="Fixture JSON do payload do provider (read-only, sem rede).",
+    )
+    p_pr.add_argument(
+        "--booking-options-file", dest="booking_options_file", default=None,
+        help=(
+            "Opcional p/ SerpApi: fixture do payload de booking_options "
+            "(necessária para classificar actionability final)."
+        ),
     )
     p_pr.set_defaults(func=cmd_provider_readiness)
 

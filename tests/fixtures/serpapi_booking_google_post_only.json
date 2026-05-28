@@ -1,0 +1,16 @@
+{
+  "search_parameters": {"engine": "google_flights", "currency": "USD"},
+  "booking_options": [
+    {
+      "together": {
+        "book_with": "Google",
+        "price": 1820,
+        "booking_request": {
+          "url": "https://www.google.com/travel/clk/redirect?token=spike_fixture_xyz",
+          "method": "POST",
+          "post_data": "spike_fixture_post_body=value"
+        }
+      }
+    }
+  ]
+}
