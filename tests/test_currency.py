@@ -66,6 +66,16 @@ def test_usd_without_rate_returns_none():
     assert to_brl(2079.0, CURRENCY_USD, None) is None
 
 
+def test_eur_converted_with_rate():
+    # EUR é suportado (offers Duffel vêm em EUR). Usa a taxa fornecida.
+    assert to_brl(963.35, "EUR", 6.0) == round(963.35 * 6.0, 2)
+
+
+def test_eur_without_rate_returns_none():
+    assert to_brl(963.35, "EUR", None) is None
+
+
 def test_unknown_currency_returns_none():
-    assert to_brl(2079.0, "EUR", 5.4) is None
+    assert to_brl(2079.0, "GBP", 5.4) is None
+    assert to_brl(2079.0, "JPY", 5.4) is None
     assert to_brl(2079.0, "", 5.4) is None

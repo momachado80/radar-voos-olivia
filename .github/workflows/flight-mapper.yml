@@ -47,6 +47,18 @@ jobs:
           SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
           SERPAPI_VALIDATION_MAX_PER_CYCLE: "1"
           SERPAPI_VALIDATION_MONTHLY_BUDGET: "90"
+          # Duffel read-only confirmed business offers (PR #64). Pass
+          # ADITIVO: gera alerta 🟢 "oferta confirmada" via order_flow,
+          # NUNCA cria order/payment, NUNCA expõe offer_id/token/payload.
+          # Cap MUITO conservador: 1 Offer Request por ciclo. Falha
+          # silenciosa se token ausente. Histórico isolado em
+          # data/duffel_history.json (só preço BRL + timestamp).
+          # EUR_BRL_RATE: offers Duffel costumam vir em EUR; sem a taxa o
+          # alerta é bloqueado com segurança (não inventamos câmbio).
+          DUFFEL_PROVIDER_ENABLED: "true"
+          DUFFEL_ACCESS_TOKEN: ${{ secrets.DUFFEL_ACCESS_TOKEN }}
+          DUFFEL_MAX_REQUESTS_PER_CYCLE: "1"
+          EUR_BRL_RATE: ${{ vars.EUR_BRL_RATE }}
         run: python -m flight_mapper cycle
 
       - name: Commit state

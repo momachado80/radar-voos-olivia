@@ -36,6 +36,10 @@ class MonitorResult:
     currency_blocked: int = 0
     cabin_blocked: int = 0
     suspicious_blocked: int = 0
+    # Pass Duffel (read-only confirmed offers). Zero quando desligado.
+    duffel_requests: int = 0
+    duffel_confirmed_alerts: int = 0
+    duffel_blocked: int = 0
 
 
 def _route_note(route: Route) -> str:
@@ -81,6 +85,9 @@ class Monitor:
         confirm_alerts: bool = True,
         link_provider: FlightProvider | None = None,
         manual_purchase_fallback: bool = True,
+        duffel_provider: FlightProvider | None = None,
+        duffel_store: PriceStore | None = None,
+        duffel_max_requests: int = 0,
     ):
         self.provider = provider
         self.notifier = notifier
@@ -88,6 +95,13 @@ class Monitor:
         self.cycle = cycle
         self.chunk_size = chunk_size
         self.confirm_alerts = confirm_alerts
+        # Duffel (read-only confirmed offers): pass ADITIVO e isolado.
+        # Desligado quando `duffel_provider is None` (zero chamada, zero
+        # mudança de comportamento). Histórico/dedup em store próprio
+        # (`duffel_store`) para NUNCA poluir o store principal/relatórios.
+        self.duffel_provider = duffel_provider
+        self.duffel_store = duffel_store
+        self.duffel_max_requests = max(0, duffel_max_requests)
         # `link_provider`: provider auxiliar SÓ para validar/obter link comercial
         # quando o primário não fornece link acionável (caso Travelpayouts).
         # Quando definido, cross-check é executado antes do envio do alerta.
@@ -410,3 +424,139 @@ class Monitor:
         self.cycle.advance(len(rest), self.chunk_size)
         self.cycle.save()
         return result
+
+    def run_duffel_confirmations(
+        self, routes: list[Route] | None = None
+    ) -> MonitorResult:
+        """Pass ADITIVO read-only: consulta Duffel para ofertas business
+        CONFIRMADAS e envia alerta 🟢 "oferta confirmada" (sem compra
+        automática, sem link). Não substitui nem altera `run_once`.
+
+        Invariantes:
+        - No-op total se `duffel_provider is None` ou cap == 0 (test 1).
+        - Reaproveita gates de moeda + sanidade e o detector de teto
+          (`evaluate_ceiling`) — mesmo padrão de qualidade/dedup do radar.
+        - Duffel não tem deep_link (order_flow) ⇒ NÃO passa por
+          `_resolve_actionable_link`; é esperado e correto.
+        - Histórico/dedup ISOLADO em `self.duffel_store` (nunca o store
+          principal) ⇒ relatórios de status/ciclo intactos.
+        """
+        notes: list[str] = []
+        if self.duffel_provider is None or self.duffel_max_requests <= 0:
+            return MonitorResult(
+                scanned=0, quotes_received=0, alerts_sent=0, notes=notes,
+            )
+
+        duffel_store = self.duffel_store if self.duffel_store is not None else self.store
+
+        if routes is None:
+            all_ = all_routes()
+            priority = [r for r in all_ if is_priority(r)]
+            rest = [r for r in all_ if not is_priority(r)]
+            routes = priority + rest
+        # Cap conservador de requests por ciclo (default 1).
+        routes = routes[: self.duffel_max_requests]
+
+        def _now():
+            return datetime.now(timezone.utc)
+
+        requests = 0
+        confirmed_alerts = 0
+        blocked = 0
+
+        for route in routes:
+            requests += 1
+            quote = self.duffel_provider.quote(route)
+            if quote is None:
+                notes.append(f"{_route_note(route)}: Duffel sem oferta confirmada")
+                continue
+
+            # GATE DE MOEDA: sem BRL confiável (ex.: EUR sem EUR_BRL_RATE),
+            # não avaliamos e não alertamos.
+            if quote.amount_brl_estimated is None:
+                blocked += 1
+                notes.append(
+                    f"{_route_note(route)}: Duffel bloqueado — câmbio "
+                    f"{quote.currency}→BRL ausente"
+                )
+                continue
+            quote.price_brl = quote.amount_brl_estimated
+
+            # GATE DE CABINE (defesa redundante: provider só devolve
+            # business confirmado, mas reasseguramos antes do alerta forte).
+            if not (quote.cabin == Cabin.BUSINESS and quote.cabin_confirmed):
+                blocked += 1
+                notes.append(
+                    f"{_route_note(route)}: Duffel bloqueado — cabine não confirmada"
+                )
+                continue
+
+            # GATE DE SANIDADE: preço business implausível não vira 🟢.
+            if is_suspicious_price(route, quote, quote.amount_brl_estimated):
+                blocked += 1
+                reason = suspicious_reason(route, quote, quote.amount_brl_estimated)
+                notes.append(
+                    f"{_route_note(route)}: Duffel bloqueado — preço suspeito ({reason})"
+                )
+                continue
+
+            history = duffel_store.get(f"{route.key}::duffel")
+            priority = is_priority(route)
+            # Tetos configurados têm magnitude USD; quando o preço veio de
+            # conversão (USD/EUR→BRL) escalamos os tetos pela MESMA taxa
+            # usada na conversão (quote.fx_rate). BRL-nativo usa tetos como
+            # estão — idêntico ao comportamento de `run_once`.
+            effective_rate = (
+                quote.fx_rate if quote.currency.upper() != "BRL" else None
+            )
+            ceiling = evaluate_ceiling(
+                history, quote.price_brl, route.key,
+                priority=priority, brl_rate=effective_rate,
+            )
+            legacy = evaluate(history, quote.price_brl, priority=priority)
+            decision = ceiling if ceiling.alert else legacy
+
+            history.push(quote.price_brl)
+            history.last_quote = _quote_to_dict(quote, _now(), provider_note="duffel")
+
+            if not decision.alert:
+                notes.append(f"{_route_note(route)}: Duffel — {decision.reason}")
+                continue
+
+            # Score informativo (sem link acionável: order_flow).
+            score_levels = levels_for(route.key)
+            if effective_rate is not None:
+                score_levels = scaled_levels(score_levels, effective_rate)
+            decision.score = compute_opportunity_score(
+                quote.price_brl, score_levels, history,
+                actionable_url=False,
+                confirmed=True,
+                is_hot_route=route.key in HOT_ROUTE_KEYS,
+            )
+
+            if self.notifier:
+                ok = self.notifier.send_alert(quote, decision, priority=priority)
+                if ok:
+                    history.last_alert_at = _now().isoformat()
+                    history.last_alert_price = quote.price_brl
+                    confirmed_alerts += 1
+                    notes.append(
+                        f"{_route_note(route)}: ALERTA DUFFEL CONFIRMADO {decision.reason}"
+                    )
+                else:
+                    notes.append(f"{_route_note(route)}: Duffel alerta falhou no envio")
+            else:
+                notes.append(
+                    f"{_route_note(route)}: Duffel — {decision.reason} (notifier ausente)"
+                )
+
+        duffel_store.save()
+        return MonitorResult(
+            scanned=len(routes),
+            quotes_received=requests,
+            alerts_sent=confirmed_alerts,
+            notes=notes,
+            duffel_requests=requests,
+            duffel_confirmed_alerts=confirmed_alerts,
+            duffel_blocked=blocked,
+        )

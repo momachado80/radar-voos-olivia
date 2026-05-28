@@ -56,6 +56,24 @@ def _make_notifier(config: Config) -> TelegramNotifier | None:
     return TelegramNotifier(config.telegram_bot_token, config.telegram_chat_id)
 
 
+def _make_duffel_provider(config: Config):
+    """Instancia DuffelProvider SÓ se o flag estiver ligado E o token
+    presente. Caso contrário None (pass desligado, fail-safe). Nunca
+    loga o token."""
+    if not config.duffel_provider_enabled:
+        return None
+    if not config.duffel_access_token:
+        print(
+            "DUFFEL_PROVIDER_ENABLED=true mas DUFFEL_ACCESS_TOKEN ausente — "
+            "pass Duffel desligado neste ciclo.",
+            file=sys.stderr,
+        )
+        return None
+    from .duffel_provider import DuffelProvider
+
+    return DuffelProvider(access_token=config.duffel_access_token)
+
+
 def _make_link_provider(config: Config, primary):
     """Provider auxiliar SÓ para validar/obter link comercial acionável.
 
@@ -93,14 +111,33 @@ def cmd_cycle(args: argparse.Namespace) -> int:
     store = PriceStore(config.history_path)
     cycle = CycleState.load(config.cycle_path)
     link_provider = _make_link_provider(config, provider)
+    duffel_provider = _make_duffel_provider(config)
+    duffel_store = (
+        PriceStore(config.duffel_history_path)
+        if duffel_provider is not None else None
+    )
     monitor = Monitor(
         provider=provider, notifier=notifier, store=store, cycle=cycle,
         link_provider=link_provider,
+        duffel_provider=duffel_provider,
+        duffel_store=duffel_store,
+        duffel_max_requests=config.duffel_max_requests_per_cycle,
     )
     result = monitor.run_cycle()
     print(f"cycle scanned={result.scanned} quotes={result.quotes_received} alerts={result.alerts_sent}")
     for note in result.notes:
         print(f"  {note}")
+
+    # Pass ADITIVO read-only Duffel (só roda com flag ligado + token).
+    if duffel_provider is not None:
+        duffel_result = monitor.run_duffel_confirmations()
+        print(
+            f"duffel requests={duffel_result.duffel_requests} "
+            f"confirmed={duffel_result.duffel_confirmed_alerts} "
+            f"blocked={duffel_result.duffel_blocked}"
+        )
+        for note in duffel_result.notes:
+            print(f"  {note}")
 
     status_state = StatusState.load(config.status_path)
     decision = maybe_send_status(

@@ -151,6 +151,45 @@ Três condições simultâneas:
 Quando todas batem, o Telegram pode enviar o alerta com hyperlink para a
 companhia/OTA — porque há link clicável real, não só preço.
 
+## 2.1 Duffel — fonte read-only de oferta business CONFIRMADA (PR #64)
+
+Duffel é integrado como **fonte read-only de oferta confirmada**, num pass
+ADITIVO e isolado (`Monitor.run_duffel_confirmations`). Não substitui nem
+altera Travelpayouts/SerpApi/Kiwi — roda em paralelo, com história própria
+(`data/duffel_history.json`) que nunca polui os painéis de status/ciclo.
+
+**O que Duffel entrega:**
+- Cabine business **confirmada** (parser só promove `candidate_for_integration`
+  quando todos os passageiros do 1º segmento têm `cabin_class=business`).
+- Preço final + moeda (tipicamente EUR; convertido para BRL via `EUR_BRL_RATE`,
+  ou USD via `USD_BRL_RATE`). Sem taxa confiável ⇒ alerta **bloqueado**.
+- Companhia aérea (código IATA).
+- Rota + datas + trip_type.
+
+**`booking_flow=order_flow` ⇒ NÃO há link direto.** O fluxo de compra do
+Duffel é uma ordem via API (server-to-server), não uma URL clicável. Por
+isso o alerta Duffel:
+- exibe o selo **"🟢 Oferta confirmada por Duffel; sem compra automática."**
+- exibe **"🛒 Fonte: Duffel (Offer Request, cabine business confirmada)"**,
+  a companhia, e **"Ação: verificar no Duffel Dashboard."**
+- **não** mostra hyperlink de compra (não existe), e o pass Duffel **não**
+  passa pela resolução de link comercial (`_resolve_actionable_link`).
+
+**Compra automática: NUNCA.** O radar **não** chama `/air/orders`, **não**
+cria order, **não** cria payment, **não** armazena `offer_id`, token, payload
+cru ou dado de passageiro. A criação de orders (booking real) é um **projeto
+futuro separado**, que exige aprovação explícita e desenho próprio — não está
+neste escopo e não deve ser inferido como habilitado.
+
+**Gates aplicados (mesma barra de qualidade do radar):** o alerta Duffel só
+sai se passar moeda (BRL confiável) + cabine (business confirmada) + sanidade
+(piso de preço plausível) + teto (`evaluate_ceiling` na mesma régua de
+Excelente/Bom) + dedup. Quantidade controlada por:
+- `DUFFEL_PROVIDER_ENABLED` (default `false`; só liga no workflow);
+- `DUFFEL_MAX_REQUESTS_PER_CYCLE` (default `1` — cap conservador de 1 Offer
+  Request por ciclo);
+- falha silenciosa e segura se `DUFFEL_ACCESS_TOKEN` ausente.
+
 ## 3. O que conta como oportunidade para verificação manual
 
 Mesmas duas primeiras condições do confirmado (cabine + preço), mas
