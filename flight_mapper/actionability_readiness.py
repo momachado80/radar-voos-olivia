@@ -408,6 +408,233 @@ def kiwi_live_search(
         return {"data": [], "_blocker": "unknown_error"}
 
 
+# ----------------- Duffel (PR #63) -----------------
+
+# Duffel API: https://api.duffel.com/air/offer_requests + /air/offers
+# Reservas via /air/orders (order_flow). NÃO há deep_link público —
+# o fluxo é "API order": criar order pela API com payment + passageiros.
+# Para o spike, isso significa que `actionable_url` é sempre False
+# (não há URL clicável simples). Decision depende só do trio
+# cabin + price + booking_flow documentado.
+
+# Mapeamento de cabine: Duffel usa snake_case ("business","first",
+# "premium_economy","economy"). Consideramos confirmada quando TODOS
+# os passageiros do 1º segmento têm `cabin_class == requested_cabin`.
+DUFFEL_API_URL = "https://api.duffel.com/air/offer_requests"
+
+
+def _duffel_first_offer(payload: dict) -> dict | None:
+    """Extrai 1ª oferta de payloads em qualquer forma documentada:
+    `{"data":{"offers":[...]}}` (offer_request) ou `{"data":[...]}` (list)."""
+    if not isinstance(payload, dict):
+        return None
+    data = payload.get("data")
+    if isinstance(data, dict):
+        offers = data.get("offers") or []
+    elif isinstance(data, list):
+        offers = data
+    else:
+        offers = []
+    if not offers or not isinstance(offers[0], dict):
+        return None
+    return offers[0]
+
+
+def parse_duffel_for_actionability(
+    payload: dict,
+    route: str,
+    requested_cabin: str = "business",
+) -> ActionabilityReport:
+    """Duffel offers REST: cabine + preço + order_flow documentado.
+    Sem deep_link público — `actionable_url=False`, `booking_flow=order_flow`.
+    Decision:
+    - cabin + price → candidate_for_integration (apesar de actionable_url=False,
+      pois order_flow conta como fluxo de booking documentado por API).
+    - cabin sem price → validator_only.
+    - sem cabin → not_suitable.
+    """
+    live_blocker = payload.get("_blocker") if isinstance(payload, dict) else None
+    offer = _duffel_first_offer(payload)
+    if offer is None:
+        empty_blockers = ("empty_payload",)
+        if isinstance(live_blocker, str) and live_blocker:
+            empty_blockers = ("empty_payload", f"live_{live_blocker}")
+        return ActionabilityReport(
+            provider="duffel", route=route,
+            outbound_date=None, return_date=None, trip_type="unknown",
+            cabin_confirmed=False, price_amount=None,
+            price_currency=None, airlines=(),
+            actionable_url=False, booking_flow="none",
+            booking_domain=None,
+            blockers=empty_blockers,
+            decision=DECISION_NOT_SUITABLE,
+        )
+
+    target = (requested_cabin or "").strip().lower()
+    slices = offer.get("slices") or []
+    first_slice = slices[0] if slices and isinstance(slices[0], dict) else {}
+    segments = first_slice.get("segments") or []
+    first_seg = segments[0] if segments and isinstance(segments[0], dict) else {}
+    seg_pax = first_seg.get("passengers") or []
+    # Cabin confirmada quando TODOS os passageiros do 1º segmento têm
+    # cabin_class == requested_cabin. Conservador: se vazio → False.
+    cabin_confirmed = bool(seg_pax) and all(
+        isinstance(p, dict)
+        and (p.get("cabin_class") or "").strip().lower() == target
+        for p in seg_pax
+    )
+
+    price_raw = offer.get("total_amount")
+    try:
+        price_amount = float(price_raw) if price_raw is not None else None
+    except (TypeError, ValueError):
+        price_amount = None
+    currency = offer.get("total_currency")
+
+    # Airline: owner.iata_code é o mais estável; fallback p/ marketing_carrier.
+    owner = offer.get("owner") if isinstance(offer.get("owner"), dict) else {}
+    owner_code = (owner or {}).get("iata_code")
+    carriers: list[str] = []
+    if owner_code:
+        carriers.append(owner_code)
+    for seg in segments:
+        if not isinstance(seg, dict):
+            continue
+        mk = seg.get("marketing_carrier") or {}
+        code = mk.get("iata_code") if isinstance(mk, dict) else None
+        if code and code not in carriers:
+            carriers.append(code)
+
+    out_date = (first_seg.get("departing_at") or "")[:10] or None
+    last_slice = slices[-1] if slices else first_slice
+    last_segments = (
+        last_slice.get("segments") if isinstance(last_slice, dict) else None
+    ) or []
+    ret_date = None
+    if len(slices) >= 2 and last_segments:
+        ret_date = (last_segments[0].get("departing_at") or "")[:10] or None
+    trip_type = "round_trip" if ret_date else "one_way"
+
+    blockers: list[str] = ["no_clickable_deep_link_in_payload"]
+    if not cabin_confirmed:
+        blockers.append("cabin_mismatch_or_absent")
+    if price_amount is None:
+        blockers.append("price_absent")
+    # order_flow exige criar /air/orders com pagamento — fora do spike.
+    blockers.append("requires_duffel_orders_api_for_booking")
+
+    # Regra do goal: Duffel com cabin+price+order_flow documentado é
+    # candidate_for_integration. Sem cabin → not_suitable. Sem price → validator.
+    if cabin_confirmed and price_amount is not None:
+        decision = DECISION_CANDIDATE
+    elif cabin_confirmed and price_amount is None:
+        decision = DECISION_VALIDATOR_ONLY
+    else:
+        decision = DECISION_NOT_SUITABLE
+
+    return ActionabilityReport(
+        provider="duffel", route=route,
+        outbound_date=out_date, return_date=ret_date, trip_type=trip_type,
+        cabin_confirmed=cabin_confirmed,
+        price_amount=price_amount,
+        price_currency=currency,
+        airlines=tuple(carriers),
+        actionable_url=False,
+        booking_flow="order_flow",
+        booking_domain=None,
+        blockers=tuple(blockers),
+        decision=decision,
+    )
+
+
+def duffel_live_search(
+    *,
+    access_token: str,
+    origin: str,
+    destination: str,
+    trip_type: str,
+    outbound_date,
+    return_date=None,
+    cabin_class: str = "business",
+    currency: str = "USD",
+    timeout: int = 20,
+    urlopen_impl=None,
+) -> dict:
+    """1 chamada real ao Duffel /air/offer_requests com 1 passageiro adulto.
+    Read-only. NUNCA loga URL, header Authorization, payload bruto ou
+    order_id. Em qualquer erro de rede/HTTP, devolve
+    `{'data': {'offers': []}, '_blocker': <code>}` — nunca propaga exceção.
+    Caller usa `_blocker` para incluir no `ActionabilityReport`.
+
+    `urlopen_impl` é injetável para testes (default = urllib.request.urlopen).
+    """
+    from datetime import date as _date
+    from urllib.request import Request
+    from urllib.error import HTTPError, URLError
+
+    if urlopen_impl is None:
+        from urllib.request import urlopen as urlopen_impl  # type: ignore
+
+    if isinstance(outbound_date, str):
+        from datetime import datetime as _dt
+        outbound_date = _dt.strptime(outbound_date, "%Y-%m-%d").date()
+    if isinstance(return_date, str) and return_date:
+        from datetime import datetime as _dt
+        return_date = _dt.strptime(return_date, "%Y-%m-%d").date()
+    elif return_date == "":
+        return_date = None
+
+    slices = [
+        {
+            "origin": origin,
+            "destination": destination,
+            "departure_date": outbound_date.strftime("%Y-%m-%d"),
+        }
+    ]
+    if (trip_type or "").strip().lower() == "round_trip":
+        ret = return_date or outbound_date
+        slices.append(
+            {
+                "origin": destination,
+                "destination": origin,
+                "departure_date": ret.strftime("%Y-%m-%d"),
+            }
+        )
+
+    body = {
+        "data": {
+            "slices": slices,
+            "passengers": [{"type": "adult"}],
+            "cabin_class": (cabin_class or "business").strip().lower(),
+            "currency": currency,
+        }
+    }
+    encoded = json.dumps(body).encode("utf-8")
+    req = Request(
+        DUFFEL_API_URL + "?return_offers=true",
+        data=encoded,
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Duffel-Version": "v2",
+        },
+        method="POST",
+    )
+    try:
+        with urlopen_impl(req, timeout=timeout) as resp:
+            raw = resp.read()
+        return json.loads(raw.decode("utf-8"))
+    except HTTPError as exc:
+        return {"data": {"offers": []}, "_blocker": f"http_{exc.code}"}
+    except URLError:
+        return {"data": {"offers": []}, "_blocker": "network_error"}
+    except json.JSONDecodeError:
+        return {"data": {"offers": []}, "_blocker": "invalid_json_response"}
+    except Exception:
+        return {"data": {"offers": []}, "_blocker": "unknown_error"}
+
+
 # ----------------- Travelpayouts -----------------
 
 
@@ -526,4 +753,9 @@ def load_and_parse(
     if provider == "travelpayouts":
         payload = json.loads(fixture_path.read_text(encoding="utf-8"))
         return parse_travelpayouts_for_actionability(payload, route=route)
+    if provider == "duffel":
+        payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+        return parse_duffel_for_actionability(
+            payload, route=route, requested_cabin=requested_cabin,
+        )
     raise ValueError(f"provider desconhecido: {provider!r}")
