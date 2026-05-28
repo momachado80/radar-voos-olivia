@@ -1,0 +1,101 @@
+name: Kiwi readiness smoke
+
+# Manual apenas — workflow_dispatch only, nunca cron / push / PR.
+# Existe para validar a hipótese de PR #61 com KIWI_API_KEY real:
+# Kiwi Tequila é o único candidate_for_integration (cabin+link+price)?
+#
+# Regras invioláveis:
+# - Não envia Telegram (nenhum secret de canal aqui).
+# - Não toca data/ (permissions: contents: read).
+# - Não toca o motor de produção (não dispara monitor/detector).
+# - Consome 1 query Kiwi Tequila por rota disparada (até 5 rotas).
+# - Saída sanitizada: domínio do link, nunca URL completa.
+
+on:
+  workflow_dispatch:
+    inputs:
+      route:
+        description: "Rota IATA ORG-DEST (ex.: GRU-MIA)"
+        required: false
+        default: "GRU-MIA"
+        type: choice
+        options:
+          - "GRU-MIA"
+          - "GRU-JFK"
+          - "GRU-LIS"
+          - "GRU-MAD"
+          - "GRU-LHR"
+      trip:
+        description: "Tipo de viagem"
+        required: false
+        default: "one_way"
+        type: choice
+        options:
+          - "one_way"
+          - "round_trip"
+      departure:
+        description: "Data de partida YYYY-MM-DD (vazio = hoje+90d)"
+        required: false
+        default: ""
+      return_date:
+        description: "Data de retorno YYYY-MM-DD (vazio = +7d sobre partida; só round_trip)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kiwi-readiness-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Kiwi Tequila live readiness
+        env:
+          KIWI_API_KEY: ${{ secrets.KIWI_API_KEY }}
+          # Inputs passam por env var p/ evitar shell injection.
+          RAW_ROUTE: ${{ inputs.route }}
+          RAW_TRIP: ${{ inputs.trip }}
+          RAW_DEPARTURE: ${{ inputs.departure }}
+          RAW_RETURN_DATE: ${{ inputs.return_date }}
+        # Custo: 1 query Kiwi Tequila por disparo manual.
+        run: |
+          ROUTE="${RAW_ROUTE:-GRU-MIA}"
+          TRIP="${RAW_TRIP:-one_way}"
+          # Validação básica do formato da rota (ORG-DEST IATA 3 letras).
+          if ! [[ "$ROUTE" =~ ^[A-Z]{3}-[A-Z]{3}$ ]]; then
+            echo "ROTA inválida: $ROUTE" >&2
+            exit 2
+          fi
+          if [[ "$TRIP" != "one_way" && "$TRIP" != "round_trip" ]]; then
+            echo "TRIP inválido: $TRIP" >&2
+            exit 2
+          fi
+          EXTRA=()
+          if [ -n "$RAW_DEPARTURE" ]; then
+            EXTRA+=("--departure" "$RAW_DEPARTURE")
+          fi
+          if [ -n "$RAW_RETURN_DATE" ]; then
+            EXTRA+=("--return-date" "$RAW_RETURN_DATE")
+          fi
+          echo "[debug] route=$ROUTE trip=$TRIP departure=${RAW_DEPARTURE:-default+90d} return=${RAW_RETURN_DATE:-none}"
+          echo "[debug] executing: python -m flight_mapper provider-readiness --provider kiwi --route $ROUTE --cabin business --trip $TRIP --real ${EXTRA[*]}"
+          python -m flight_mapper provider-readiness \
+            --provider kiwi \
+            --route "$ROUTE" \
+            --cabin business \
+            --trip "$TRIP" \
+            --real \
+            "${EXTRA[@]}"

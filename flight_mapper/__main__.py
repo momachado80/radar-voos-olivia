@@ -770,16 +770,71 @@ def cmd_provider_readiness(args: argparse.Namespace) -> int:
     import json as _json
     import os as _os
 
-    # Modo actionability spike — exige --provider + --mock-file.
+    # Modo actionability spike — exige --provider + (--mock-file OU --real).
     if getattr(args, "provider", None):
         from .actionability_readiness import (
             format_actionability_report,
+            kiwi_live_search,
             load_and_parse,
+            parse_kiwi_for_actionability,
         )
         mock_file = getattr(args, "mock_file", None)
+        real_mode = bool(getattr(args, "real", False))
+        # PR #62: modo --real só p/ Kiwi (único candidate_for_integration
+        # confirmado em PR #61). Gate explícito p/ não usar SerpApi cota
+        # nem chamar Amadeus por engano.
+        if real_mode:
+            if args.provider != "kiwi":
+                print(
+                    "--real só suportado para --provider kiwi neste "
+                    "spike (PR #62). Outros providers continuam apenas "
+                    "via --mock-file.",
+                    file=sys.stderr,
+                )
+                return 2
+            api_key = _os.environ.get("KIWI_API_KEY")
+            if not api_key:
+                print(
+                    "KIWI_API_KEY ausente — não é possível rodar modo "
+                    "--real. Configure no env do Actions Secrets ou exporte "
+                    "localmente.",
+                    file=sys.stderr,
+                )
+                return 2
+            from datetime import date as _date, datetime as _dt, timedelta as _td
+            # Parse de datas opcionais — default 90 dias à frente.
+            departure_raw = getattr(args, "departure", None)
+            return_raw = getattr(args, "return_date", None)
+            if departure_raw:
+                outbound = _dt.strptime(departure_raw, "%Y-%m-%d").date()
+            else:
+                outbound = _date.today() + _td(days=90)
+            return_dt = None
+            if return_raw:
+                return_dt = _dt.strptime(return_raw, "%Y-%m-%d").date()
+            trip_type = (getattr(args, "trip", None) or "one_way").strip().lower()
+            route_str = getattr(args, "route", None) or "GRU-MIA"
+            origin, _, destination = route_str.partition("-")
+            if not (origin and destination):
+                print(f"rota inválida: {route_str!r}", file=sys.stderr)
+                return 2
+            payload = kiwi_live_search(
+                api_key=api_key,
+                origin=origin, destination=destination,
+                trip_type=trip_type,
+                outbound_date=outbound, return_date=return_dt,
+            )
+            report = parse_kiwi_for_actionability(
+                payload,
+                route=route_str,
+                requested_cabin=getattr(args, "cabin", None) or "business",
+            )
+            print(format_actionability_report(report))
+            return 0
+        # Modo fixture (PR #61 — preservado).
         if not mock_file:
             print(
-                "--provider exige --mock-file PATH (spike read-only, sem rede)",
+                "--provider exige --mock-file PATH (ou --real para Kiwi).",
                 file=sys.stderr,
             )
             return 2
@@ -1548,6 +1603,28 @@ def main(argv: list[str] | None = None) -> int:
             "Opcional p/ SerpApi: fixture do payload de booking_options "
             "(necessária para classificar actionability final)."
         ),
+    )
+    # PR #62: modo --real — chamada live ao provider (só Kiwi por ora).
+    p_pr.add_argument(
+        "--real", action="store_true",
+        help=(
+            "Faz chamada real ao provider (só Kiwi neste spike). Exige "
+            "KIWI_API_KEY no env. Sem Telegram, sem alertas, sem booking."
+        ),
+    )
+    p_pr.add_argument(
+        "--trip",
+        choices=("one_way", "round_trip"),
+        default="one_way",
+        help="Tipo de viagem (default one_way). Usado só em --real.",
+    )
+    p_pr.add_argument(
+        "--departure", default=None,
+        help="Data de partida YYYY-MM-DD (default = hoje+90d). Só em --real.",
+    )
+    p_pr.add_argument(
+        "--return-date", dest="return_date", default=None,
+        help="Data de retorno YYYY-MM-DD (opcional, só em --real round_trip).",
     )
     p_pr.set_defaults(func=cmd_provider_readiness)
 
