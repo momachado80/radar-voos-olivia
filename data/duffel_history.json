@@ -1,1 +1,28 @@
-{}
+{
+  "GRU-LHR-business::duffel": {
+    "prices": [
+      14322.18
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 14322.18,
+      "amount": 2387.03,
+      "currency": "EUR",
+      "amount_brl_estimated": 14322.18,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "LHR",
+      "departure_date": "2026-07-27",
+      "return_date": "2026-08-03",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-05-28T21:34:30.247926+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  }
+}
