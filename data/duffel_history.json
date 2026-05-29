@@ -25,5 +25,31 @@
       "trip_type": "round_trip",
       "provider_note": "duffel"
     }
+  },
+  "GRU-MIA-one_way-business::duffel": {
+    "prices": [
+      5786.46
+    ],
+    "last_alert_at": "2026-05-29T04:50:07.900194+00:00",
+    "last_alert_price": 5786.46,
+    "last_quote": {
+      "price_brl": 5786.46,
+      "amount": 964.41,
+      "currency": "EUR",
+      "amount_brl_estimated": 5786.46,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "MIA",
+      "departure_date": "2026-07-28",
+      "return_date": null,
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-05-29T04:50:07.392977+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "one_way",
+      "provider_note": "duffel"
+    }
   }
 }
