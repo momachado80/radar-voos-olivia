@@ -74,8 +74,8 @@ class _ScriptedDuffel:
         self._by_dates = by_dates or {}
         self._by_route = by_route or {}
 
-    def quote_for_dates(self, route, outbound_date, return_date=None):
-        self.calls.append(("dates", route.key, outbound_date, return_date))
+    def quote_for_dates(self, route, outbound_date, return_date=None, *, cabin="business"):
+        self.calls.append(("dates", route.key, outbound_date, return_date, cabin))
         return self._by_dates.get((route.key, outbound_date, return_date))
 
     def quote(self, route):
@@ -281,12 +281,31 @@ def test_watchlist_summary_disabled_renders_no_line():
 
 
 def test_watchlist_summary_alerts_phrasing():
-    one = DuffelWatchlistSummary(enabled=True, checked=1, confirmed_alerts=1)
+    one = DuffelWatchlistSummary(
+        enabled=True, checked=1, confirmed_alerts=1, business_alerts=1,
+    )
     assert humanize_duffel_watchlist_status(one) == (
         "Duffel watchlist: 1 executiva confirmada para Paris/Londres."
     )
-    two = DuffelWatchlistSummary(enabled=True, checked=2, confirmed_alerts=2)
+    two = DuffelWatchlistSummary(
+        enabled=True, checked=2, confirmed_alerts=2, business_alerts=2,
+    )
     assert "2 executivas confirmadas" in humanize_duffel_watchlist_status(two)
+
+
+def test_watchlist_summary_economy_phrasing():
+    eco = DuffelWatchlistSummary(
+        enabled=True, checked=1, confirmed_alerts=1, economy_alerts=1,
+    )
+    assert humanize_duffel_watchlist_status(eco) == (
+        "Duffel watchlist: 1 econômica muito boa para Paris/Londres."
+    )
+    both = DuffelWatchlistSummary(
+        enabled=True, checked=2, confirmed_alerts=2,
+        business_alerts=1, economy_alerts=1,
+    )
+    line = humanize_duffel_watchlist_status(both)
+    assert "1 executiva confirmada" in line and "1 econômica muito boa" in line
 
 
 # ----------------- report integration -----------------

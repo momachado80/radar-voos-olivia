@@ -93,11 +93,14 @@ class DuffelProvider:
         route: Route,
         outbound_date,
         return_date=None,
+        *,
+        cabin: str = "business",
     ) -> Quote | None:
         """Consulta Duffel para datas ESPECÍFICAS (usado pela watchlist
         premium — PR #67). `outbound_date`/`return_date` aceitam `date` ou
         string `YYYY-MM-DD`. round-trip quando `return_date` presente (ou a
-        rota é round-trip). Mesmas garantias read-only/no-leak do `quote`."""
+        rota é round-trip). `cabin` ∈ {"business","economy"} (PR #68 —
+        suporte a econômica). Mesmas garantias read-only/no-leak do `quote`."""
         if not self.access_token:
             return None
 
@@ -106,6 +109,9 @@ class DuffelProvider:
                 return None
             return d if isinstance(d, str) else d.strftime("%Y-%m-%d")
 
+        cab = (cabin or "business").strip().lower()
+        if cab not in ("business", "economy"):
+            cab = "business"
         out_str = _to_str(outbound_date)
         ret_str = _to_str(return_date)
         is_round = ret_str is not None or route.trip_type != TripType.ONE_WAY
@@ -118,16 +124,16 @@ class DuffelProvider:
             trip_type=trip,
             outbound_date=outbound_date,
             return_date=ret_str if is_round else None,
-            cabin_class="business",
+            cabin_class=cab,
             currency=self.currency,
             urlopen_impl=self._urlopen_impl,
         )
         report = parse_duffel_for_actionability(
             payload, route=f"{route.origin}-{route.destination}",
-            requested_cabin="business",
+            requested_cabin=cab,
         )
-        # Só promovemos a Quote ofertas confirmadas (business + preço). Tudo
-        # mais (validator_only / not_suitable / blocker de rede) ⇒ None.
+        # Só promovemos a Quote ofertas confirmadas (cabine pedida + preço).
+        # Tudo mais (validator_only / not_suitable / blocker de rede) ⇒ None.
         if report.decision != DECISION_CANDIDATE:
             return None
         if not (report.cabin_confirmed and report.price_amount is not None):
@@ -145,6 +151,8 @@ class DuffelProvider:
         else:
             trip_type = TripType.ONE_WAY
 
+        cabin_enum = Cabin.ECONOMY if cab == "economy" else Cabin.BUSINESS
+
         return Quote(
             route=route,
             price_brl=(
@@ -161,7 +169,7 @@ class DuffelProvider:
             currency=currency or CURRENCY_BRL,
             amount_brl_estimated=brl_estimated,
             fx_rate=rate,
-            cabin=Cabin.BUSINESS,
+            cabin=cabin_enum,
             cabin_confirmed=True,
             trip_type=trip_type,
             airline=airline,

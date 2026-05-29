@@ -90,33 +90,40 @@ def humanize_duffel_status(summary: DuffelStatusSummary) -> str:
 
 @dataclass(frozen=True)
 class DuffelWatchlistSummary:
-    """Snapshot sanitizado do pass da watchlist premium (PR #67).
+    """Snapshot sanitizado do pass da watchlist premium (PR #67/#68).
 
     `enabled`: watchlist configurada + cap > 0 + provider presente.
     `checked`: nº de combinações Londres/Paris consultadas neste ciclo.
-    `confirmed_alerts`: nº de 🟢 enviados a partir da watchlist.
+    `confirmed_alerts`: total de 🟢 enviados (business + economy).
+    `business_alerts`/`economy_alerts`: quebra por cabine (PR #68).
     NUNCA contém offer_id/token/URL/payload/order_id/passageiro."""
 
     enabled: bool
     checked: int
     confirmed_alerts: int
+    business_alerts: int = 0
+    economy_alerts: int = 0
 
 
 def humanize_duffel_watchlist_status(
     summary: DuffelWatchlistSummary | None,
 ) -> str | None:
     """Linha do 🧭 p/ a watchlist premium Londres/Paris. `None` quando a
-    watchlist não rodou (omite a linha). NUNCA expõe dado sensível."""
+    watchlist não rodou (omite a linha). Distingue executiva (business) de
+    econômica muito boa (economy). NUNCA expõe dado sensível."""
     if summary is None or not summary.enabled:
         return None
-    if summary.confirmed_alerts > 0:
-        n = summary.confirmed_alerts
-        exec_word = (
-            "executiva confirmada" if n == 1 else "executivas confirmadas"
-        )
-        return (
-            f"Duffel watchlist: {n} {exec_word} para Paris/Londres."
-        )
+    parts: list[str] = []
+    if summary.business_alerts > 0:
+        n = summary.business_alerts
+        word = "executiva confirmada" if n == 1 else "executivas confirmadas"
+        parts.append(f"{n} {word}")
+    if summary.economy_alerts > 0:
+        m = summary.economy_alerts
+        word = "econômica muito boa" if m == 1 else "econômicas muito boas"
+        parts.append(f"{m} {word}")
+    if parts:
+        return f"Duffel watchlist: {' e '.join(parts)} para Paris/Londres."
     return (
         "Duffel watchlist: Londres/Paris setembro consultada; 0 alertas."
     )

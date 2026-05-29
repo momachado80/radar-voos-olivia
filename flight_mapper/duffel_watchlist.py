@@ -14,6 +14,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from typing import Sequence
+
 from .regions import Cabin, Route, TripType
 
 
@@ -34,37 +36,63 @@ _RETURN_DATES = ("2026-09-12", "2026-09-13")
 
 @dataclass(frozen=True)
 class DuffelWatchEntry:
-    """Uma combinação rota+datas da watchlist. Round-trip business.
+    """Uma combinação rota+datas+cabine da watchlist. Round-trip.
 
-    Carrega só dados públicos (rota IATA + datas). NUNCA token/offer_id."""
+    Carrega só dados públicos (rota IATA + datas + cabine). NUNCA
+    token/offer_id. `cabin` ∈ {"business","economy"} (PR #68)."""
 
     route: Route
     outbound_date: str  # YYYY-MM-DD
     return_date: str    # YYYY-MM-DD
+    cabin: str = "business"
+
+    @property
+    def cabin_enum(self) -> Cabin:
+        return Cabin.ECONOMY if self.cabin == "economy" else Cabin.BUSINESS
+
+    @property
+    def threshold_key(self) -> str:
+        """Chave de teto/score por cabine. Business preserva `route.key`
+        (`GRU-LHR-business`); economy usa namespace `-economy` separado
+        (`GRU-LHR-economy` / `GRU-MIA-one_way-economy`)."""
+        if self.cabin != "economy":
+            return self.route.key
+        base = f"{self.route.origin}-{self.route.destination}"
+        if self.route.trip_type == TripType.ONE_WAY:
+            return f"{base}-one_way-economy"
+        return f"{base}-economy"
 
     @property
     def history_key(self) -> str:
-        """Chave de histórico/dedup ISOLADA por combinação de datas, dentro
-        do namespace Duffel: `GRU-LHR-business::duffel::2026-09-02_2026-09-12`."""
+        """Chave de histórico/dedup ISOLADA por cabine + combinação de datas:
+        `GRU-LHR-business::duffel::2026-09-02_2026-09-12` (business) ou
+        `GRU-LHR-economy::duffel::...` (economy)."""
         return (
-            f"{self.route.key}::duffel::"
+            f"{self.threshold_key}::duffel::"
             f"{self.outbound_date}_{self.return_date}"
         )
 
 
-def build_september_watchlist() -> list[DuffelWatchEntry]:
-    """Constrói exatamente as 8 combinações pedidas, ordenadas
+def build_september_watchlist(
+    cabins: Sequence[str] = ("business",),
+) -> list[DuffelWatchEntry]:
+    """Constrói as combinações pedidas por cabine. Para cada cabine:
     LHR (1-4) antes de CDG (5-8), ida 02 antes de 03, volta 12 antes de 13.
+
+    Default `("business",)` → 8 combinações (compat PR #67). Com
+    `("business","economy")` → 16 (business primeiro, depois economy).
     """
     entries: list[DuffelWatchEntry] = []
-    for route in (_GRU_LHR, _GRU_CDG):
-        for outbound in _OUTBOUND_DATES:
-            for ret in _RETURN_DATES:
-                entries.append(
-                    DuffelWatchEntry(
-                        route=route, outbound_date=outbound, return_date=ret,
+    for cabin in cabins:
+        for route in (_GRU_LHR, _GRU_CDG):
+            for outbound in _OUTBOUND_DATES:
+                for ret in _RETURN_DATES:
+                    entries.append(
+                        DuffelWatchEntry(
+                            route=route, outbound_date=outbound,
+                            return_date=ret, cabin=cabin,
+                        )
                     )
-                )
     return entries
 
 

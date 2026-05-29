@@ -244,6 +244,40 @@ volta `2026-09-12` ou `2026-09-13`.
 - O comportamento Duffel GRU-MIA genérico é **preservado** e roda logo
   após a watchlist.
 
+## 2.3 Econômica também monitorada + `link_status` explícito (PR #68)
+
+O radar monitora **business E econômica**. A watchlist premium agora cobre
+as mesmas combinações Londres/Paris em **duas cabines** (16 entradas:
+business primeiro, depois economy), com `build_september_watchlist(("business","economy"))`.
+
+- **Thresholds de econômica SEPARADOS** dos de business (namespace
+  `-economy` / `-one_way-economy` em `thresholds.py`): ex.
+  `GRU-LHR-economy` excelente 550 / bom 750 (USD, escalados em runtime).
+  Os tetos de business ficam intactos.
+- **Headline de econômica:** `💸 ECONÔMICA MUITO BOA — abaixo do alvo`
+  (business segue `🟢 EXECUTIVA CONFIRMADA — abaixo do alvo`).
+- Histórico/teto de econômica isolados por cabine
+  (`GRU-LHR-economy::duffel::...`), nunca misturam com business.
+
+**`link_status` em TODO alerta** — torna a acionabilidade do link explícita:
+- `direct_link` — provider deu deep_link clicável real (ex.: Kiwi);
+- `order_flow` — Duffel: ordem via API, **sem link direto de compra**;
+- `auxiliary_search` — URL de busca gerada (não é checkout confirmado);
+- `none` — sem link.
+
+Regras de honestidade do link:
+- **Duffel é SEMPRE `order_flow`** — nunca afirmamos que tem link direto de
+  compra. O alerta diz `booking_flow: order_flow; sem link direto de compra;
+  verificar no Duffel Dashboard`.
+- Um provider só é descrito como **link direto** quando devolve um
+  `deep_link` clicável real (`direct_link`).
+- Travelpayouts/SerpApi **não** são descritos como compra direta confirmada
+  a menos que forneçam link real; o fallback manual aparece como
+  `auxiliary_search` ("links auxiliares de pesquisa, não oferta confirmada").
+- **Compra/booking continua sendo projeto futuro separado** (Orders API),
+  com aprovação explícita: o radar nunca chama `/air/orders`, nunca cria
+  order/payment, nunca armazena dado de passageiro.
+
 ## 3. O que conta como oportunidade para verificação manual
 
 Mesmas duas primeiras condições do confirmado (cabine + preço), mas

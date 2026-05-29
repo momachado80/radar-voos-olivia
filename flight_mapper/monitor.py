@@ -463,6 +463,7 @@ class Monitor:
 
     def _process_one_duffel_quote(
         self, *, route, quote, history_key, label, notes, duffel_store, now_fn,
+        expected_cabin: Cabin = Cabin.BUSINESS, threshold_key: str | None = None,
     ) -> str:
         """Aplica gates (moeda/cabine/sanidade) + detector de teto e envia
         o alerta 🟢 p/ UMA cotação Duffel. Devolve um código de resultado
@@ -470,8 +471,11 @@ class Monitor:
         alert_sent/send_failed/notifier_absent). Anexa nota a `notes`.
 
         `label` prefixa a nota (ex.: "watchlist") — vazio mantém o formato
-        legado do pass genérico byte a byte."""
+        legado do pass genérico byte a byte. `expected_cabin` é a cabine
+        esperada (business/economy — PR #68). `threshold_key` define qual
+        teto usar (default `route.key`; economy usa namespace `-economy`)."""
         prefix = f"{label} " if label else ""
+        tkey = threshold_key or route.key
         if quote is None:
             notes.append(f"{prefix}{_route_note(route)}: Duffel sem oferta confirmada")
             return "no_offer"
@@ -486,15 +490,15 @@ class Monitor:
             return "blocked_fx"
         quote.price_brl = quote.amount_brl_estimated
 
-        # GATE DE CABINE (defesa redundante: provider só devolve business
-        # confirmado, mas reasseguramos antes do alerta forte).
-        if not (quote.cabin == Cabin.BUSINESS and quote.cabin_confirmed):
+        # GATE DE CABINE (defesa redundante: provider só devolve a cabine
+        # pedida confirmada, mas reasseguramos antes do alerta forte).
+        if not (quote.cabin == expected_cabin and quote.cabin_confirmed):
             notes.append(
                 f"{prefix}{_route_note(route)}: Duffel bloqueado — cabine não confirmada"
             )
             return "blocked_cabin"
 
-        # GATE DE SANIDADE: preço business implausível não vira 🟢.
+        # GATE DE SANIDADE: preço implausível (p/ a cabine/trip) não vira 🟢.
         if is_suspicious_price(route, quote, quote.amount_brl_estimated):
             reason = suspicious_reason(route, quote, quote.amount_brl_estimated)
             notes.append(
@@ -511,7 +515,7 @@ class Monitor:
             quote.fx_rate if quote.currency.upper() != "BRL" else None
         )
         ceiling = evaluate_ceiling(
-            history, quote.price_brl, route.key,
+            history, quote.price_brl, tkey,
             priority=priority, brl_rate=effective_rate,
         )
         legacy = evaluate(history, quote.price_brl, priority=priority)
@@ -525,13 +529,13 @@ class Monitor:
             return "above_threshold"
 
         # Score informativo (sem link acionável: order_flow).
-        score_levels = levels_for(route.key)
+        score_levels = levels_for(tkey)
         if effective_rate is not None:
             score_levels = scaled_levels(score_levels, effective_rate)
         decision.score = compute_opportunity_score(
             quote.price_brl, score_levels, history,
             actionable_url=False, confirmed=True,
-            is_hot_route=route.key in HOT_ROUTE_KEYS,
+            is_hot_route=tkey in HOT_ROUTE_KEYS,
         )
 
         if self.notifier:
@@ -570,22 +574,33 @@ class Monitor:
             idxs = [i % n for i in range(min(cap, n))]
 
         checked = 0
-        alerts = 0
+        business_alerts = 0
+        economy_alerts = 0
         for i in idxs:
             entry = entries[i]
             checked += 1
+            cabin = getattr(entry, "cabin", "business")
+            expected = getattr(entry, "cabin_enum", Cabin.BUSINESS)
+            tkey = getattr(entry, "threshold_key", entry.route.key)
             fn = getattr(self.duffel_provider, "quote_for_dates", None)
             if callable(fn):
-                quote = fn(entry.route, entry.outbound_date, entry.return_date)
+                quote = fn(
+                    entry.route, entry.outbound_date, entry.return_date,
+                    cabin=cabin,
+                )
             else:
                 quote = self.duffel_provider.quote(entry.route)
             code = self._process_one_duffel_quote(
                 route=entry.route, quote=quote,
                 history_key=entry.history_key, label="watchlist",
                 notes=notes, duffel_store=duffel_store, now_fn=now_fn,
+                expected_cabin=expected, threshold_key=tkey,
             )
             if code == "alert_sent":
-                alerts += 1
+                if expected == Cabin.ECONOMY:
+                    economy_alerts += 1
+                else:
+                    business_alerts += 1
 
         # Avança a rotação p/ cobrir as demais combinações no próximo ciclo.
         if self.duffel_watchlist_state is not None:
@@ -593,7 +608,9 @@ class Monitor:
             self.duffel_watchlist_state.save()
 
         return DuffelWatchlistSummary(
-            enabled=True, checked=checked, confirmed_alerts=alerts,
+            enabled=True, checked=checked,
+            confirmed_alerts=business_alerts + economy_alerts,
+            business_alerts=business_alerts, economy_alerts=economy_alerts,
         )
 
     def run_duffel_confirmations(
