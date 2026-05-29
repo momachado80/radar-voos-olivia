@@ -18,6 +18,7 @@ from .formatting import (
     format_detection_time,
     format_fx_line,
     format_price,
+    format_rate,
     format_source,
     trip_label_pt,
 )
@@ -35,6 +36,41 @@ def _level_title(level: str | None, score: int | None = None) -> str:
     if score is not None:
         return f"📉 Score {score}/100 — "
     return ""
+
+
+def _duffel_headline(decision: Decision, trip_suffix: str) -> str:
+    """Título de oferta Duffel business CONFIRMADA. Enfatiza a oportunidade
+    executiva confirmada — não o score (que vira linha secundária). O
+    score NUNCA entra aqui (regra do PR #66).
+
+    - abaixo do alvo (ceiling excellent/good) → "🟢 EXECUTIVA CONFIRMADA
+      — abaixo do alvo";
+    - queda histórica (legacy) → "🟢 EXECUTIVA CONFIRMADA — queda detectada";
+    - sem nível/critério forte → "🟢 EXECUTIVA CONFIRMADA".
+    """
+    below_target = (
+        decision.criterion == CRITERION_CEILING
+        and decision.level in (LEVEL_EXCELLENT, LEVEL_GOOD)
+    )
+    if below_target:
+        return f"🟢 EXECUTIVA CONFIRMADA — abaixo do alvo{trip_suffix}"
+    if decision.criterion == CRITERION_CEILING and decision.threshold is not None:
+        return f"🟢 EXECUTIVA CONFIRMADA — abaixo do alvo{trip_suffix}"
+    if decision.drop_pct is not None:
+        return f"🟢 EXECUTIVA CONFIRMADA — queda detectada{trip_suffix}"
+    return f"🟢 EXECUTIVA CONFIRMADA{trip_suffix}"
+
+
+def _duffel_cambio_prefix(quote: Quote) -> str:
+    """Prefixo do câmbio p/ embutir no parêntese do preço de ofertas Duffel
+    em moeda estrangeira: `câmbio EUR_BRL_RATE=6.00; `. Vazio quando não
+    aplicável (BRL ou sem fx_rate). NUNCA expõe token/URL/payload."""
+    if quote.source != "duffel":
+        return ""
+    if quote.fx_rate is None or (quote.currency or "").strip().upper() == "BRL":
+        return ""
+    var = f"{quote.currency.strip().upper()}_BRL_RATE"
+    return f"câmbio {var}={format_rate(quote.fx_rate)}; "
 
 
 def _level_criterion_line(decision: Decision) -> str:
@@ -66,7 +102,13 @@ def format_alert(
     # - economy  confirmado  → "Econômica em promoção"
     # - unknown/não confirmado → nunca "Business"; aviso honesto sem nível.
     trip_suffix = f" ({trip_label_pt(quote.trip_type)})"
-    if quote.cabin_confirmed and quote.cabin == Cabin.BUSINESS:
+    is_duffel = quote.source == "duffel"
+    if is_duffel and quote.cabin_confirmed and quote.cabin == Cabin.BUSINESS:
+        # PR #66: oferta Duffel confirmada lidera com a oportunidade
+        # executiva confirmada, não com o score (que vira linha secundária).
+        level_prefix = ""
+        headline = _duffel_headline(decision, trip_suffix)
+    elif quote.cabin_confirmed and quote.cabin == Cabin.BUSINESS:
         level_prefix = _level_title(decision.level, decision.score)
         headline = f"Business em promoção{trip_suffix}"
     elif quote.cabin_confirmed and quote.cabin == Cabin.ECONOMY:
@@ -85,25 +127,34 @@ def format_alert(
         quote.fx_rate,
     )
     is_ceiling = decision.criterion == CRITERION_CEILING and decision.threshold is not None
+    # PR #66: p/ Duffel (moeda estrangeira confirmada + BRL estimado), o
+    # câmbio entra no MESMO parêntese do preço, ex.:
+    # `964 EUR ≈ R$ 5.784 (câmbio EUR_BRL_RATE=6.00; alvo R$ 6.000)`.
+    cambio = _duffel_cambio_prefix(quote)
     if is_ceiling:
         price_line = (
             f"💰 {price_display} "
-            f"(alvo {format_brl(decision.threshold)})"
+            f"({cambio}alvo {format_brl(decision.threshold)})"
         )
     else:
         if decision.average is not None and decision.drop_pct is not None:
             price_line = (
                 f"💰 {price_display} "
-                f"(média {format_brl(decision.average)}, queda {decision.drop_pct:.0%})"
+                f"({cambio}média {format_brl(decision.average)}, "
+                f"queda {decision.drop_pct:.0%})"
             )
+        elif cambio:
+            # Sem teto/queda mas com câmbio Duffel: mostra só o câmbio.
+            price_line = f"💰 {price_display} ({cambio.rstrip('; ')})"
         else:
             price_line = f"💰 {price_display}"
 
     # Regra 6/7: câmbio em linha própria sempre que houve conversão USD→BRL
-    # (vale também p/ manual fallback, que preserva currency/fx_rate).
+    # (vale também p/ manual fallback, que preserva currency/fx_rate). Duffel
+    # NÃO usa esta linha — o câmbio já está embutido no parêntese do preço.
     fx_line = (
         format_fx_line(quote.fx_rate)
-        if quote.currency.upper() == "USD"
+        if (quote.currency.upper() == "USD" and not is_duffel)
         else None
     )
     if fx_line:
@@ -138,6 +189,10 @@ def format_alert(
         extras.append("🛒 Fonte: Duffel (Offer Request, cabine business confirmada)")
         if quote.airline:
             extras.append(f"🛫 Companhia: {quote.airline}")
+        # PR #66: score como linha SECUNDÁRIA (não no título) — não deve
+        # ser a mensagem emocional principal de uma executiva confirmada.
+        if decision.score is not None:
+            extras.append(f"Score operacional: {decision.score}/100")
         extras.append("booking_flow: order_flow (sem link direto de compra)")
         extras.append("Ação: verificar no Duffel Dashboard.")
     elif quote.source == "manual_purchase":

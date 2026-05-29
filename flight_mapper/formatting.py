@@ -61,16 +61,30 @@ def format_usd(value: float) -> str:
     return f"US$ {raw.replace(',', '.')}"
 
 
+def format_eur(value: float) -> str:
+    """Formata `964.0` -> `964 EUR` (separador de milhar BR p/ leitura).
+
+    Ofertas Duffel chegam em EUR. A moeda É confirmada (vem da própria
+    oferta); o que é estimado é só a conversão p/ BRL via EUR_BRL_RATE —
+    por isso EUR nunca deve renderizar "moeda não confirmada"."""
+    raw = f"{value:,.0f}"
+    return f"{raw.replace(',', '.')} EUR"
+
+
 def format_rate(rate: float) -> str:
     """`5.5` -> `5.50` (ponto decimal, como no env USD_BRL_RATE)."""
     return f"{rate:.2f}"
 
 
-def format_fx_line(fx_rate: float | None) -> str | None:
-    """Linha de câmbio do alerta: `Câmbio usado: USD_BRL_RATE=5.50`."""
+def format_fx_line(fx_rate: float | None, currency: str = "USD") -> str | None:
+    """Linha de câmbio do alerta: `Câmbio usado: USD_BRL_RATE=5.50`.
+
+    `currency` define o nome da variável de câmbio exibida (default USD
+    p/ compatibilidade). EUR → `EUR_BRL_RATE`."""
     if fx_rate is None:
         return None
-    return f"Câmbio usado: USD_BRL_RATE={format_rate(fx_rate)}"
+    var = f"{(currency or 'USD').strip().upper()}_BRL_RATE"
+    return f"Câmbio usado: {var}={format_rate(fx_rate)}"
 
 
 def format_price(
@@ -85,6 +99,8 @@ def format_price(
     - USD: `US$ 1.878 ≈ R$ 10.329` (valor USD primário; BRL só como
       estimativa). O câmbio usado vai em linha própria via
       `format_fx_line` (Regra 6).
+    - EUR: `964 EUR ≈ R$ 5.784` (moeda confirmada; BRL estimado via
+      EUR_BRL_RATE). NUNCA "moeda não confirmada".
     - Moeda não comprovada: nunca em R$.
     """
     cur = (currency or "").strip().upper()
@@ -95,6 +111,11 @@ def format_price(
         if amount_brl_estimated is not None:
             return f"{usd} ≈ {format_brl(amount_brl_estimated)}"
         return f"{usd} (conversão BRL indisponível — USD_BRL_RATE ausente)"
+    if cur == "EUR":
+        eur = format_eur(amount)
+        if amount_brl_estimated is not None:
+            return f"{eur} ≈ {format_brl(amount_brl_estimated)}"
+        return f"{eur} (conversão BRL indisponível — EUR_BRL_RATE ausente)"
     return f"{amount:,.0f} {cur or '?'} (moeda não confirmada)"
 
 
