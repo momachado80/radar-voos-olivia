@@ -26,20 +26,73 @@
       "provider_note": "duffel"
     }
   },
+  "GRU-LHR-business::duffel::2026-09-02_2026-09-12": {
+    "prices": [
+      17788.2
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 17788.2,
+      "amount": 2964.7,
+      "currency": "EUR",
+      "amount_brl_estimated": 17788.2,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "LHR",
+      "departure_date": "2026-09-02",
+      "return_date": "2026-09-12",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-05-29T17:55:24.729203+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
+  "GRU-LHR-business::duffel::2026-09-02_2026-09-13": {
+    "prices": [
+      15689.76
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 15689.76,
+      "amount": 2614.96,
+      "currency": "EUR",
+      "amount_brl_estimated": 15689.76,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "LHR",
+      "departure_date": "2026-09-02",
+      "return_date": "2026-09-13",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-05-29T17:55:27.717622+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
   "GRU-MIA-one_way-business::duffel": {
     "prices": [
       5786.46,
       5785.74,
       5785.86,
-      5782.38
+      5782.38,
+      5771.46
     ],
     "last_alert_at": "2026-05-29T04:50:07.900194+00:00",
     "last_alert_price": 5786.46,
     "last_quote": {
-      "price_brl": 5782.38,
-      "amount": 963.73,
+      "price_brl": 5771.46,
+      "amount": 961.91,
       "currency": "EUR",
-      "amount_brl_estimated": 5782.38,
+      "amount_brl_estimated": 5771.46,
       "fx_rate": 6.0,
       "origin": "GRU",
       "destination": "MIA",
@@ -47,7 +100,7 @@
       "return_date": null,
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-05-29T14:32:51.569141+00:00",
+      "detected_at": "2026-05-29T17:55:29.548169+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
