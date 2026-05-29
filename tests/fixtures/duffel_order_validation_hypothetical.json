@@ -1,0 +1,9 @@
+{
+  "_note": "HIPOTÉTICO — o Duffel NÃO possui endpoint de validação/dry-run de ordem. Este fixture representa apenas como uma resposta de validação PODERIA ser, caso a documentação oficial passasse a suportá-la. O spike NUNCA chama tal endpoint e trata dry_run_available como 'no' (DUFFEL_HAS_ORDER_DRY_RUN=False).",
+  "data": {
+    "valid": true,
+    "would_require_passengers": true,
+    "would_require_payment": true,
+    "creates_real_order": true
+  }
+}

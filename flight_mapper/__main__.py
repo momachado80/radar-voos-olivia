@@ -1015,6 +1015,104 @@ def cmd_amadeus_smoke(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_duffel_purchase_spike(args: argparse.Namespace) -> int:
+    """Spike read-only/sandbox do caminho de compra Duffel (PR #70).
+
+    Só roda com `--test-mode`. Em modo live-test exige `DUFFEL_ACCESS_TOKEN`
+    de TESTE (recusa token live). Cria APENAS um Offer Request (busca) e
+    inspeciona campos sanitizados; NUNCA chama `/air/orders`, pagamento ou
+    emissão. Saída sanitizada (sem token/offer_id/order_id/payload/URL/PII).
+    """
+    import json as _json
+    import os as _os
+
+    from .duffel_purchase_spike import (
+        format_purchase_path_report,
+        parse_duffel_purchase_path,
+    )
+
+    if not getattr(args, "test_mode", False):
+        print(
+            "Recusado: este spike só roda com --test-mode (sandbox/teste). "
+            "Ele NÃO cria ordem, pagamento ou bilhete.",
+            file=sys.stderr,
+        )
+        return 2
+
+    route = getattr(args, "route", None) or "GRU-MIA"
+    cabin = getattr(args, "cabin", None) or "business"
+    trip = (getattr(args, "trip", None) or "one_way").strip().lower()
+    mock_file = getattr(args, "mock_file", None)
+
+    if mock_file:
+        # Modo offline: parser sobre fixture (sem rede, sem token).
+        try:
+            payload = _json.loads(Path(mock_file).read_text(encoding="utf-8"))
+        except (OSError, _json.JSONDecodeError) as exc:
+            print(f"erro lendo fixture: {exc}", file=sys.stderr)
+            return 2
+    else:
+        # Modo live-test: exige token de TESTE; recusa live.
+        token = _os.environ.get("DUFFEL_ACCESS_TOKEN")
+        if not token:
+            print(
+                "DUFFEL_ACCESS_TOKEN ausente — não é possível rodar o spike "
+                "em modo de teste. Configure um token de TESTE (duffel_test_*) "
+                "ou use --mock-file para análise offline.",
+                file=sys.stderr,
+            )
+            return 2
+        # NUNCA logamos o token. Só checamos o prefixo p/ bloquear token live.
+        if token.startswith("duffel_live"):
+            print(
+                "Recusado: DUFFEL_ACCESS_TOKEN parece um token LIVE. Este "
+                "spike só aceita token de TESTE (duffel_test_*).",
+                file=sys.stderr,
+            )
+            return 2
+        if not token.startswith("duffel_test"):
+            print(
+                "Recusado: DUFFEL_ACCESS_TOKEN não parece um token de TESTE "
+                "(esperado prefixo duffel_test_*). Recusando para não usar "
+                "credencial não-teste.",
+                file=sys.stderr,
+            )
+            return 2
+
+        from datetime import date as _date, datetime as _dt, timedelta as _td
+
+        from .actionability_readiness import duffel_live_search
+
+        departure_raw = getattr(args, "departure", None)
+        return_raw = getattr(args, "return_date", None)
+        outbound = (
+            _dt.strptime(departure_raw, "%Y-%m-%d").date()
+            if departure_raw else _date.today() + _td(days=90)
+        )
+        return_dt = (
+            _dt.strptime(return_raw, "%Y-%m-%d").date() if return_raw else None
+        )
+        origin, _, destination = route.partition("-")
+        if not (origin and destination):
+            print(f"rota inválida: {route!r}", file=sys.stderr)
+            return 2
+        # SOMENTE Offer Request (busca). NUNCA /air/orders.
+        payload = duffel_live_search(
+            access_token=token,
+            origin=origin, destination=destination,
+            trip_type=trip,
+            outbound_date=outbound, return_date=return_dt,
+            cabin_class=cabin,
+        )
+
+    report = parse_duffel_purchase_path(
+        payload, route=route, requested_cabin=cabin,
+        trip_type=trip, environment="test",
+    )
+    print(format_purchase_path_report(report))
+    return 0
+
+
 def _print_amadeus_offers(args, offers, source: str) -> None:
     print(f"🔍 Amadeus smoke ({source})")
     print(f"  rota={args.route} trip={args.trip} cabin={args.cabin}")
@@ -1820,6 +1918,33 @@ def main(argv: list[str] | None = None) -> int:
     p_sbo.add_argument("--return-date", dest="return_date", default=None)
     p_sbo.add_argument("--mock-file", default=None)
     p_sbo.set_defaults(func=cmd_serpapi_booking_options)
+
+    # PR #70: spike read-only/sandbox do caminho de compra Duffel.
+    p_dps = sub.add_parser(
+        "duffel-purchase-spike",
+        help=(
+            "Spike read-only/sandbox: avalia o caminho de compra Duffel "
+            "(offer→ordem) SEM pagamento/bilhete/passageiro. Só com "
+            "--test-mode. NUNCA chama /air/orders."
+        ),
+    )
+    p_dps.add_argument("--route", default="GRU-MIA", help="ORIGIN-DEST (ex.: GRU-MIA)")
+    p_dps.add_argument("--cabin", default="business")
+    p_dps.add_argument("--trip", choices=("one_way", "round_trip"), default="one_way")
+    p_dps.add_argument(
+        "--test-mode", dest="test_mode", action="store_true",
+        help="Obrigatório: roda só em modo de teste/sandbox.",
+    )
+    p_dps.add_argument(
+        "--mock-file", dest="mock_file", default=None,
+        help="Fixture JSON de Offer Request (offline; sem rede, sem token).",
+    )
+    p_dps.add_argument("--departure", default=None, help="YYYY-MM-DD (só live test)")
+    p_dps.add_argument(
+        "--return-date", dest="return_date", default=None,
+        help="YYYY-MM-DD (só live test round_trip)",
+    )
+    p_dps.set_defaults(func=cmd_duffel_purchase_spike)
 
     args = parser.parse_args(argv)
     return args.func(args)

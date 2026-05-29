@@ -1,0 +1,26 @@
+{
+  "data": {
+    "offers": [
+      {
+        "total_amount": "598.00",
+        "total_currency": "USD",
+        "owner": {"iata_code": "AA"},
+        "slices": [
+          {
+            "origin": {"iata_code": "GRU"},
+            "destination": {"iata_code": "MIA"},
+            "segments": [
+              {
+                "departing_at": "2026-09-10T22:30:00",
+                "marketing_carrier": {"iata_code": "AA"},
+                "passengers": [
+                  {"cabin_class": "business"}
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
