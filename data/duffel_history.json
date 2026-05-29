@@ -51,6 +51,58 @@
       "provider_note": "duffel"
     }
   },
+  "GRU-CDG-business::duffel::2026-09-03_2026-09-12": {
+    "prices": [
+      16185.12
+    ],
+    "last_alert_at": "2026-05-29T23:40:50.827020+00:00",
+    "last_alert_price": 16185.12,
+    "last_quote": {
+      "price_brl": 16185.12,
+      "amount": 2697.52,
+      "currency": "EUR",
+      "amount_brl_estimated": 16185.12,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "CDG",
+      "departure_date": "2026-09-03",
+      "return_date": "2026-09-12",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-05-29T23:40:50.259830+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
+  "GRU-CDG-business::duffel::2026-09-03_2026-09-13": {
+    "prices": [
+      17945.22
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 17945.22,
+      "amount": 2990.87,
+      "currency": "EUR",
+      "amount_brl_estimated": 17945.22,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "CDG",
+      "departure_date": "2026-09-03",
+      "return_date": "2026-09-13",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-05-29T23:40:54.288042+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
   "GRU-LHR-business::duffel": {
     "prices": [
       14322.18,
@@ -190,6 +242,7 @@
       5782.38,
       5771.46,
       5774.22,
+      5777.58,
       5777.58
     ],
     "last_alert_at": "2026-05-29T04:50:07.900194+00:00",
@@ -206,7 +259,7 @@
       "return_date": null,
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-05-29T22:03:35.378032+00:00",
+      "detected_at": "2026-05-29T23:40:55.868272+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
