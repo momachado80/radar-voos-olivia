@@ -190,6 +190,23 @@ Excelente/Bom) + dedup. Quantidade controlada por:
   Request por ciclo);
 - falha silenciosa e segura se `DUFFEL_ACCESS_TOKEN` ausente.
 
+**Rota priorizada (PR #65):** o pass consulta PRIMEIRO a rota provada pelo
+readiness smoke — **GRU-MIA one_way business** — porque foi a única
+confirmada end-to-end (`cabin_confirmed=yes`, `decision=candidate_for_integration`).
+Com cap=1, é a única consultada por ciclo; as demais priority entram só se o
+cap subir.
+
+**Observabilidade no 🧭 Status das fontes (PR #65):** todo ciclo o relatório
+diário inclui UMA linha de status do Duffel, derivada de um resumo
+SANITIZADO (`DuffelStatusSummary`: só contadores + código de resultado,
+NUNCA offer_id/token/URL/payload/order_id/passageiro). Estados possíveis:
+- `Duffel: inativa (token ausente ou flag desligada).`
+- `Duffel: ativa; 1 oferta confirmada enviada como alerta.`
+- `Duffel: ativa, mas bloqueada por câmbio EUR→BRL ausente.`
+- `Duffel: ativa, mas preço acima do teto.`
+- `Duffel: ativa; N consulta(s) neste ciclo; 0 alertas; motivo: sem oferta confirmada.`
+- `Duffel: ativa, mas cabine não confirmada.` / `...preço economicamente suspeito.`
+
 ## 3. O que conta como oportunidade para verificação manual
 
 Mesmas duas primeiras condições do confirmado (cabine + preço), mas

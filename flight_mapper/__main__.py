@@ -128,9 +128,13 @@ def cmd_cycle(args: argparse.Namespace) -> int:
     for note in result.notes:
         print(f"  {note}")
 
-    # Pass ADITIVO read-only Duffel (só roda com flag ligado + token).
+    # Pass ADITIVO read-only Duffel. Sempre chamado: quando desligado
+    # (flag off / token ausente) devolve um summary `inativa` p/ o 🧭
+    # mostrar o estado explicitamente (PR #65). Quando ligado, consulta a
+    # rota PROVADA primeiro (GRU-MIA one_way business). NUNCA cria order.
+    duffel_result = monitor.run_duffel_confirmations()
+    duffel_summary = duffel_result.duffel_summary
     if duffel_provider is not None:
-        duffel_result = monitor.run_duffel_confirmations()
         print(
             f"duffel requests={duffel_result.duffel_requests} "
             f"confirmed={duffel_result.duffel_confirmed_alerts} "
@@ -140,6 +144,9 @@ def cmd_cycle(args: argparse.Namespace) -> int:
             print(f"  {note}")
 
     status_state = StatusState.load(config.status_path)
+    # PR #65: o summary Duffel entra no relatório/heartbeat p/ a linha do
+    # 🧭. NUNCA contém offer_id/token/payload/order_id (DuffelStatusSummary
+    # carrega só contadores + código de resultado).
     decision = maybe_send_status(
         result=result,
         store=store,
@@ -147,6 +154,7 @@ def cmd_cycle(args: argparse.Namespace) -> int:
         notifier=notifier,
         state_path=config.status_path,
         throttle_hours=config.status_throttle_hours,
+        duffel_summary=duffel_summary,
     )
     print(f"status action={decision.action} reason={decision.reason}")
     # PR #59: visibilidade operacional. Se o Telegram falhar ou o
