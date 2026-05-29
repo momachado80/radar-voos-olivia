@@ -1,0 +1,36 @@
+{
+  "data": {
+    "offers": [
+      {
+        "id": "off_test_fields_present",
+        "total_amount": "964.30",
+        "total_currency": "EUR",
+        "owner": {"iata_code": "AF", "name": "Air France"},
+        "passengers": [
+          {"id": "pas_test_present_1", "type": "adult"}
+        ],
+        "payment_requirements": {
+          "requires_instant_payment": true,
+          "price_guarantee_expires_at": null,
+          "payment_required_by": null
+        },
+        "slices": [
+          {
+            "origin": {"iata_code": "GRU"},
+            "destination": {"iata_code": "MIA"},
+            "segments": [
+              {
+                "departing_at": "2026-09-10T22:30:00",
+                "arriving_at": "2026-09-11T07:55:00",
+                "marketing_carrier": {"iata_code": "AF"},
+                "passengers": [
+                  {"cabin_class": "business", "cabin_class_marketing_name": "Business"}
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
