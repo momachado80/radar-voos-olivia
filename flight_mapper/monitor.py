@@ -9,10 +9,21 @@ from .airports import is_actionable_url
 from .currency import get_usd_brl_rate
 from .cycle_state import CycleState
 from .detector import evaluate, evaluate_ceiling
+from .duffel_status import (
+    DUFFEL_ABOVE_THRESHOLD,
+    DUFFEL_ALERT_SENT,
+    DUFFEL_BLOCKED_CABIN,
+    DUFFEL_BLOCKED_FX,
+    DUFFEL_BLOCKED_SUSPICIOUS,
+    DUFFEL_DISABLED,
+    DUFFEL_NO_OFFER,
+    DUFFEL_SEND_FAILED,
+    DuffelStatusSummary,
+)
 from .formatting import trip_label_pt
 from .notifier import TelegramNotifier
 from .providers import FlightProvider, Quote
-from .regions import Cabin, Route, all_routes, is_priority
+from .regions import Cabin, Route, TripType, all_routes, is_priority
 from .sanity import is_suspicious_price, suspicious_reason
 from .score import compute_opportunity_score
 from .state import PriceStore
@@ -21,6 +32,15 @@ from .thresholds import HOT_ROUTE_KEYS, levels_for, scaled_levels
 
 CONFIRMATION_TOLERANCE_PCT = 0.05  # 5%: segunda quote dentro disso ainda confirma
 LINK_PRICE_COMPATIBILITY_RATIO = 1.15  # Kiwi pode ser até 15% mais caro que o primário
+
+# PR #65: rota PROVADA pelo readiness smoke do Duffel (GRU-MIA one_way
+# business, cabin_confirmed=yes, decision=candidate_for_integration). É a
+# única confirmada end-to-end, então o pass Duffel a consulta PRIMEIRO.
+# `all_routes()` só gera round_trip business — esta one_way não está lá.
+DUFFEL_PROVEN_ROUTE = Route(
+    origin="GRU", destination="MIA", region="EUA",
+    trip_type=TripType.ONE_WAY, cabin=Cabin.BUSINESS,
+)
 
 
 @dataclass
@@ -40,6 +60,9 @@ class MonitorResult:
     duffel_requests: int = 0
     duffel_confirmed_alerts: int = 0
     duffel_blocked: int = 0
+    # Resumo sanitizado p/ o 🧭 Status das fontes (PR #65). None quando
+    # o pass Duffel nem rodou. NUNCA contém offer_id/token/payload.
+    duffel_summary: DuffelStatusSummary | None = None
 
 
 def _route_note(route: Route) -> str:
@@ -443,8 +466,13 @@ class Monitor:
         """
         notes: list[str] = []
         if self.duffel_provider is None or self.duffel_max_requests <= 0:
+            # Desligado: devolve summary explícito p/ o 🧭 mostrar "inativa".
             return MonitorResult(
                 scanned=0, quotes_received=0, alerts_sent=0, notes=notes,
+                duffel_summary=DuffelStatusSummary(
+                    enabled=False, requests=0, confirmed_alerts=0,
+                    outcome=DUFFEL_DISABLED,
+                ),
             )
 
         duffel_store = self.duffel_store if self.duffel_store is not None else self.store
@@ -453,7 +481,9 @@ class Monitor:
             all_ = all_routes()
             priority = [r for r in all_ if is_priority(r)]
             rest = [r for r in all_ if not is_priority(r)]
-            routes = priority + rest
+            # PR #65: rota PROVADA primeiro (GRU-MIA one_way business),
+            # depois as priority round_trip, depois o resto.
+            routes = [DUFFEL_PROVEN_ROUTE] + priority + rest
         # Cap conservador de requests por ciclo (default 1).
         routes = routes[: self.duffel_max_requests]
 
@@ -463,11 +493,19 @@ class Monitor:
         requests = 0
         confirmed_alerts = 0
         blocked = 0
+        # Contadores finos p/ derivar o `outcome` canônico do summary.
+        n_fx = 0
+        n_cabin = 0
+        n_suspicious = 0
+        n_above = 0
+        n_no_offer = 0
+        n_send_failed = 0
 
         for route in routes:
             requests += 1
             quote = self.duffel_provider.quote(route)
             if quote is None:
+                n_no_offer += 1
                 notes.append(f"{_route_note(route)}: Duffel sem oferta confirmada")
                 continue
 
@@ -475,6 +513,7 @@ class Monitor:
             # não avaliamos e não alertamos.
             if quote.amount_brl_estimated is None:
                 blocked += 1
+                n_fx += 1
                 notes.append(
                     f"{_route_note(route)}: Duffel bloqueado — câmbio "
                     f"{quote.currency}→BRL ausente"
@@ -486,6 +525,7 @@ class Monitor:
             # business confirmado, mas reasseguramos antes do alerta forte).
             if not (quote.cabin == Cabin.BUSINESS and quote.cabin_confirmed):
                 blocked += 1
+                n_cabin += 1
                 notes.append(
                     f"{_route_note(route)}: Duffel bloqueado — cabine não confirmada"
                 )
@@ -494,6 +534,7 @@ class Monitor:
             # GATE DE SANIDADE: preço business implausível não vira 🟢.
             if is_suspicious_price(route, quote, quote.amount_brl_estimated):
                 blocked += 1
+                n_suspicious += 1
                 reason = suspicious_reason(route, quote, quote.amount_brl_estimated)
                 notes.append(
                     f"{_route_note(route)}: Duffel bloqueado — preço suspeito ({reason})"
@@ -520,6 +561,7 @@ class Monitor:
             history.last_quote = _quote_to_dict(quote, _now(), provider_note="duffel")
 
             if not decision.alert:
+                n_above += 1
                 notes.append(f"{_route_note(route)}: Duffel — {decision.reason}")
                 continue
 
@@ -544,13 +586,42 @@ class Monitor:
                         f"{_route_note(route)}: ALERTA DUFFEL CONFIRMADO {decision.reason}"
                     )
                 else:
+                    n_send_failed += 1
                     notes.append(f"{_route_note(route)}: Duffel alerta falhou no envio")
             else:
+                # Sem notifier (CLI local / teste): nada é enviado, então
+                # `confirmed_alerts` NÃO incrementa (é "enviados de fato").
+                # Em produção o heartbeat só roda com notifier presente, então
+                # este ramo não afeta a observabilidade do 🧭.
                 notes.append(
                     f"{_route_note(route)}: Duffel — {decision.reason} (notifier ausente)"
                 )
 
         duffel_store.save()
+
+        # Deriva o `outcome` canônico por prioridade (o mais informativo
+        # primeiro). Com cap=1 há um único request, mas a ordem cobre cap>1.
+        if confirmed_alerts > 0:
+            outcome = DUFFEL_ALERT_SENT
+        elif n_send_failed > 0:
+            outcome = DUFFEL_SEND_FAILED
+        elif n_fx > 0:
+            outcome = DUFFEL_BLOCKED_FX
+        elif n_above > 0:
+            outcome = DUFFEL_ABOVE_THRESHOLD
+        elif n_suspicious > 0:
+            outcome = DUFFEL_BLOCKED_SUSPICIOUS
+        elif n_cabin > 0:
+            outcome = DUFFEL_BLOCKED_CABIN
+        else:
+            outcome = DUFFEL_NO_OFFER
+
+        summary = DuffelStatusSummary(
+            enabled=True,
+            requests=requests,
+            confirmed_alerts=confirmed_alerts,
+            outcome=outcome,
+        )
         return MonitorResult(
             scanned=len(routes),
             quotes_received=requests,
@@ -559,4 +630,5 @@ class Monitor:
             duffel_requests=requests,
             duffel_confirmed_alerts=confirmed_alerts,
             duffel_blocked=blocked,
+            duffel_summary=summary,
         )

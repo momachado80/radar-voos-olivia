@@ -762,12 +762,19 @@ def _source_status_block(
     confirmed: list[tuple[str, float]],
     raw: list[tuple[str, float]],
     serpapi_summary: object | None = None,
+    duffel_summary: object | None = None,
 ) -> str:
     """🧭 Status das fontes — derivado do ciclo, sem rede.
 
     PR #57: aceita `serpapi_summary` (SerpApiValidationSummary ou None)
     p/ adicionar uma linha humana de observabilidade da validação
     SerpApi. Linha NUNCA contém token, URL, payload ou rota.
+
+    PR #65: aceita `duffel_summary` (DuffelStatusSummary ou None) p/
+    adicionar uma linha de observabilidade do pass Duffel. Quando None
+    (caminho legado / testes antigos), NENHUMA linha Duffel é renderizada
+    — preserva o relatório existente byte a byte. Linha NUNCA contém
+    offer_id, token, URL, payload, order_id nem dado de passageiro.
     """
 
     def _sources(items: list[tuple[str, float]]) -> set[str]:
@@ -815,10 +822,22 @@ def _source_status_block(
             # Defesa final: erro na renderização da linha SerpApi NÃO
             # pode derrubar o relatório inteiro.
             pass
+    if duffel_summary is not None:
+        try:
+            from .duffel_status import humanize_duffel_status
+            lines.append(f"• {humanize_duffel_status(duffel_summary)}")
+        except Exception:
+            # Defesa final: erro na linha Duffel NÃO derruba o relatório.
+            pass
     return "\n".join(lines)
 
 
-def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> str:
+def _build_message(
+    result: MonitorResult,
+    store: PriceStore,
+    now: datetime,
+    duffel_summary: object | None = None,
+) -> str:
     timestamp = now.strftime("%d/%m %H:%M UTC")
 
     # Painel SEMPRE renderizado — sem fallback/early-return. Quando
@@ -1032,6 +1051,7 @@ def _build_message(result: MonitorResult, store: PriceStore, now: datetime) -> s
     sources_block = _source_status_block(
         store, confirmed, raw + economy,
         serpapi_summary=serpapi_summary,
+        duffel_summary=duffel_summary,
     )
     security_block = _security_block(result)
     # PR #60: passa contexto p/ evitar frase final contraditória.
@@ -1377,6 +1397,7 @@ def maybe_send_status(
     state_path: Path,
     now: datetime | None = None,
     throttle_hours: int = 24,
+    duffel_summary: object | None = None,
 ) -> StatusDecision:
     now = now or datetime.now(timezone.utc)
 
@@ -1408,7 +1429,7 @@ def maybe_send_status(
     else:
         reason = "first_run"
 
-    text = _build_message(result, store, now)
+    text = _build_message(result, store, now, duffel_summary=duffel_summary)
     ok = notifier.send(text)
     if not ok:
         return StatusDecision(action="failed", reason="telegram_send_failed")
