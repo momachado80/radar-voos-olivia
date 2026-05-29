@@ -175,6 +175,13 @@ isso o alerta Duffel:
 - **não** mostra hyperlink de compra (não existe), e o pass Duffel **não**
   passa pela resolução de link comercial (`_resolve_actionable_link`).
 
+**Moeda do alerta (PR #66):** alertas Duffel mostram a moeda original (ex.:
+EUR) mais a estimativa em BRL usando o câmbio configurado (`EUR_BRL_RATE`),
+ex.: `964 EUR ≈ R$ 5.784 (câmbio EUR_BRL_RATE=6.00; alvo R$ 6.000)`. A moeda
+estrangeira é confirmada; só a conversão BRL é estimada — nunca "moeda não
+confirmada". O título lidera com **"🟢 EXECUTIVA CONFIRMADA — abaixo do alvo"**
+e o score vai em linha secundária (`Score operacional: N/100`).
+
 **Compra automática: NUNCA.** O radar **não** chama `/air/orders`, **não**
 cria order, **não** cria payment, **não** armazena `offer_id`, token, payload
 cru ou dado de passageiro. A criação de orders (booking real) é um **projeto
