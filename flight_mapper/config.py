@@ -26,6 +26,11 @@ class Config:
     duffel_provider_enabled: bool = False
     duffel_access_token: str | None = None
     duffel_max_requests_per_cycle: int = 1
+    # PR #67: cap dedicado da watchlist premium (Londres/Paris setembro).
+    # Default 0 (opt-in seguro): só roda se explicitamente ligado no
+    # workflow. Conservador: sugestão 2-3 por ciclo, com rotação cobrindo
+    # as 8 combinações ao longo dos ciclos.
+    duffel_watchlist_max_requests_per_cycle: int = 0
 
     @classmethod
     def from_env(cls, repo_root: Path | None = None) -> "Config":
@@ -41,6 +46,12 @@ class Config:
         except ValueError:
             duffel_cap = 1
         duffel_cap = max(0, duffel_cap)
+        raw_wl_cap = os.environ.get("DUFFEL_WATCHLIST_MAX_REQUESTS_PER_CYCLE")
+        try:
+            wl_cap = int(raw_wl_cap) if raw_wl_cap else 0
+        except ValueError:
+            wl_cap = 0
+        wl_cap = max(0, wl_cap)
         return cls(
             telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN"),
             telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID"),
@@ -55,11 +66,18 @@ class Config:
             ),
             duffel_access_token=os.environ.get("DUFFEL_ACCESS_TOKEN"),
             duffel_max_requests_per_cycle=duffel_cap,
+            duffel_watchlist_max_requests_per_cycle=wl_cap,
         )
 
     @property
     def history_path(self) -> Path:
         return self.data_dir / "price_history.json"
+
+    @property
+    def duffel_watchlist_state_path(self) -> Path:
+        """Offset rotativo da watchlist premium (PR #67). Só
+        `{"offset": N}` — runtime state, sem dado sensível."""
+        return self.data_dir / "duffel_watchlist_state.json"
 
     @property
     def duffel_history_path(self) -> Path:

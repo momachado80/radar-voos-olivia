@@ -214,6 +214,36 @@ NUNCA offer_id/token/URL/payload/order_id/passageiro). Estados possíveis:
 - `Duffel: ativa; N consulta(s) neste ciclo; 0 alertas; motivo: sem oferta confirmada.`
 - `Duffel: ativa, mas cabine não confirmada.` / `...preço economicamente suspeito.`
 
+## 2.2 Watchlist premium Londres/Paris setembro (PR #67)
+
+Watchlist TEMPORÁRIA de alta prioridade para confirmar executiva nas
+combinações exatas pedidas pela Olivia. O pass Duffel consulta estas
+entradas **ANTES** da rota genérica (GRU-MIA one_way), respeitando um cap
+dedicado e conservador.
+
+Origem São Paulo = `GRU`. São **8 combinações** round-trip business:
+`GRU-LHR` (Londres) e `GRU-CDG` (Paris), ida `2026-09-02` ou `2026-09-03`,
+volta `2026-09-12` ou `2026-09-13`.
+
+- Controlada por `DUFFEL_WATCHLIST_MAX_REQUESTS_PER_CYCLE` (default **0** —
+  opt-in seguro). No workflow ligamos com **2**: 2 combinações por ciclo,
+  com **rotação** (offset persistido em `data/duffel_watchlist_state.json`,
+  só `{"offset": N}`) cobrindo as 8 combinações ao longo dos ciclos.
+- Histórico/dedup **isolado por combinação de datas** (chave
+  `GRU-LHR-business::duffel::2026-09-02_2026-09-12`), nunca polui o store
+  principal nem o pass genérico.
+- Mesmas garantias do Duffel: **read-only** (só Offer Requests, nunca
+  `/air/orders`, nunca order/payment), mesmos gates (moeda/cabine/sanidade/
+  teto/dedup), alerta 🟢 com Londres/Paris + datas ida e volta + cabine
+  business confirmada + companhia + moeda original + estimativa BRL + alvo
+  + `order_flow` + "sem compra automática". NUNCA expõe offer_id, token,
+  URL, payload ou dado de passageiro.
+- O relatório diário mostra a linha da watchlist no 🧭, ex.:
+  `Duffel watchlist: Londres/Paris setembro consultada; 0 alertas.` ou
+  `Duffel watchlist: 1 executiva confirmada para Paris/Londres.`
+- O comportamento Duffel GRU-MIA genérico é **preservado** e roda logo
+  após a watchlist.
+
 ## 3. O que conta como oportunidade para verificação manual
 
 Mesmas duas primeiras condições do confirmado (cabine + preço), mas

@@ -59,6 +59,13 @@ jobs:
           DUFFEL_ACCESS_TOKEN: ${{ secrets.DUFFEL_ACCESS_TOKEN }}
           DUFFEL_MAX_REQUESTS_PER_CYCLE: "1"
           EUR_BRL_RATE: ${{ vars.EUR_BRL_RATE }}
+          # Watchlist premium Londres/Paris setembro (PR #67). Consultada
+          # ANTES da rota genérica GRU-MIA. Cap dedicado conservador: 2
+          # combinações por ciclo, com rotação cobrindo as 8 combinações
+          # ao longo dos ciclos (offset em data/duffel_watchlist_state.json).
+          # Default 0 (opt-in): aqui ligamos com 2. Mesmas garantias
+          # read-only — só Offer Requests, nunca order/payment.
+          DUFFEL_WATCHLIST_MAX_REQUESTS_PER_CYCLE: "2"
         run: python -m flight_mapper cycle
 
       - name: Commit state
