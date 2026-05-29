@@ -225,14 +225,16 @@ def test_watchlist_confirmed_offer_sends_green_with_roundtrip_dates(tmp_path):
     assert result.duffel_watchlist_summary.confirmed_alerts == 1
     assert len(notifier.messages) == 1
     msg = notifier.messages[0]
-    # Paris + datas round-trip + cabine + cia + order_flow + sem compra.
+    # Paris + datas round-trip + cabine + cia + order_flow.
+    # PR #69: order_flow ⇒ 🟡 compra pendente (não 🟢 EXECUTIVA CONFIRMADA).
     assert "Paris" in msg
     assert "2026-09-02 → 2026-09-12" in msg
     assert "(ida e volta)" in msg
-    assert "🟢" in msg and "EXECUTIVA CONFIRMADA" in msg
+    assert "🟡 Oferta confirmada, compra pendente" in msg
+    assert "EXECUTIVA CONFIRMADA" not in msg
     assert "🛫 Companhia: AF" in msg
     assert "booking_flow: order_flow (sem link direto de compra)" in msg
-    assert "sem compra automática" in msg
+    assert "compra direta ainda não disponível no robô." in msg
 
 
 def test_watchlist_london_offer_renders_londres(tmp_path):
