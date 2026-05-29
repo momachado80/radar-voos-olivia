@@ -129,7 +129,10 @@ def cmd_cycle(args: argparse.Namespace) -> int:
             DuffelWatchlistState,
             build_september_watchlist,
         )
-        duffel_watchlist = build_september_watchlist()
+        # PR #68: watchlist cobre business E economy (econômica muito boa).
+        duffel_watchlist = build_september_watchlist(
+            cabins=("business", "economy"),
+        )
         duffel_watchlist_state = DuffelWatchlistState.load(
             config.duffel_watchlist_state_path
         )

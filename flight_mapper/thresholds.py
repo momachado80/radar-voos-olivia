@@ -84,6 +84,21 @@ HOT_ONE_WAY_ROUTE_KEYS: frozenset[str] = frozenset(
 )
 
 
+# Thresholds ECONÔMICA (PR #68) — SEPARADOS dos de business. Aditivos:
+# não alteram nenhum teto de business. Mesma convenção (valores em USD,
+# escalados USD→BRL em runtime via `scaled_levels`). Namespace próprio
+# `-economy` / `-one_way-economy`, isolado do business e do histórico.
+# Calibração conservadora p/ "econômica muito boa" GRU→Europa/EUA.
+ECONOMY_ROUTE_THRESHOLDS: dict[str, dict[str, float]] = {
+    "GRU-LHR-economy": {"excellent_brl": 550, "good_brl": 750},
+    "GRU-CDG-economy": {"excellent_brl": 550, "good_brl": 750},
+}
+
+ECONOMY_ONE_WAY_ROUTE_THRESHOLDS: dict[str, dict[str, float]] = {
+    "GRU-MIA-one_way-economy": {"excellent_brl": 250, "good_brl": 400},
+}
+
+
 def ceiling_for(route_key: str) -> float | None:
     """Compat com camada antiga: usa good_brl do ROUTE_THRESHOLDS se houver,
     senão cai no ABSOLUTE_CEILING_BRL."""
@@ -102,6 +117,10 @@ def levels_for(route_key: str) -> dict | None:
         return dict(ROUTE_THRESHOLDS[route_key])
     if route_key in ONE_WAY_ROUTE_THRESHOLDS:
         return dict(ONE_WAY_ROUTE_THRESHOLDS[route_key])
+    if route_key in ECONOMY_ROUTE_THRESHOLDS:
+        return dict(ECONOMY_ROUTE_THRESHOLDS[route_key])
+    if route_key in ECONOMY_ONE_WAY_ROUTE_THRESHOLDS:
+        return dict(ECONOMY_ONE_WAY_ROUTE_THRESHOLDS[route_key])
     if route_key in ABSOLUTE_CEILING_BRL:
         return {"excellent_brl": None, "good_brl": ABSOLUTE_CEILING_BRL[route_key]}
     return None

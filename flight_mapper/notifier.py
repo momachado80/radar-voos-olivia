@@ -61,6 +61,46 @@ def _duffel_headline(decision: Decision, trip_suffix: str) -> str:
     return f"🟢 EXECUTIVA CONFIRMADA{trip_suffix}"
 
 
+def _duffel_economy_headline(decision: Decision, trip_suffix: str) -> str:
+    """Título de oferta Duffel ECONÔMICA confirmada (PR #68). Lidera com a
+    oportunidade de econômica muito boa — não com o score.
+
+    - abaixo do alvo (ceiling) → "💸 ECONÔMICA MUITO BOA — abaixo do alvo";
+    - queda histórica → "💸 ECONÔMICA MUITO BOA — queda detectada";
+    - sem critério forte → "💸 ECONÔMICA MUITO BOA"."""
+    if decision.criterion == CRITERION_CEILING and decision.threshold is not None:
+        return f"💸 ECONÔMICA MUITO BOA — abaixo do alvo{trip_suffix}"
+    if decision.drop_pct is not None:
+        return f"💸 ECONÔMICA MUITO BOA — queda detectada{trip_suffix}"
+    return f"💸 ECONÔMICA MUITO BOA{trip_suffix}"
+
+
+# link_status normalizado (PR #68): descreve a ACIONABILIDADE do link em
+# TODO alerta, sem prometer checkout onde não há.
+LINK_STATUS_DIRECT = "direct_link"        # deep_link clicável real (ex.: Kiwi)
+LINK_STATUS_ORDER_FLOW = "order_flow"     # Duffel: ordem via API, sem link
+LINK_STATUS_AUX = "auxiliary_search"      # URL de busca gerada, não é checkout
+LINK_STATUS_NONE = "none"                 # sem link
+
+
+def link_status_for(quote: Quote) -> str:
+    """Classifica a acionabilidade do link da cotação (PR #68).
+
+    - Duffel ⇒ SEMPRE `order_flow` (sem link direto de compra), a menos
+      que código futuro mude explicitamente.
+    - deep_link clicável real (Kiwi/composto) ⇒ `direct_link`.
+    - manual_purchase (links auxiliares de busca) ⇒ `auxiliary_search`.
+    - caso contrário ⇒ `none`.
+    """
+    if quote.source == "duffel":
+        return LINK_STATUS_ORDER_FLOW
+    if is_actionable_url(quote.deep_link):
+        return LINK_STATUS_DIRECT
+    if quote.source == "manual_purchase":
+        return LINK_STATUS_AUX
+    return LINK_STATUS_NONE
+
+
 def _duffel_cambio_prefix(quote: Quote) -> str:
     """Prefixo do câmbio p/ embutir no parêntese do preço de ofertas Duffel
     em moeda estrangeira: `câmbio EUR_BRL_RATE=6.00; `. Vazio quando não
@@ -108,6 +148,11 @@ def format_alert(
         # executiva confirmada, não com o score (que vira linha secundária).
         level_prefix = ""
         headline = _duffel_headline(decision, trip_suffix)
+    elif is_duffel and quote.cabin_confirmed and quote.cabin == Cabin.ECONOMY:
+        # PR #68: oferta Duffel econômica confirmada lidera com "econômica
+        # muito boa" — não com o score.
+        level_prefix = ""
+        headline = _duffel_economy_headline(decision, trip_suffix)
     elif quote.cabin_confirmed and quote.cabin == Cabin.BUSINESS:
         level_prefix = _level_title(decision.level, decision.score)
         headline = f"Business em promoção{trip_suffix}"
@@ -181,12 +226,12 @@ def format_alert(
         extras.append("⚠️ Preço pode mudar rápido. Conferir agora.")
 
     if quote.source == "duffel":
-        # Duffel: oferta business CONFIRMADA via order_flow. NÃO há link
-        # clicável (booking é API server-to-server). NUNCA expomos
-        # offer_id / token / payload — só fonte, carrier e a ação manual
-        # de verificação no painel do Duffel.
+        # Duffel: oferta CONFIRMADA via order_flow. NÃO há link clicável
+        # (booking é API server-to-server). NUNCA expomos offer_id / token /
+        # payload — só fonte, cabine, carrier e a ação manual no Dashboard.
+        _cab_pt = "econômica" if quote.cabin == Cabin.ECONOMY else "business"
         extras.append("🟢 Oferta confirmada por Duffel; sem compra automática.")
-        extras.append("🛒 Fonte: Duffel (Offer Request, cabine business confirmada)")
+        extras.append(f"🛒 Fonte: Duffel (Offer Request, cabine {_cab_pt} confirmada)")
         if quote.airline:
             extras.append(f"🛫 Companhia: {quote.airline}")
         # PR #66: score como linha SECUNDÁRIA (não no título) — não deve
@@ -230,6 +275,10 @@ def format_alert(
                 "⚠️ Link direto indisponível. Conferir manualmente na fonte pela rota "
                 f"{quote.route.origin} → {quote.route.destination}."
             )
+
+    # PR #68: link_status normalizado em TODO alerta — explícito sobre a
+    # acionabilidade do link, sem prometer checkout onde não há.
+    extras.append(f"🔗 link_status: {link_status_for(quote)}")
 
     return (
         f"✈️ <b>{flag}{level_prefix}{headline}</b>\n"
