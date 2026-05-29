@@ -129,10 +129,12 @@ def test_economy_thresholds_present_and_separate():
 
 
 def test_business_alert_says_order_flow_and_no_direct_link():
+    # PR #69: business Duffel order_flow ⇒ 🟡 compra pendente (não 🟢).
     msg = format_alert(_duffel_quote(Cabin.BUSINESS), _ceiling())
     assert "booking_flow: order_flow (sem link direto de compra)" in msg
     assert "🔗 link_status: order_flow" in msg
-    assert "🟢" in msg and "EXECUTIVA CONFIRMADA" in msg
+    assert "🟡 Oferta confirmada, compra pendente" in msg
+    assert "EXECUTIVA CONFIRMADA" not in msg
     # Não promete link direto.
     assert "link_status: direct_link" not in msg
 
@@ -140,17 +142,19 @@ def test_business_alert_says_order_flow_and_no_direct_link():
 # ----------------- 2 & 3. economy alert + headline -----------------
 
 
-def test_economy_alert_uses_economy_headline_not_business():
+def test_economy_alert_is_pending_with_economy_cabin():
+    # PR #69: economy Duffel order_flow também é 🟡 compra pendente — mas a
+    # cabine Econômica fica visível no título e no corpo (sinal preservado).
     msg = format_alert(_duffel_quote(Cabin.ECONOMY), _ceiling())
     headline = msg.splitlines()[0]
-    assert "💸 ECONÔMICA MUITO BOA — abaixo do alvo" in headline
+    assert "🟡 Oferta confirmada, compra pendente — Econômica" in headline
     assert "EXECUTIVA CONFIRMADA" not in headline
     assert "Business" not in headline
     # cabine econômica confirmada explícita.
     assert "cabine econômica confirmada" in msg
     # order_flow + link_status presentes também na econômica.
     assert "🔗 link_status: order_flow" in msg
-    assert "sem compra automática" in msg
+    assert "compra direta ainda não disponível no robô." in msg
     assert "verificar no Duffel Dashboard" in msg
 
 
@@ -261,7 +265,8 @@ def test_economy_alert_no_leak(monkeypatch):
         "cabin_class", "offer_id", "order_id",
     ):
         assert sentinel not in msg, f"LEAK no alerta economy: {sentinel!r}"
-    assert "💸 ECONÔMICA MUITO BOA" in msg
+    # PR #69: economy Duffel order_flow ⇒ 🟡 compra pendente.
+    assert "🟡 Oferta confirmada, compra pendente" in msg
 
 
 # ----------------- 4 (cont). non-Duffel economy headline unchanged -----------------

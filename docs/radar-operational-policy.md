@@ -166,21 +166,34 @@ altera Travelpayouts/SerpApi/Kiwi — roda em paralelo, com história própria
 - Companhia aérea (código IATA).
 - Rota + datas + trip_type.
 
-**`booking_flow=order_flow` ⇒ NÃO há link direto.** O fluxo de compra do
-Duffel é uma ordem via API (server-to-server), não uma URL clicável. Por
-isso o alerta Duffel:
-- exibe o selo **"🟢 Oferta confirmada por Duffel; sem compra automática."**
-- exibe **"🛒 Fonte: Duffel (Offer Request, cabine business confirmada)"**,
-  a companhia, e **"Ação: verificar no Duffel Dashboard."**
+**`booking_flow=order_flow` ⇒ NÃO há link direto ⇒ NÃO é alerta verde
+acionável (PR #69).** Regra de produto: **uma oferta sem caminho de compra
+direto não é alerta totalmente acionável — é "oferta confirmada, compra
+pendente".** O fluxo de compra do Duffel é uma ordem via API
+(server-to-server), não uma URL clicável. Por isso o alerta Duffel:
+- lidera com **"🟡 Oferta confirmada, compra pendente — Executiva/Econômica"**
+  (🟡, NUNCA 🟢; NUNCA "EXECUTIVA CONFIRMADA" nem "clique para comprar");
+- exibe **"Oferta confirmada por Duffel; compra direta ainda não disponível
+  no robô."**, **"🛒 Fonte: Duffel (Offer Request, cabine ... confirmada)"**,
+  a companhia, **"booking_flow: order_flow (sem link direto de compra)"** e
+  **"Ação: verificar no Duffel Dashboard."**;
+- fecha com o resumo honesto **"Oferta confirmada, mas sem caminho de compra
+  direto."**;
 - **não** mostra hyperlink de compra (não existe), e o pass Duffel **não**
   passa pela resolução de link comercial (`_resolve_actionable_link`).
+
+**Verde acionável exige caminho de compra.** Só um provider que devolve um
+`deep_link` clicável real (ex.: Kiwi) gera alerta verde acionável
+(`link_status: direct_link`, com link "Conferir busca"). Duffel order_flow
+fica em 🟡 até existir um caminho de compra.
 
 **Moeda do alerta (PR #66):** alertas Duffel mostram a moeda original (ex.:
 EUR) mais a estimativa em BRL usando o câmbio configurado (`EUR_BRL_RATE`),
 ex.: `964 EUR ≈ R$ 5.784 (câmbio EUR_BRL_RATE=6.00; alvo R$ 6.000)`. A moeda
 estrangeira é confirmada; só a conversão BRL é estimada — nunca "moeda não
-confirmada". O título lidera com **"🟢 EXECUTIVA CONFIRMADA — abaixo do alvo"**
-e o score vai em linha secundária (`Score operacional: N/100`).
+confirmada". O preço/alvo e o `Score operacional: N/100` (linha secundária)
+seguem visíveis no corpo, então o **sinal de valor não se perde** — só não é
+rotulado como compra acionável.
 
 **Compra automática: NUNCA.** O radar **não** chama `/air/orders`, **não**
 cria order, **não** cria payment, **não** armazena `offer_id`, token, payload
@@ -254,8 +267,12 @@ business primeiro, depois economy), com `build_september_watchlist(("business","
   `-economy` / `-one_way-economy` em `thresholds.py`): ex.
   `GRU-LHR-economy` excelente 550 / bom 750 (USD, escalados em runtime).
   Os tetos de business ficam intactos.
-- **Headline de econômica:** `💸 ECONÔMICA MUITO BOA — abaixo do alvo`
-  (business segue `🟢 EXECUTIVA CONFIRMADA — abaixo do alvo`).
+- **Headline (atualizado PR #69):** como o Duffel é `order_flow` (sem
+  caminho de compra direto), tanto business quanto econômica lideram com
+  `🟡 Oferta confirmada, compra pendente — Executiva/Econômica` — a cabine
+  e o alvo seguem visíveis no corpo. As variantes verdes
+  (`🟢 EXECUTIVA CONFIRMADA` / `💸 ECONÔMICA MUITO BOA`) ficam reservadas
+  para quando houver caminho de compra (`direct_link`).
 - Histórico/teto de econômica isolados por cabine
   (`GRU-LHR-economy::duffel::...`), nunca misturam com business.
 

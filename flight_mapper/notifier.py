@@ -38,41 +38,21 @@ def _level_title(level: str | None, score: int | None = None) -> str:
     return ""
 
 
-def _duffel_headline(decision: Decision, trip_suffix: str) -> str:
-    """Título de oferta Duffel business CONFIRMADA. Enfatiza a oportunidade
-    executiva confirmada — não o score (que vira linha secundária). O
-    score NUNCA entra aqui (regra do PR #66).
+def _duffel_pending_headline(quote: Quote, trip_suffix: str) -> str:
+    """Título de oferta Duffel CONFIRMADA mas SEM caminho de compra direto
+    (booking_flow=order_flow) — PR #69.
 
-    - abaixo do alvo (ceiling excellent/good) → "🟢 EXECUTIVA CONFIRMADA
-      — abaixo do alvo";
-    - queda histórica (legacy) → "🟢 EXECUTIVA CONFIRMADA — queda detectada";
-    - sem nível/critério forte → "🟢 EXECUTIVA CONFIRMADA".
-    """
-    below_target = (
-        decision.criterion == CRITERION_CEILING
-        and decision.level in (LEVEL_EXCELLENT, LEVEL_GOOD)
-    )
-    if below_target:
-        return f"🟢 EXECUTIVA CONFIRMADA — abaixo do alvo{trip_suffix}"
-    if decision.criterion == CRITERION_CEILING and decision.threshold is not None:
-        return f"🟢 EXECUTIVA CONFIRMADA — abaixo do alvo{trip_suffix}"
-    if decision.drop_pct is not None:
-        return f"🟢 EXECUTIVA CONFIRMADA — queda detectada{trip_suffix}"
-    return f"🟢 EXECUTIVA CONFIRMADA{trip_suffix}"
-
-
-def _duffel_economy_headline(decision: Decision, trip_suffix: str) -> str:
-    """Título de oferta Duffel ECONÔMICA confirmada (PR #68). Lidera com a
-    oportunidade de econômica muito boa — não com o score.
-
-    - abaixo do alvo (ceiling) → "💸 ECONÔMICA MUITO BOA — abaixo do alvo";
-    - queda histórica → "💸 ECONÔMICA MUITO BOA — queda detectada";
-    - sem critério forte → "💸 ECONÔMICA MUITO BOA"."""
-    if decision.criterion == CRITERION_CEILING and decision.threshold is not None:
-        return f"💸 ECONÔMICA MUITO BOA — abaixo do alvo{trip_suffix}"
-    if decision.drop_pct is not None:
-        return f"💸 ECONÔMICA MUITO BOA — queda detectada{trip_suffix}"
-    return f"💸 ECONÔMICA MUITO BOA{trip_suffix}"
+    Regra de produto: oferta sem caminho de compra NÃO é alerta totalmente
+    acionável; é "oferta confirmada, compra pendente". Por isso 🟡 (não 🟢)
+    e nunca "EXECUTIVA CONFIRMADA"/"clique para comprar". Mantém a cabine
+    visível p/ não perder o sinal (o valor/alvo segue no corpo)."""
+    if quote.cabin == Cabin.BUSINESS:
+        cab_part = " — Executiva"
+    elif quote.cabin == Cabin.ECONOMY:
+        cab_part = " — Econômica"
+    else:
+        cab_part = ""
+    return f"🟡 Oferta confirmada, compra pendente{cab_part}{trip_suffix}"
 
 
 # link_status normalizado (PR #68): descreve a ACIONABILIDADE do link em
@@ -143,16 +123,17 @@ def format_alert(
     # - unknown/não confirmado → nunca "Business"; aviso honesto sem nível.
     trip_suffix = f" ({trip_label_pt(quote.trip_type)})"
     is_duffel = quote.source == "duffel"
-    if is_duffel and quote.cabin_confirmed and quote.cabin == Cabin.BUSINESS:
-        # PR #66: oferta Duffel confirmada lidera com a oportunidade
-        # executiva confirmada, não com o score (que vira linha secundária).
+    duffel_pending = (
+        is_duffel
+        and quote.cabin_confirmed
+        and link_status_for(quote) == LINK_STATUS_ORDER_FLOW
+    )
+    if duffel_pending:
+        # PR #69: Duffel order_flow = oferta confirmada SEM caminho de compra
+        # direto ⇒ NÃO é alerta verde totalmente acionável. Vira 🟡 "compra
+        # pendente" (cabine no título; valor/alvo seguem no corpo).
         level_prefix = ""
-        headline = _duffel_headline(decision, trip_suffix)
-    elif is_duffel and quote.cabin_confirmed and quote.cabin == Cabin.ECONOMY:
-        # PR #68: oferta Duffel econômica confirmada lidera com "econômica
-        # muito boa" — não com o score.
-        level_prefix = ""
-        headline = _duffel_economy_headline(decision, trip_suffix)
+        headline = _duffel_pending_headline(quote, trip_suffix)
     elif quote.cabin_confirmed and quote.cabin == Cabin.BUSINESS:
         level_prefix = _level_title(decision.level, decision.score)
         headline = f"Business em promoção{trip_suffix}"
@@ -226,20 +207,26 @@ def format_alert(
         extras.append("⚠️ Preço pode mudar rápido. Conferir agora.")
 
     if quote.source == "duffel":
-        # Duffel: oferta CONFIRMADA via order_flow. NÃO há link clicável
-        # (booking é API server-to-server). NUNCA expomos offer_id / token /
-        # payload — só fonte, cabine, carrier e a ação manual no Dashboard.
+        # Duffel: oferta CONFIRMADA via order_flow — SEM caminho de compra
+        # direto (booking é API server-to-server). PR #69: não rotulamos
+        # como compra acionável; é "oferta confirmada, compra pendente".
+        # NUNCA expomos offer_id / token / payload — só fonte, cabine,
+        # carrier e a ação manual no Dashboard. NUNCA "clique para comprar".
         _cab_pt = "econômica" if quote.cabin == Cabin.ECONOMY else "business"
-        extras.append("🟢 Oferta confirmada por Duffel; sem compra automática.")
+        extras.append(
+            "Oferta confirmada por Duffel; compra direta ainda não "
+            "disponível no robô."
+        )
         extras.append(f"🛒 Fonte: Duffel (Offer Request, cabine {_cab_pt} confirmada)")
         if quote.airline:
             extras.append(f"🛫 Companhia: {quote.airline}")
-        # PR #66: score como linha SECUNDÁRIA (não no título) — não deve
-        # ser a mensagem emocional principal de uma executiva confirmada.
+        # Score como linha SECUNDÁRIA (não no título).
         if decision.score is not None:
             extras.append(f"Score operacional: {decision.score}/100")
         extras.append("booking_flow: order_flow (sem link direto de compra)")
         extras.append("Ação: verificar no Duffel Dashboard.")
+        # Resumo honesto (PR #69): confirmada, mas sem como comprar pelo robô.
+        extras.append("Oferta confirmada, mas sem caminho de compra direto.")
     elif quote.source == "manual_purchase":
         # Manual purchase fallback: preço veio do Travelpayouts mas não há
         # link comercial acionável (Kiwi indisponível, Aviasales bloqueado).

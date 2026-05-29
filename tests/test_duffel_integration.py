@@ -267,7 +267,12 @@ def test_alert_contains_duffel_confirmed_wording(tmp_path):
     result = monitor.run_duffel_confirmations([_ROUTE])
     assert result.duffel_confirmed_alerts == 1
     msg = notifier.messages[0]
-    assert "🟢 Oferta confirmada por Duffel; sem compra automática." in msg
+    # PR #69: order_flow ⇒ 🟡 oferta confirmada, compra pendente (não 🟢).
+    assert "🟡 Oferta confirmada, compra pendente" in msg
+    assert (
+        "Oferta confirmada por Duffel; compra direta ainda não "
+        "disponível no robô." in msg
+    )
     assert "Duffel" in msg
     assert "business" in msg.lower() or "Business" in msg
     assert "verificar no Duffel Dashboard" in msg

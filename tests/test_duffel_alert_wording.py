@@ -126,8 +126,12 @@ def test_duffel_eur_without_fx_still_no_unconfirmed():
 
 
 def test_duffel_alert_keeps_confirmed_no_auto_purchase():
+    # PR #69: order_flow = compra pendente, não compra automática nem link.
     msg = format_alert(_duffel_eur_quote(), _ceiling_good())
-    assert "Oferta confirmada por Duffel; sem compra automática." in msg
+    assert (
+        "Oferta confirmada por Duffel; compra direta ainda não "
+        "disponível no robô." in msg
+    )
 
 
 def test_duffel_alert_keeps_dashboard_action_and_order_flow():
@@ -139,12 +143,13 @@ def test_duffel_alert_keeps_dashboard_action_and_order_flow():
 # ----------------- headline emphasis + score secondary -----------------
 
 
-def test_duffel_headline_emphasizes_confirmed_not_score():
+def test_duffel_headline_is_pending_not_score():
+    # PR #69: Duffel order_flow → 🟡 "compra pendente" (não green actionable);
+    # o score nunca vai no título.
     msg = format_alert(_duffel_eur_quote(), _ceiling_good(score=40))
     headline = msg.splitlines()[0]
-    assert "EXECUTIVA CONFIRMADA" in headline
-    assert "abaixo do alvo" in headline
-    # Score NÃO pode estar no título (nem "BOM"/"EXCELENTE" + Score).
+    assert "🟡 Oferta confirmada, compra pendente" in headline
+    assert "EXECUTIVA CONFIRMADA" not in headline
     assert "Score" not in headline
     assert "🎯 BOM" not in headline
     assert "🚨 EXCELENTE" not in headline
@@ -155,13 +160,15 @@ def test_duffel_score_is_secondary_line():
     assert "Score operacional: 40/100" in msg
 
 
-def test_duffel_headline_excellent_also_confirmed():
+def test_duffel_headline_pending_even_when_excellent():
+    # Mesmo preço excelente, sem caminho de compra ⇒ segue 🟡 pendente.
     d = Decision(
         alert=True, reason="excelente", criterion=CRITERION_CEILING,
         threshold=6000.0, level=LEVEL_EXCELLENT, score=92,
     )
     headline = format_alert(_duffel_eur_quote(), d).splitlines()[0]
-    assert "🟢 EXECUTIVA CONFIRMADA — abaixo do alvo" in headline
+    assert "🟡 Oferta confirmada, compra pendente" in headline
+    assert "EXECUTIVA CONFIRMADA" not in headline
     assert "Score" not in headline
 
 
@@ -172,7 +179,7 @@ def test_duffel_no_score_line_when_score_none():
     )
     msg = format_alert(_duffel_eur_quote(), d)
     assert "Score operacional" not in msg
-    assert "EXECUTIVA CONFIRMADA" in msg
+    assert "🟡 Oferta confirmada, compra pendente" in msg
 
 
 # ----------------- 6. no leak -----------------
