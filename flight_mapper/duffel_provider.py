@@ -82,18 +82,42 @@ class DuffelProvider:
             return None
 
         outbound = date.today() + timedelta(days=self.lookahead_days)
-        trip = "round_trip" if route.trip_type != TripType.ONE_WAY else "one_way"
-        return_dt = None
-        if trip == "round_trip":
-            return_dt = outbound + timedelta(days=self.trip_length)
+        if route.trip_type != TripType.ONE_WAY:
+            return self.quote_for_dates(
+                route, outbound, outbound + timedelta(days=self.trip_length),
+            )
+        return self.quote_for_dates(route, outbound, None)
+
+    def quote_for_dates(
+        self,
+        route: Route,
+        outbound_date,
+        return_date=None,
+    ) -> Quote | None:
+        """Consulta Duffel para datas ESPECÍFICAS (usado pela watchlist
+        premium — PR #67). `outbound_date`/`return_date` aceitam `date` ou
+        string `YYYY-MM-DD`. round-trip quando `return_date` presente (ou a
+        rota é round-trip). Mesmas garantias read-only/no-leak do `quote`."""
+        if not self.access_token:
+            return None
+
+        def _to_str(d) -> str | None:
+            if d is None:
+                return None
+            return d if isinstance(d, str) else d.strftime("%Y-%m-%d")
+
+        out_str = _to_str(outbound_date)
+        ret_str = _to_str(return_date)
+        is_round = ret_str is not None or route.trip_type != TripType.ONE_WAY
+        trip = "round_trip" if is_round else "one_way"
 
         payload = duffel_live_search(
             access_token=self.access_token,
             origin=route.origin,
             destination=route.destination,
             trip_type=trip,
-            outbound_date=outbound,
-            return_date=return_dt,
+            outbound_date=outbound_date,
+            return_date=ret_str if is_round else None,
             cabin_class="business",
             currency=self.currency,
             urlopen_impl=self._urlopen_impl,
@@ -114,12 +138,12 @@ class DuffelProvider:
         brl_estimated = to_brl(report.price_amount, currency, rate)
 
         airline = report.airlines[0] if report.airlines else None
-        # trip_type honesto a partir do report (deriva das slices).
-        trip_type = (
-            TripType.ROUND_TRIP
-            if report.trip_type == "round_trip"
-            else TripType.ONE_WAY
-        )
+        # trip_type honesto a partir do report (deriva das slices). Fallback
+        # p/ o tipo solicitado quando o parser não conseguir inferir.
+        if report.trip_type == "round_trip" or (is_round and report.trip_type == "unknown"):
+            trip_type = TripType.ROUND_TRIP
+        else:
+            trip_type = TripType.ONE_WAY
 
         return Quote(
             route=route,
@@ -128,8 +152,10 @@ class DuffelProvider:
                 else float(report.price_amount)
             ),
             deep_link=None,  # order_flow: sem link clicável, de propósito
-            departure_date=report.outbound_date or outbound.strftime("%Y-%m-%d"),
-            return_date=report.return_date,
+            departure_date=report.outbound_date or out_str or "",
+            return_date=(
+                report.return_date or (ret_str if is_round else None)
+            ),
             source="duffel",
             amount=float(report.price_amount),
             currency=currency or CURRENCY_BRL,

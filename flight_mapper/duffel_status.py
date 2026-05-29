@@ -86,3 +86,37 @@ def humanize_duffel_status(summary: DuffelStatusSummary) -> str:
         f"Duffel: ativa; {n} consulta(s) neste ciclo; 0 alertas; "
         f"motivo: sem oferta confirmada."
     )
+
+
+@dataclass(frozen=True)
+class DuffelWatchlistSummary:
+    """Snapshot sanitizado do pass da watchlist premium (PR #67).
+
+    `enabled`: watchlist configurada + cap > 0 + provider presente.
+    `checked`: nº de combinações Londres/Paris consultadas neste ciclo.
+    `confirmed_alerts`: nº de 🟢 enviados a partir da watchlist.
+    NUNCA contém offer_id/token/URL/payload/order_id/passageiro."""
+
+    enabled: bool
+    checked: int
+    confirmed_alerts: int
+
+
+def humanize_duffel_watchlist_status(
+    summary: DuffelWatchlistSummary | None,
+) -> str | None:
+    """Linha do 🧭 p/ a watchlist premium Londres/Paris. `None` quando a
+    watchlist não rodou (omite a linha). NUNCA expõe dado sensível."""
+    if summary is None or not summary.enabled:
+        return None
+    if summary.confirmed_alerts > 0:
+        n = summary.confirmed_alerts
+        exec_word = (
+            "executiva confirmada" if n == 1 else "executivas confirmadas"
+        )
+        return (
+            f"Duffel watchlist: {n} {exec_word} para Paris/Londres."
+        )
+    return (
+        "Duffel watchlist: Londres/Paris setembro consultada; 0 alertas."
+    )

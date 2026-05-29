@@ -116,12 +116,32 @@ def cmd_cycle(args: argparse.Namespace) -> int:
         PriceStore(config.duffel_history_path)
         if duffel_provider is not None else None
     )
+    # PR #67: watchlist premium Londres/Paris setembro — só montada quando o
+    # Duffel está ligado E o cap dedicado > 0. Rotação persistida em
+    # data/duffel_watchlist_state.json (só um offset, sem dado sensível).
+    duffel_watchlist = []
+    duffel_watchlist_state = None
+    if (
+        duffel_provider is not None
+        and config.duffel_watchlist_max_requests_per_cycle > 0
+    ):
+        from .duffel_watchlist import (
+            DuffelWatchlistState,
+            build_september_watchlist,
+        )
+        duffel_watchlist = build_september_watchlist()
+        duffel_watchlist_state = DuffelWatchlistState.load(
+            config.duffel_watchlist_state_path
+        )
     monitor = Monitor(
         provider=provider, notifier=notifier, store=store, cycle=cycle,
         link_provider=link_provider,
         duffel_provider=duffel_provider,
         duffel_store=duffel_store,
         duffel_max_requests=config.duffel_max_requests_per_cycle,
+        duffel_watchlist=duffel_watchlist,
+        duffel_watchlist_max_requests=config.duffel_watchlist_max_requests_per_cycle,
+        duffel_watchlist_state=duffel_watchlist_state,
     )
     result = monitor.run_cycle()
     print(f"cycle scanned={result.scanned} quotes={result.quotes_received} alerts={result.alerts_sent}")
@@ -134,19 +154,25 @@ def cmd_cycle(args: argparse.Namespace) -> int:
     # rota PROVADA primeiro (GRU-MIA one_way business). NUNCA cria order.
     duffel_result = monitor.run_duffel_confirmations()
     duffel_summary = duffel_result.duffel_summary
+    duffel_watchlist_summary = duffel_result.duffel_watchlist_summary
     if duffel_provider is not None:
         print(
             f"duffel requests={duffel_result.duffel_requests} "
             f"confirmed={duffel_result.duffel_confirmed_alerts} "
             f"blocked={duffel_result.duffel_blocked}"
         )
+        if duffel_watchlist_summary is not None:
+            print(
+                f"duffel watchlist checked={duffel_watchlist_summary.checked} "
+                f"confirmed={duffel_watchlist_summary.confirmed_alerts}"
+            )
         for note in duffel_result.notes:
             print(f"  {note}")
 
     status_state = StatusState.load(config.status_path)
-    # PR #65: o summary Duffel entra no relatório/heartbeat p/ a linha do
-    # 🧭. NUNCA contém offer_id/token/payload/order_id (DuffelStatusSummary
-    # carrega só contadores + código de resultado).
+    # PR #65/#67: os summaries Duffel (genérico + watchlist) entram no
+    # relatório/heartbeat p/ as linhas do 🧭. NUNCA contêm offer_id/token/
+    # payload/order_id — só contadores + código de resultado.
     decision = maybe_send_status(
         result=result,
         store=store,
@@ -155,6 +181,7 @@ def cmd_cycle(args: argparse.Namespace) -> int:
         state_path=config.status_path,
         throttle_hours=config.status_throttle_hours,
         duffel_summary=duffel_summary,
+        duffel_watchlist_summary=duffel_watchlist_summary,
     )
     print(f"status action={decision.action} reason={decision.reason}")
     # PR #59: visibilidade operacional. Se o Telegram falhar ou o

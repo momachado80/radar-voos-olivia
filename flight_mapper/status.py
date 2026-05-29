@@ -763,6 +763,7 @@ def _source_status_block(
     raw: list[tuple[str, float]],
     serpapi_summary: object | None = None,
     duffel_summary: object | None = None,
+    duffel_watchlist_summary: object | None = None,
 ) -> str:
     """🧭 Status das fontes — derivado do ciclo, sem rede.
 
@@ -829,6 +830,15 @@ def _source_status_block(
         except Exception:
             # Defesa final: erro na linha Duffel NÃO derruba o relatório.
             pass
+    if duffel_watchlist_summary is not None:
+        try:
+            from .duffel_status import humanize_duffel_watchlist_status
+            wl_line = humanize_duffel_watchlist_status(duffel_watchlist_summary)
+            if wl_line:
+                lines.append(f"• {wl_line}")
+        except Exception:
+            # Defesa final: erro na linha da watchlist NÃO derruba o relatório.
+            pass
     return "\n".join(lines)
 
 
@@ -837,6 +847,7 @@ def _build_message(
     store: PriceStore,
     now: datetime,
     duffel_summary: object | None = None,
+    duffel_watchlist_summary: object | None = None,
 ) -> str:
     timestamp = now.strftime("%d/%m %H:%M UTC")
 
@@ -1052,6 +1063,7 @@ def _build_message(
         store, confirmed, raw + economy,
         serpapi_summary=serpapi_summary,
         duffel_summary=duffel_summary,
+        duffel_watchlist_summary=duffel_watchlist_summary,
     )
     security_block = _security_block(result)
     # PR #60: passa contexto p/ evitar frase final contraditória.
@@ -1398,6 +1410,7 @@ def maybe_send_status(
     now: datetime | None = None,
     throttle_hours: int = 24,
     duffel_summary: object | None = None,
+    duffel_watchlist_summary: object | None = None,
 ) -> StatusDecision:
     now = now or datetime.now(timezone.utc)
 
@@ -1429,7 +1442,11 @@ def maybe_send_status(
     else:
         reason = "first_run"
 
-    text = _build_message(result, store, now, duffel_summary=duffel_summary)
+    text = _build_message(
+        result, store, now,
+        duffel_summary=duffel_summary,
+        duffel_watchlist_summary=duffel_watchlist_summary,
+    )
     ok = notifier.send(text)
     if not ok:
         return StatusDecision(action="failed", reason="telegram_send_failed")
