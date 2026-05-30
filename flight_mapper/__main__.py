@@ -1132,6 +1132,39 @@ def cmd_duffel_purchase_spike(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_direct_link_readiness(args: argparse.Namespace) -> int:
+    """Spike read-only (PR #72): avalia um provider candidato quanto a
+    deep_link de OFERTA EXATA. Offline via --mock-file (fixture JSON do
+    offer sanitizado). Sem rede, sem produção, sem scraping, sem Telegram.
+    Saída sanitizada (só domínio + tipo do link)."""
+    from .direct_link_readiness import (
+        format_direct_link_report,
+        load_and_parse_direct_link,
+        parse_direct_link_offer,
+    )
+
+    route = getattr(args, "route", None) or "GRU-LHR"
+    trip = (getattr(args, "trip", None) or "round_trip").strip().lower()
+    mock_file = getattr(args, "mock_file", None)
+    if not mock_file:
+        print(
+            "direct-link-readiness exige --mock-file PATH (offline). Sem "
+            "fixture/API self-service ainda; ver "
+            "docs/provider-research/direct-booking-link-provider.md.",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        report = load_and_parse_direct_link(
+            args.provider, mock_file, route=route, trip_type=trip,
+        )
+    except (OSError, ValueError) as exc:
+        print(f"erro lendo fixture: {exc}", file=sys.stderr)
+        return 2
+    print(format_direct_link_report(report))
+    return 0
+
+
 def _print_amadeus_offers(args, offers, source: str) -> None:
     print(f"🔍 Amadeus smoke ({source})")
     print(f"  rota={args.route} trip={args.trip} cabin={args.cabin}")
@@ -1964,6 +1997,29 @@ def main(argv: list[str] | None = None) -> int:
         help="YYYY-MM-DD (só live test round_trip)",
     )
     p_dps.set_defaults(func=cmd_duffel_purchase_spike)
+
+    # PR #72: spike read-only de provedores de direct booking / deep_link.
+    p_dl = sub.add_parser(
+        "direct-link-readiness",
+        help=(
+            "Spike read-only: avalia provider quanto a deep_link de oferta "
+            "exata (não busca genérica). Offline via --mock-file."
+        ),
+    )
+    p_dl.add_argument(
+        "--provider", required=True,
+        help="Nome do provider candidato (ex.: kiwi, travelpayouts, ...).",
+    )
+    p_dl.add_argument("--route", default="GRU-LHR", help="ORIGIN-DEST")
+    p_dl.add_argument(
+        "--trip", choices=("one_way", "round_trip"), default="round_trip",
+    )
+    p_dl.add_argument("--cabin", default="economy")
+    p_dl.add_argument(
+        "--mock-file", dest="mock_file", default=None,
+        help="Fixture JSON do offer sanitizado (offline; sem rede).",
+    )
+    p_dl.set_defaults(func=cmd_direct_link_readiness)
 
     args = parser.parse_args(argv)
     return args.func(args)
