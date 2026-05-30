@@ -295,29 +295,42 @@ Regras de honestidade do link:
   com aprovação explícita: o radar nunca chama `/air/orders`, nunca cria
   order/payment, nunca armazena dado de passageiro.
 
-## 2.4 Agrupamento das ofertas Duffel order_flow + cooldown (PR #71)
+## 2.4 Política de push das ofertas Duffel order_flow (PR #71 → PR #73)
 
-Como o Duffel é `order_flow` (sem caminho de compra direto), ofertas
-confirmadas não merecem alertas standalone — só geram ruído. Política:
+Regra de produto: **só ofertas com caminho de compra DIRETO (`direct_link`)
+disparam push standalone imediato no Telegram.** Como o Duffel é
+`order_flow` (sem checkout direto — a compra é uma ordem via API, projeto
+futuro, ver PR #70), suas ofertas confirmadas **não** geram push standalone
+por padrão; ficam visíveis apenas no relatório/status diário.
 
-- **`direct_link` ⇒ alerta standalone imediato** (ex.: Kiwi). Não é
-  agrupado nem atrasado.
-- **Duffel `order_flow` ⇒ agrupado.** As ofertas confirmadas "compra
-  pendente" do ciclo são coletadas e enviadas em **no máximo UMA**
-  mensagem por ciclo:
-  `🟡 Ofertas confirmadas pela Duffel — compra pendente`, listando até 5
-  ofertas (rota/cidade · cabine · datas · preço+estimativa BRL · cia ·
-  `link_status=order_flow`), com `+N outras ofertas confirmadas no ciclo.`
-  quando há mais de 5, e a nota final
+- **`direct_link` ⇒ alerta standalone imediato** (ex.: Kiwi). Único push de
+  compra imediato. Não é agrupado nem atrasado, nem afetado pelo modo abaixo.
+- **Duffel `order_flow` ⇒ controlado por `DUFFEL_ORDER_FLOW_ALERT_MODE`**,
+  com três modos (default seguro `daily_only`):
+
+| Modo | Push standalone agrupado | Conteúdo no relatório diário |
+|------|--------------------------|------------------------------|
+| `daily_only` *(default)* | **Não** | `Duffel: X ofertas confirmadas, compra pendente; sem link direto.` + seção opcional `🟡 Ofertas confirmadas, compra pendente` com top 3 |
+| `grouped_push` *(opt-in)* | **Sim** (mensagem agrupada do PR #71) | linha de debug com contadores `X confirmadas / Y agrupadas / Z suprimidas por cooldown` |
+| `disabled` | **Não** | nada (suprime do Telegram; só logs) |
+
+- **`daily_only` (default):** nenhum push agrupado. O relatório diário mostra
+  a linha-resumo e, opcionalmente, até 3 melhores ofertas
+  (rota/cidade · cabine · datas · preço+estimativa BRL · cia), fechando com
   `Sem link direto de compra. Verificar no Duffel Dashboard.`
-- **Cooldown de 6h:** o mesmo combo (provider·rota·cabine·trip·datas) não
-  repete dentro de 6h, a menos que o preço melhore ≥5% (estado em
-  `data/duffel_alert_cooldown.json` — só identidade + timestamp + preço
+- **`grouped_push` (opt-in, debug/manual):** preserva o comportamento do
+  PR #71 — coleta as ofertas "compra pendente" do ciclo e envia **no máximo
+  UMA** mensagem `🟡 Ofertas confirmadas pela Duffel — compra pendente`,
+  listando até 5 (com `+N outras ofertas confirmadas no ciclo.` e
+  `link_status=order_flow`). Respeita o **cooldown de 6h** por combo
+  (provider·rota·cabine·trip·datas), furado por melhora de preço ≥5% (estado
+  em `data/duffel_alert_cooldown.json` — só identidade + timestamp + preço
   arredondado/moeda; NUNCA offer_id/token/payload/passageiro).
-- O 🧭 mostra a estatística:
-  `Duffel: X ofertas confirmadas, compra pendente; Y agrupadas; Z suprimidas por cooldown.`
+- **`disabled`:** suprime totalmente o conteúdo "compra pendente" do
+  Telegram (push e relatório); permanece apenas nos logs/notas do ciclo.
 - Invariantes preservadas: nunca `/air/orders`, sem order/payment, sem
-  dado de passageiro, sem leak; thresholds e Travelpayouts/SerpApi intactos.
+  dado de passageiro, sem leak; thresholds, detector, provider logic e o
+  comportamento `direct_link` intactos.
 
 ## 3. O que conta como oportunidade para verificação manual
 

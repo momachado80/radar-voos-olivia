@@ -67,6 +67,12 @@ jobs:
           # aqui ligamos com 2. Mesmas garantias read-only — só Offer
           # Requests, nunca order/payment.
           DUFFEL_WATCHLIST_MAX_REQUESTS_PER_CYCLE: "2"
+          # PR #73: ofertas Duffel order_flow NÃO têm caminho de compra
+          # direto ⇒ NÃO geram push standalone. Default `daily_only`: só
+          # resumo no relatório diário. `grouped_push` (opt-in) reativa a
+          # mensagem agrupada do PR #71 p/ debug; `disabled` suprime do
+          # Telegram. Só `direct_link` dispara push imediato de compra.
+          DUFFEL_ORDER_FLOW_ALERT_MODE: "daily_only"
         run: python -m flight_mapper cycle
 
       - name: Commit state
