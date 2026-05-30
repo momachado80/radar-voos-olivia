@@ -103,6 +103,58 @@
       "provider_note": "duffel"
     }
   },
+  "GRU-CDG-economy::duffel::2026-09-02_2026-09-12": {
+    "prices": [
+      3975.84
+    ],
+    "last_alert_at": "2026-05-30T07:50:12.225763+00:00",
+    "last_alert_price": 3975.84,
+    "last_quote": {
+      "price_brl": 3975.84,
+      "amount": 662.64,
+      "currency": "EUR",
+      "amount_brl_estimated": 3975.84,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "CDG",
+      "departure_date": "2026-09-02",
+      "return_date": "2026-09-12",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-05-30T07:50:11.679501+00:00",
+      "actionable_url": false,
+      "cabin": "economy",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
+  "GRU-CDG-economy::duffel::2026-09-02_2026-09-13": {
+    "prices": [
+      4196.82
+    ],
+    "last_alert_at": "2026-05-30T07:50:16.310586+00:00",
+    "last_alert_price": 4196.82,
+    "last_quote": {
+      "price_brl": 4196.82,
+      "amount": 699.47,
+      "currency": "EUR",
+      "amount_brl_estimated": 4196.82,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "CDG",
+      "departure_date": "2026-09-02",
+      "return_date": "2026-09-13",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-05-30T07:50:15.917842+00:00",
+      "actionable_url": false,
+      "cabin": "economy",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
   "GRU-LHR-business::duffel": {
     "prices": [
       14322.18,
@@ -349,6 +401,7 @@
       5777.58,
       5777.58,
       5777.58,
+      5777.58,
       5777.58
     ],
     "last_alert_at": "2026-05-30T05:10:40.923770+00:00",
@@ -365,7 +418,7 @@
       "return_date": null,
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-05-30T05:10:40.469835+00:00",
+      "detected_at": "2026-05-30T07:50:17.598624+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
