@@ -144,6 +144,12 @@ class DuffelGroupSummary:
     grouped: int
     suppressed_cooldown: int
     message_sent: bool = False
+    # PR #73: modo do alerta order_flow vigente neste ciclo
+    # (daily_only / grouped_push / disabled) e até 3 ofertas SANITIZADAS
+    # (DuffelPendingOffer) p/ a seção opcional do relatório diário. As
+    # ofertas já vêm sem offer_id/token/payload/passageiro.
+    mode: str = "daily_only"
+    top_offers: tuple = ()
 
 
 def humanize_duffel_group_status(
@@ -151,7 +157,7 @@ def humanize_duffel_group_status(
 ) -> str | None:
     """Linha do 🧭 sobre o agrupamento Duffel "compra pendente". `None`
     quando nada relevante ocorreu (omite a linha). NUNCA expõe dado
-    sensível — só contadores."""
+    sensível — só contadores. Usada no modo `grouped_push` (debug)."""
     if summary is None:
         return None
     if summary.confirmed_pending <= 0 and summary.suppressed_cooldown <= 0:
@@ -161,3 +167,44 @@ def humanize_duffel_group_status(
         f"pendente; {summary.grouped} agrupadas; "
         f"{summary.suppressed_cooldown} suprimidas por cooldown."
     )
+
+
+def humanize_duffel_group_status_daily(
+    summary: DuffelGroupSummary | None,
+) -> str | None:
+    """Linha do 🧭 para o modo `daily_only` (PR #73): order_flow não gera
+    push standalone — só resumo no relatório diário. `None` quando não há
+    oferta confirmada. NUNCA expõe dado sensível — só o contador."""
+    if summary is None:
+        return None
+    n = summary.confirmed_pending
+    if n <= 0:
+        return None
+    return (
+        f"Duffel: {n} ofertas confirmadas, compra pendente; sem link direto."
+    )
+
+
+def format_duffel_pending_daily_section(
+    summary: DuffelGroupSummary | None,
+    mode: str = "daily_only",
+) -> str:
+    """Seção OPCIONAL do relatório diário (modo `daily_only`, PR #73)
+    listando até 3 ofertas Duffel order_flow "compra pendente". String
+    vazia quando não aplicável (outro modo, sem ofertas). NUNCA expõe
+    offer_id/token/payload/URL/passageiro — só rótulos já sanitizados."""
+    if summary is None or mode != "daily_only":
+        return ""
+    offers = getattr(summary, "top_offers", ()) or ()
+    if not offers:
+        return ""
+    lines = ["🟡 Ofertas confirmadas, compra pendente"]
+    for i, o in enumerate(offers[:3], 1):
+        parts = [o.route_label, o.cabin_pt, o.dates, o.price_display]
+        if o.target_display:
+            parts.append(o.target_display)
+        if o.airline:
+            parts.append(o.airline)
+        lines.append(f"{i}. " + " — ".join(parts))
+    lines.append("Sem link direto de compra. Verificar no Duffel Dashboard.")
+    return "\n".join(lines)

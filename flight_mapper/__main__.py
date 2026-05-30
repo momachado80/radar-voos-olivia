@@ -154,6 +154,7 @@ def cmd_cycle(args: argparse.Namespace) -> int:
         duffel_watchlist_max_requests=config.duffel_watchlist_max_requests_per_cycle,
         duffel_watchlist_state=duffel_watchlist_state,
         duffel_cooldown_state=duffel_cooldown_state,
+        duffel_order_flow_alert_mode=config.duffel_order_flow_alert_mode,
     )
     result = monitor.run_cycle()
     print(f"cycle scanned={result.scanned} quotes={result.quotes_received} alerts={result.alerts_sent}")
@@ -204,6 +205,7 @@ def cmd_cycle(args: argparse.Namespace) -> int:
         duffel_summary=duffel_summary,
         duffel_watchlist_summary=duffel_watchlist_summary,
         duffel_group_summary=duffel_group_summary,
+        duffel_order_flow_alert_mode=config.duffel_order_flow_alert_mode,
     )
     print(f"status action={decision.action} reason={decision.reason}")
     # PR #59: visibilidade operacional. Se o Telegram falhar ou o

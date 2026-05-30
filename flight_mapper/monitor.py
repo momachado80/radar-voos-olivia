@@ -7,6 +7,12 @@ from datetime import datetime, timezone
 
 from .airports import is_actionable_url
 from .currency import get_usd_brl_rate
+from .config import (
+    DUFFEL_ORDER_FLOW_ALERT_DAILY_ONLY,
+    DUFFEL_ORDER_FLOW_ALERT_DISABLED,
+    DUFFEL_ORDER_FLOW_ALERT_GROUPED_PUSH,
+    DUFFEL_ORDER_FLOW_ALERT_MODES,
+)
 from .cycle_state import CycleState
 from .detector import evaluate, evaluate_ceiling
 from .duffel_cooldown import cooldown_key
@@ -129,6 +135,7 @@ class Monitor:
         duffel_watchlist_max_requests: int = 0,
         duffel_watchlist_state=None,
         duffel_cooldown_state=None,
+        duffel_order_flow_alert_mode: str = DUFFEL_ORDER_FLOW_ALERT_DAILY_ONLY,
     ):
         self.provider = provider
         self.notifier = notifier
@@ -152,6 +159,16 @@ class Monitor:
         # PR #71: cooldown 6h dos alertas Duffel order_flow agrupados. None ⇒
         # sem persistência (cada ciclo agrupa o que achar, sem supressão).
         self.duffel_cooldown_state = duffel_cooldown_state
+        # PR #73: modo do alerta order_flow "compra pendente".
+        # - daily_only (default): SEM push standalone; só resumo no diário.
+        # - grouped_push: preserva a mensagem agrupada do PR #71 (opt-in).
+        # - disabled: suprime do Telegram (só logs).
+        # Valor inválido cai p/ o default seguro `daily_only`.
+        self.duffel_order_flow_alert_mode = (
+            duffel_order_flow_alert_mode
+            if duffel_order_flow_alert_mode in DUFFEL_ORDER_FLOW_ALERT_MODES
+            else DUFFEL_ORDER_FLOW_ALERT_DAILY_ONLY
+        )
         # `link_provider`: provider auxiliar SÓ para validar/obter link comercial
         # quando o primário não fornece link acionável (caso Travelpayouts).
         # Quando definido, cross-check é executado antes do envio do alerta.
@@ -768,35 +785,57 @@ class Monitor:
 
         duffel_store.save()
 
-        # ---- MENSAGEM AGRUPADA (PR #71): no máx. UMA por ciclo ----
+        # ---- OFERTAS order_flow "compra pendente" (PR #71 + PR #73) ----
+        # PR #73: order_flow NÃO tem caminho de compra direto ⇒ por padrão
+        # NÃO gera push standalone. O modo decide o destino:
+        # - grouped_push: envia a mensagem agrupada do PR #71 (opt-in).
+        # - daily_only (default): sem push; só resumo no relatório diário.
+        # - disabled: suprime do Telegram (só logs).
         grouped = len(collector)
         message_sent = False
-        if collector and self.notifier is not None:
-            offers = [item[0] for item in collector]
-            try:
-                ok = self.notifier.send(format_grouped_duffel_pending(offers))
-            except Exception:
-                ok = False
-            if ok:
-                message_sent = True
-                # Registra cooldown SÓ após envio bem-sucedido.
-                if self.duffel_cooldown_state is not None:
-                    now = _now()
-                    for _offer, ck, price_brl, currency in collector:
-                        self.duffel_cooldown_state.record(
-                            ck, price_brl, currency, now,
-                        )
-                    self.duffel_cooldown_state.save(now)
-                notes.append(
-                    f"Duffel: mensagem agrupada enviada ({grouped} oferta(s) "
-                    f"compra pendente)"
-                )
+        offers = [item[0] for item in collector]
+        # Top 3 (por qualidade) p/ a seção opcional do relatório diário.
+        # DuffelPendingOffer já é sanitizado (sem offer_id/token/payload).
+        top_offers = tuple(
+            sorted(offers, key=lambda o: (o.score or 0), reverse=True)[:3]
+        )
+        mode = self.duffel_order_flow_alert_mode
+        if collector and mode == DUFFEL_ORDER_FLOW_ALERT_GROUPED_PUSH:
+            if self.notifier is not None:
+                try:
+                    ok = self.notifier.send(format_grouped_duffel_pending(offers))
+                except Exception:
+                    ok = False
+                if ok:
+                    message_sent = True
+                    # Registra cooldown SÓ após envio bem-sucedido.
+                    if self.duffel_cooldown_state is not None:
+                        now = _now()
+                        for _offer, ck, price_brl, currency in collector:
+                            self.duffel_cooldown_state.record(
+                                ck, price_brl, currency, now,
+                            )
+                        self.duffel_cooldown_state.save(now)
+                    notes.append(
+                        f"Duffel: mensagem agrupada enviada ({grouped} oferta(s) "
+                        f"compra pendente)"
+                    )
+                else:
+                    notes.append("Duffel: envio da mensagem agrupada falhou")
             else:
-                notes.append("Duffel: envio da mensagem agrupada falhou")
-        elif collector:
+                notes.append(
+                    f"Duffel: {grouped} oferta(s) compra pendente coletadas "
+                    f"(notifier ausente — não enviado)"
+                )
+        elif collector and mode == DUFFEL_ORDER_FLOW_ALERT_DAILY_ONLY:
             notes.append(
-                f"Duffel: {grouped} oferta(s) compra pendente coletadas "
-                f"(notifier ausente — não enviado)"
+                f"Duffel: {grouped} oferta(s) compra pendente — modo "
+                f"daily_only (sem push standalone; resumo no relatório diário)"
+            )
+        elif collector and mode == DUFFEL_ORDER_FLOW_ALERT_DISABLED:
+            notes.append(
+                f"Duffel: {grouped} oferta(s) compra pendente — modo "
+                f"disabled (suprimido do Telegram; só logs)"
             )
 
         group_summary = DuffelGroupSummary(
@@ -804,6 +843,8 @@ class Monitor:
             grouped=grouped,
             suppressed_cooldown=suppressed_total,
             message_sent=message_sent,
+            mode=mode,
+            top_offers=top_offers,
         )
 
         # Deriva o `outcome` canônico por prioridade (o mais informativo

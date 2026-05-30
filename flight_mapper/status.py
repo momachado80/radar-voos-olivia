@@ -765,6 +765,7 @@ def _source_status_block(
     duffel_summary: object | None = None,
     duffel_watchlist_summary: object | None = None,
     duffel_group_summary: object | None = None,
+    duffel_order_flow_alert_mode: str = "daily_only",
 ) -> str:
     """🧭 Status das fontes — derivado do ciclo, sem rede.
 
@@ -840,6 +841,30 @@ def _source_status_block(
         except Exception:
             # Defesa final: erro na linha da watchlist NÃO derruba o relatório.
             pass
+    if duffel_group_summary is not None:
+        # PR #73: linha do agrupamento order_flow conforme o modo.
+        # - grouped_push: linha de debug com contadores (PR #71).
+        # - daily_only: "Duffel: X ofertas confirmadas, compra pendente;
+        #   sem link direto." (a seção 🟡 com top 3 entra no corpo).
+        # - disabled: nada no Telegram (só logs).
+        try:
+            from .duffel_status import (
+                humanize_duffel_group_status,
+                humanize_duffel_group_status_daily,
+            )
+            if duffel_order_flow_alert_mode == "grouped_push":
+                group_line = humanize_duffel_group_status(duffel_group_summary)
+            elif duffel_order_flow_alert_mode == "daily_only":
+                group_line = humanize_duffel_group_status_daily(
+                    duffel_group_summary
+                )
+            else:  # disabled
+                group_line = None
+            if group_line:
+                lines.append(f"• {group_line}")
+        except Exception:
+            # Defesa final: erro na linha do agrupamento NÃO derruba o relatório.
+            pass
     return "\n".join(lines)
 
 
@@ -850,6 +875,7 @@ def _build_message(
     duffel_summary: object | None = None,
     duffel_watchlist_summary: object | None = None,
     duffel_group_summary: object | None = None,
+    duffel_order_flow_alert_mode: str = "daily_only",
 ) -> str:
     timestamp = now.strftime("%d/%m %H:%M UTC")
 
@@ -1067,7 +1093,20 @@ def _build_message(
         duffel_summary=duffel_summary,
         duffel_watchlist_summary=duffel_watchlist_summary,
         duffel_group_summary=duffel_group_summary,
+        duffel_order_flow_alert_mode=duffel_order_flow_alert_mode,
     )
+    # PR #73: seção OPCIONAL com top 3 ofertas Duffel order_flow no modo
+    # daily_only. Vazia nos demais modos (disabled/grouped_push). NUNCA
+    # expõe dado sensível — só rótulos já sanitizados.
+    pending_block = ""
+    try:
+        from .duffel_status import format_duffel_pending_daily_section
+        pending_block = format_duffel_pending_daily_section(
+            duffel_group_summary, duffel_order_flow_alert_mode,
+        )
+    except Exception:
+        pending_block = ""
+    pending_section = f"{pending_block}\n\n" if pending_block else ""
     security_block = _security_block(result)
     # PR #60: passa contexto p/ evitar frase final contraditória.
     _has_manual_check = bool(
@@ -1129,6 +1168,7 @@ def _build_message(
         "👀 Sinais em observação\n"
         f"{observation_block}\n\n"
         f"{security_block}\n\n"
+        f"{pending_section}"
         f"{sources_block}\n\n"
         f"{reason}"
     )
@@ -1415,6 +1455,7 @@ def maybe_send_status(
     duffel_summary: object | None = None,
     duffel_watchlist_summary: object | None = None,
     duffel_group_summary: object | None = None,
+    duffel_order_flow_alert_mode: str = "daily_only",
 ) -> StatusDecision:
     now = now or datetime.now(timezone.utc)
 
@@ -1451,6 +1492,7 @@ def maybe_send_status(
         duffel_summary=duffel_summary,
         duffel_watchlist_summary=duffel_watchlist_summary,
         duffel_group_summary=duffel_group_summary,
+        duffel_order_flow_alert_mode=duffel_order_flow_alert_mode,
     )
     ok = notifier.send(text)
     if not ok:
