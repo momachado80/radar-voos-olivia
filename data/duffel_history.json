@@ -245,15 +245,16 @@
   "GRU-LHR-business::duffel::2026-09-02_2026-09-12": {
     "prices": [
       17788.2,
-      20213.58
+      20213.58,
+      20208.3
     ],
     "last_alert_at": null,
     "last_alert_price": null,
     "last_quote": {
-      "price_brl": 20213.58,
-      "amount": 3368.93,
+      "price_brl": 20208.3,
+      "amount": 3368.05,
       "currency": "EUR",
-      "amount_brl_estimated": 20213.58,
+      "amount_brl_estimated": 20208.3,
       "fx_rate": 6.0,
       "origin": "GRU",
       "destination": "LHR",
@@ -261,7 +262,7 @@
       "return_date": "2026-09-12",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-05-30T11:08:56.291984+00:00",
+      "detected_at": "2026-05-30T21:12:40.349276+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -272,6 +273,7 @@
   "GRU-LHR-business::duffel::2026-09-02_2026-09-13": {
     "prices": [
       15689.76,
+      19003.98,
       19003.98
     ],
     "last_alert_at": null,
@@ -288,7 +290,7 @@
       "return_date": "2026-09-13",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-05-30T11:08:59.345677+00:00",
+      "detected_at": "2026-05-30T21:12:43.869056+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -479,6 +481,7 @@
       5777.58,
       5777.58,
       5777.58,
+      5777.58,
       5777.58
     ],
     "last_alert_at": "2026-05-30T05:10:40.923770+00:00",
@@ -495,7 +498,7 @@
       "return_date": null,
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-05-30T20:00:49.909628+00:00",
+      "detected_at": "2026-05-30T21:12:45.253429+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
