@@ -103,7 +103,10 @@ def _wl_quote(route, ob, ret, *, price_brl=1500.0, airline="AF") -> Quote:
 
 
 def _monitor(provider, notifier, tmp_path, *, gen_cap=0, wl=None,
-             wl_cap=0, wl_state=None):
+             wl_cap=0, wl_state=None, mode="grouped_push"):
+    # PR #73: o default de produto virou `daily_only` (sem push standalone).
+    # Estes testes documentam a mensagem AGRUPADA do PR #71, hoje opt-in
+    # via `grouped_push`; por isso o helper força esse modo.
     return Monitor(
         provider=object(), notifier=notifier,
         store=PriceStore(tmp_path / "main.json"),
@@ -113,6 +116,7 @@ def _monitor(provider, notifier, tmp_path, *, gen_cap=0, wl=None,
         duffel_watchlist=wl or [],
         duffel_watchlist_max_requests=wl_cap,
         duffel_watchlist_state=wl_state,
+        duffel_order_flow_alert_mode=mode,
     )
 
 

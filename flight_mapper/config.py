@@ -9,6 +9,19 @@ from pathlib import Path
 from .currency import get_usd_brl_rate
 
 
+# PR #73: modos do alerta Duffel order_flow "compra pendente".
+# Regra de produto: order_flow NÃO tem caminho de compra direto, então NÃO
+# gera push standalone por padrão — só aparece no relatório diário.
+DUFFEL_ORDER_FLOW_ALERT_DAILY_ONLY = "daily_only"      # default
+DUFFEL_ORDER_FLOW_ALERT_GROUPED_PUSH = "grouped_push"  # opt-in (PR #71)
+DUFFEL_ORDER_FLOW_ALERT_DISABLED = "disabled"          # suprime do Telegram
+DUFFEL_ORDER_FLOW_ALERT_MODES = (
+    DUFFEL_ORDER_FLOW_ALERT_DAILY_ONLY,
+    DUFFEL_ORDER_FLOW_ALERT_GROUPED_PUSH,
+    DUFFEL_ORDER_FLOW_ALERT_DISABLED,
+)
+
+
 @dataclass
 class Config:
     telegram_bot_token: str | None
@@ -31,6 +44,12 @@ class Config:
     # workflow. Conservador: sugestão 2-3 por ciclo, com rotação cobrindo
     # as 8 combinações ao longo dos ciclos.
     duffel_watchlist_max_requests_per_cycle: int = 0
+    # PR #73: como tratar ofertas Duffel order_flow "compra pendente" no
+    # Telegram. Default `daily_only`: sem push standalone agrupado — só
+    # resumo no relatório diário. `grouped_push` preserva a mensagem
+    # agrupada do PR #71 (debug/opt-in). `disabled` suprime do Telegram
+    # (só logs). Valor inválido cai p/ o default seguro `daily_only`.
+    duffel_order_flow_alert_mode: str = DUFFEL_ORDER_FLOW_ALERT_DAILY_ONLY
 
     @classmethod
     def from_env(cls, repo_root: Path | None = None) -> "Config":
@@ -52,6 +71,16 @@ class Config:
         except ValueError:
             wl_cap = 0
         wl_cap = max(0, wl_cap)
+        raw_mode = (
+            os.environ.get("DUFFEL_ORDER_FLOW_ALERT_MODE", "")
+            .strip()
+            .lower()
+        )
+        order_flow_mode = (
+            raw_mode
+            if raw_mode in DUFFEL_ORDER_FLOW_ALERT_MODES
+            else DUFFEL_ORDER_FLOW_ALERT_DAILY_ONLY
+        )
         return cls(
             telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN"),
             telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID"),
@@ -67,6 +96,7 @@ class Config:
             duffel_access_token=os.environ.get("DUFFEL_ACCESS_TOKEN"),
             duffel_max_requests_per_cycle=duffel_cap,
             duffel_watchlist_max_requests_per_cycle=wl_cap,
+            duffel_order_flow_alert_mode=order_flow_mode,
         )
 
     @property

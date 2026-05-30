@@ -84,7 +84,11 @@ def _q(dest, cabin, price_brl, *, region="Europa", airline="AF",
 
 
 def _monitor(provider, notifier, tmp_path, *, wl, wl_cap, cooldown=None,
-             wl_offset=0):
+             wl_offset=0, mode="grouped_push"):
+    # PR #73: estes testes documentam a mensagem AGRUPADA do PR #71, que
+    # agora é opt-in (`grouped_push`). O default de produto virou
+    # `daily_only` (sem push standalone) — coberto em
+    # tests/test_duffel_order_flow_alert_mode.py.
     return Monitor(
         provider=object(), notifier=notifier,
         store=PriceStore(tmp_path / "m.json"),
@@ -94,6 +98,7 @@ def _monitor(provider, notifier, tmp_path, *, wl, wl_cap, cooldown=None,
         duffel_watchlist=wl, duffel_watchlist_max_requests=wl_cap,
         duffel_watchlist_state=DuffelWatchlistState(path=None, offset=wl_offset),
         duffel_cooldown_state=cooldown,
+        duffel_order_flow_alert_mode=mode,
     )
 
 

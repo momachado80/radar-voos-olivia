@@ -110,7 +110,11 @@ def _confirmed_quote(price_brl=8000.0, route=_ROUTE) -> Quote:
     )
 
 
-def _monitor(duffel_provider, notifier, tmp_path, max_requests=1):
+def _monitor(duffel_provider, notifier, tmp_path, max_requests=1,
+             mode="grouped_push"):
+    # PR #73: o default de produto virou `daily_only` (sem push standalone).
+    # A asserção da mensagem AGRUPADA (PR #71) roda em `grouped_push`,
+    # hoje opt-in.
     store = PriceStore(tmp_path / "main.json")
     duffel_store = PriceStore(tmp_path / "duffel.json")
     return Monitor(
@@ -120,6 +124,7 @@ def _monitor(duffel_provider, notifier, tmp_path, max_requests=1):
         duffel_provider=duffel_provider,
         duffel_store=duffel_store,
         duffel_max_requests=max_requests,
+        duffel_order_flow_alert_mode=mode,
     )
 
 
