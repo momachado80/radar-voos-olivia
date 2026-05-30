@@ -80,6 +80,13 @@ class Config:
         return self.data_dir / "duffel_watchlist_state.json"
 
     @property
+    def duffel_cooldown_state_path(self) -> Path:
+        """Cooldown de 6h dos alertas Duffel order_flow agrupados (PR #71).
+        Armazena só identidade da rota + timestamp + preço arredondado/moeda.
+        NUNCA token / offer_id / payload / passageiro."""
+        return self.data_dir / "duffel_alert_cooldown.json"
+
+    @property
     def duffel_history_path(self) -> Path:
         """Histórico/dedup ISOLADO do provider Duffel. Mantido fora de
         `price_history.json` para NUNCA poluir os painéis de status/ciclo

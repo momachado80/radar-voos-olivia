@@ -56,11 +56,13 @@ def humanize_duffel_status(summary: DuffelStatusSummary) -> str:
         return "Duffel: inativa (token ausente ou flag desligada)."
 
     if summary.outcome == DUFFEL_ALERT_SENT:
+        # PR #71: Duffel order_flow não envia alerta standalone — entra na
+        # mensagem agrupada "compra pendente". Wording sem "enviada".
         n = summary.confirmed_alerts
         if n == 1:
-            return "Duffel: ativa; 1 oferta confirmada enviada como alerta."
+            return "Duffel: ativa; 1 oferta confirmada (compra pendente)."
         return (
-            f"Duffel: ativa; {n} ofertas confirmadas enviadas como alerta."
+            f"Duffel: ativa; {n} ofertas confirmadas (compra pendente)."
         )
 
     if summary.outcome == DUFFEL_SEND_FAILED:
@@ -126,4 +128,36 @@ def humanize_duffel_watchlist_status(
         return f"Duffel watchlist: {' e '.join(parts)} para Paris/Londres."
     return (
         "Duffel watchlist: Londres/Paris setembro consultada; 0 alertas."
+    )
+
+
+@dataclass(frozen=True)
+class DuffelGroupSummary:
+    """Estatística do agrupamento de alertas Duffel order_flow (PR #71).
+
+    `confirmed_pending` (X): ofertas confirmadas "compra pendente" no ciclo
+    (= agrupadas + suprimidas). `grouped` (Y): incluídas na mensagem única.
+    `suppressed_cooldown` (Z): suprimidas pelo cooldown de 6h.
+    `message_sent`: se a mensagem agrupada foi de fato enviada."""
+
+    confirmed_pending: int
+    grouped: int
+    suppressed_cooldown: int
+    message_sent: bool = False
+
+
+def humanize_duffel_group_status(
+    summary: DuffelGroupSummary | None,
+) -> str | None:
+    """Linha do 🧭 sobre o agrupamento Duffel "compra pendente". `None`
+    quando nada relevante ocorreu (omite a linha). NUNCA expõe dado
+    sensível — só contadores."""
+    if summary is None:
+        return None
+    if summary.confirmed_pending <= 0 and summary.suppressed_cooldown <= 0:
+        return None
+    return (
+        f"Duffel: {summary.confirmed_pending} ofertas confirmadas, compra "
+        f"pendente; {summary.grouped} agrupadas; "
+        f"{summary.suppressed_cooldown} suprimidas por cooldown."
     )

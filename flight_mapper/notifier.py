@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -79,6 +80,74 @@ def link_status_for(quote: Quote) -> str:
     if quote.source == "manual_purchase":
         return LINK_STATUS_AUX
     return LINK_STATUS_NONE
+
+
+@dataclass(frozen=True)
+class DuffelPendingOffer:
+    """Linha SANITIZADA de uma oferta Duffel order_flow p/ a mensagem
+    agrupada (PR #71). NUNCA contém offer_id/token/payload/URL/passageiro —
+    só rótulos legíveis já formatados + score p/ ordenação."""
+
+    route_label: str       # "São Paulo → Londres"
+    cabin_pt: str          # "Executiva" | "Econômica"
+    dates: str             # "2026-09-02 → 2026-09-12" | "2026-09-10"
+    price_display: str     # "964 EUR ≈ R$ 5.784"
+    target_display: str    # "alvo R$ 14.400" | ""
+    airline: str | None    # "AF"
+    score: int | None      # p/ ordenar por qualidade (desc)
+
+
+def build_duffel_pending_offer(quote: Quote, decision: Decision) -> DuffelPendingOffer:
+    """Constrói a linha sanitizada da oferta a partir do quote/decision.
+    Só usa campos não-sensíveis do Quote (rota/cabine/datas/preço/cia)."""
+    route_label = route_city_label(quote.route.origin, quote.route.destination)
+    if quote.cabin == Cabin.BUSINESS:
+        cabin_pt = "Executiva"
+    elif quote.cabin == Cabin.ECONOMY:
+        cabin_pt = "Econômica"
+    else:
+        cabin_pt = "Cabine não confirmada"
+    show_return = (
+        quote.trip_type == TripType.ROUND_TRIP and bool(quote.return_date)
+    )
+    dates = quote.departure_date + (
+        f" → {quote.return_date}" if show_return else ""
+    )
+    price_display = format_price(
+        quote.amount if quote.amount is not None else quote.price_brl,
+        quote.currency, quote.amount_brl_estimated, quote.fx_rate,
+    )
+    target_display = (
+        f"alvo {format_brl(decision.threshold)}"
+        if decision.threshold is not None else ""
+    )
+    return DuffelPendingOffer(
+        route_label=route_label, cabin_pt=cabin_pt, dates=dates,
+        price_display=price_display, target_display=target_display,
+        airline=quote.airline, score=decision.score,
+    )
+
+
+def format_grouped_duffel_pending(offers: list[DuffelPendingOffer]) -> str:
+    """Mensagem ÚNICA agrupando ofertas Duffel order_flow "compra pendente"
+    (PR #71). Lista até 5 (por qualidade), some o excedente, e fecha com a
+    nota de que não há link direto. NUNCA expõe dado sensível."""
+    ordered = sorted(offers, key=lambda o: (o.score or 0), reverse=True)
+    top = ordered[:5]
+    extra = len(ordered) - len(top)
+    lines = ["🟡 Ofertas confirmadas pela Duffel — compra pendente"]
+    for i, o in enumerate(top, 1):
+        parts = [o.route_label, o.cabin_pt, o.dates, o.price_display]
+        if o.target_display:
+            parts.append(o.target_display)
+        if o.airline:
+            parts.append(o.airline)
+        parts.append("link_status=order_flow")
+        lines.append(f"{i}. " + " — ".join(parts))
+    if extra > 0:
+        lines.append(f"+{extra} outras ofertas confirmadas no ciclo.")
+    lines.append("Sem link direto de compra. Verificar no Duffel Dashboard.")
+    return "\n".join(lines)
 
 
 def _duffel_cambio_prefix(quote: Quote) -> str:

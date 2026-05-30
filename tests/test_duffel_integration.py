@@ -66,10 +66,15 @@ class _StubNotifier:
     def __init__(self):
         self.messages: list[str] = []
         self.alerts: list[Quote] = []
+        self.grouped: list[str] = []  # agrupadas (send) — PR #71
 
     def send_alert(self, quote, decision, priority=False) -> bool:
         self.alerts.append(quote)
         self.messages.append(format_alert(quote, decision, priority=priority))
+        return True
+
+    def send(self, text) -> bool:
+        self.grouped.append(text)
         return True
 
 
@@ -266,18 +271,16 @@ def test_alert_contains_duffel_confirmed_wording(tmp_path):
     monitor = _monitor(duffel, notifier, tmp_path)
     result = monitor.run_duffel_confirmations([_ROUTE])
     assert result.duffel_confirmed_alerts == 1
-    msg = notifier.messages[0]
-    # PR #69: order_flow ⇒ 🟡 oferta confirmada, compra pendente (não 🟢).
-    assert "🟡 Oferta confirmada, compra pendente" in msg
-    assert (
-        "Oferta confirmada por Duffel; compra direta ainda não "
-        "disponível no robô." in msg
-    )
+    # PR #71: order_flow não envia standalone — vai p/ a mensagem AGRUPADA.
+    assert notifier.messages == []
+    assert len(notifier.grouped) == 1
+    msg = notifier.grouped[0]
+    assert "🟡 Ofertas confirmadas pela Duffel — compra pendente" in msg
     assert "Duffel" in msg
-    assert "business" in msg.lower() or "Business" in msg
-    assert "verificar no Duffel Dashboard" in msg
-    assert "order_flow" in msg
-    assert "🛫 Companhia: CM" in msg
+    assert "Executiva" in msg
+    assert "link_status=order_flow" in msg
+    assert "CM" in msg
+    assert "Sem link direto de compra. Verificar no Duffel Dashboard." in msg
 
 
 def test_alert_does_not_leak_offer_id_token_or_payload(tmp_path, monkeypatch):

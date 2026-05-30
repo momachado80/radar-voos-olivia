@@ -136,6 +136,14 @@ def cmd_cycle(args: argparse.Namespace) -> int:
         duffel_watchlist_state = DuffelWatchlistState.load(
             config.duffel_watchlist_state_path
         )
+    # PR #71: cooldown 6h dos alertas Duffel order_flow agrupados — carregado
+    # sempre que o Duffel está ligado (watchlist e/ou genérico).
+    duffel_cooldown_state = None
+    if duffel_provider is not None:
+        from .duffel_cooldown import DuffelAlertCooldownState
+        duffel_cooldown_state = DuffelAlertCooldownState.load(
+            config.duffel_cooldown_state_path
+        )
     monitor = Monitor(
         provider=provider, notifier=notifier, store=store, cycle=cycle,
         link_provider=link_provider,
@@ -145,6 +153,7 @@ def cmd_cycle(args: argparse.Namespace) -> int:
         duffel_watchlist=duffel_watchlist,
         duffel_watchlist_max_requests=config.duffel_watchlist_max_requests_per_cycle,
         duffel_watchlist_state=duffel_watchlist_state,
+        duffel_cooldown_state=duffel_cooldown_state,
     )
     result = monitor.run_cycle()
     print(f"cycle scanned={result.scanned} quotes={result.quotes_received} alerts={result.alerts_sent}")
@@ -158,6 +167,7 @@ def cmd_cycle(args: argparse.Namespace) -> int:
     duffel_result = monitor.run_duffel_confirmations()
     duffel_summary = duffel_result.duffel_summary
     duffel_watchlist_summary = duffel_result.duffel_watchlist_summary
+    duffel_group_summary = duffel_result.duffel_group_summary
     if duffel_provider is not None:
         print(
             f"duffel requests={duffel_result.duffel_requests} "
@@ -169,13 +179,21 @@ def cmd_cycle(args: argparse.Namespace) -> int:
                 f"duffel watchlist checked={duffel_watchlist_summary.checked} "
                 f"confirmed={duffel_watchlist_summary.confirmed_alerts}"
             )
+        if duffel_group_summary is not None:
+            # PR #71: estatística do agrupamento order_flow (compra pendente).
+            print(
+                f"duffel group pending={duffel_group_summary.confirmed_pending} "
+                f"grouped={duffel_group_summary.grouped} "
+                f"suppressed={duffel_group_summary.suppressed_cooldown} "
+                f"sent={duffel_group_summary.message_sent}"
+            )
         for note in duffel_result.notes:
             print(f"  {note}")
 
     status_state = StatusState.load(config.status_path)
-    # PR #65/#67: os summaries Duffel (genérico + watchlist) entram no
-    # relatório/heartbeat p/ as linhas do 🧭. NUNCA contêm offer_id/token/
-    # payload/order_id — só contadores + código de resultado.
+    # PR #65/#67/#71: summaries Duffel (genérico + watchlist + agrupamento)
+    # entram no relatório/heartbeat p/ as linhas do 🧭. NUNCA contêm
+    # offer_id/token/payload/order_id — só contadores + código de resultado.
     decision = maybe_send_status(
         result=result,
         store=store,
@@ -185,6 +203,7 @@ def cmd_cycle(args: argparse.Namespace) -> int:
         throttle_hours=config.status_throttle_hours,
         duffel_summary=duffel_summary,
         duffel_watchlist_summary=duffel_watchlist_summary,
+        duffel_group_summary=duffel_group_summary,
     )
     print(f"status action={decision.action} reason={decision.reason}")
     # PR #59: visibilidade operacional. Se o Telegram falhar ou o

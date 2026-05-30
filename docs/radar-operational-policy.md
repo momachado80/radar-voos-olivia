@@ -295,6 +295,30 @@ Regras de honestidade do link:
   com aprovação explícita: o radar nunca chama `/air/orders`, nunca cria
   order/payment, nunca armazena dado de passageiro.
 
+## 2.4 Agrupamento das ofertas Duffel order_flow + cooldown (PR #71)
+
+Como o Duffel é `order_flow` (sem caminho de compra direto), ofertas
+confirmadas não merecem alertas standalone — só geram ruído. Política:
+
+- **`direct_link` ⇒ alerta standalone imediato** (ex.: Kiwi). Não é
+  agrupado nem atrasado.
+- **Duffel `order_flow` ⇒ agrupado.** As ofertas confirmadas "compra
+  pendente" do ciclo são coletadas e enviadas em **no máximo UMA**
+  mensagem por ciclo:
+  `🟡 Ofertas confirmadas pela Duffel — compra pendente`, listando até 5
+  ofertas (rota/cidade · cabine · datas · preço+estimativa BRL · cia ·
+  `link_status=order_flow`), com `+N outras ofertas confirmadas no ciclo.`
+  quando há mais de 5, e a nota final
+  `Sem link direto de compra. Verificar no Duffel Dashboard.`
+- **Cooldown de 6h:** o mesmo combo (provider·rota·cabine·trip·datas) não
+  repete dentro de 6h, a menos que o preço melhore ≥5% (estado em
+  `data/duffel_alert_cooldown.json` — só identidade + timestamp + preço
+  arredondado/moeda; NUNCA offer_id/token/payload/passageiro).
+- O 🧭 mostra a estatística:
+  `Duffel: X ofertas confirmadas, compra pendente; Y agrupadas; Z suprimidas por cooldown.`
+- Invariantes preservadas: nunca `/air/orders`, sem order/payment, sem
+  dado de passageiro, sem leak; thresholds e Travelpayouts/SerpApi intactos.
+
 ## 3. O que conta como oportunidade para verificação manual
 
 Mesmas duas primeiras condições do confirmado (cabine + preço), mas

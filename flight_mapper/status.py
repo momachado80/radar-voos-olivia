@@ -764,6 +764,7 @@ def _source_status_block(
     serpapi_summary: object | None = None,
     duffel_summary: object | None = None,
     duffel_watchlist_summary: object | None = None,
+    duffel_group_summary: object | None = None,
 ) -> str:
     """🧭 Status das fontes — derivado do ciclo, sem rede.
 
@@ -848,6 +849,7 @@ def _build_message(
     now: datetime,
     duffel_summary: object | None = None,
     duffel_watchlist_summary: object | None = None,
+    duffel_group_summary: object | None = None,
 ) -> str:
     timestamp = now.strftime("%d/%m %H:%M UTC")
 
@@ -1064,6 +1066,7 @@ def _build_message(
         serpapi_summary=serpapi_summary,
         duffel_summary=duffel_summary,
         duffel_watchlist_summary=duffel_watchlist_summary,
+        duffel_group_summary=duffel_group_summary,
     )
     security_block = _security_block(result)
     # PR #60: passa contexto p/ evitar frase final contraditória.
@@ -1411,6 +1414,7 @@ def maybe_send_status(
     throttle_hours: int = 24,
     duffel_summary: object | None = None,
     duffel_watchlist_summary: object | None = None,
+    duffel_group_summary: object | None = None,
 ) -> StatusDecision:
     now = now or datetime.now(timezone.utc)
 
@@ -1446,6 +1450,7 @@ def maybe_send_status(
         result, store, now,
         duffel_summary=duffel_summary,
         duffel_watchlist_summary=duffel_watchlist_summary,
+        duffel_group_summary=duffel_group_summary,
     )
     ok = notifier.send(text)
     if not ok:
