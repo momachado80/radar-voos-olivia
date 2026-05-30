@@ -9,6 +9,7 @@ from .airports import is_actionable_url
 from .currency import get_usd_brl_rate
 from .cycle_state import CycleState
 from .detector import evaluate, evaluate_ceiling
+from .duffel_cooldown import cooldown_key
 from .duffel_status import (
     DUFFEL_ABOVE_THRESHOLD,
     DUFFEL_ALERT_SENT,
@@ -18,11 +19,18 @@ from .duffel_status import (
     DUFFEL_DISABLED,
     DUFFEL_NO_OFFER,
     DUFFEL_SEND_FAILED,
+    DuffelGroupSummary,
     DuffelStatusSummary,
     DuffelWatchlistSummary,
 )
 from .formatting import trip_label_pt
-from .notifier import TelegramNotifier
+from .notifier import (
+    LINK_STATUS_ORDER_FLOW,
+    TelegramNotifier,
+    build_duffel_pending_offer,
+    format_grouped_duffel_pending,
+    link_status_for,
+)
 from .providers import FlightProvider, Quote
 from .regions import Cabin, Route, TripType, all_routes, is_priority
 from .sanity import is_suspicious_price, suspicious_reason
@@ -67,6 +75,8 @@ class MonitorResult:
     # PR #67: resumo da watchlist premium (Londres/Paris setembro). None
     # quando a watchlist não rodou. NUNCA contém dado sensível.
     duffel_watchlist_summary: DuffelWatchlistSummary | None = None
+    # PR #71: estatística do agrupamento Duffel order_flow (compra pendente).
+    duffel_group_summary: DuffelGroupSummary | None = None
 
 
 def _route_note(route: Route) -> str:
@@ -118,6 +128,7 @@ class Monitor:
         duffel_watchlist: list | None = None,
         duffel_watchlist_max_requests: int = 0,
         duffel_watchlist_state=None,
+        duffel_cooldown_state=None,
     ):
         self.provider = provider
         self.notifier = notifier
@@ -138,6 +149,9 @@ class Monitor:
         self.duffel_watchlist = duffel_watchlist or []
         self.duffel_watchlist_max_requests = max(0, duffel_watchlist_max_requests)
         self.duffel_watchlist_state = duffel_watchlist_state
+        # PR #71: cooldown 6h dos alertas Duffel order_flow agrupados. None ⇒
+        # sem persistência (cada ciclo agrupa o que achar, sem supressão).
+        self.duffel_cooldown_state = duffel_cooldown_state
         # `link_provider`: provider auxiliar SÓ para validar/obter link comercial
         # quando o primário não fornece link acionável (caso Travelpayouts).
         # Quando definido, cross-check é executado antes do envio do alerta.
@@ -464,6 +478,7 @@ class Monitor:
     def _process_one_duffel_quote(
         self, *, route, quote, history_key, label, notes, duffel_store, now_fn,
         expected_cabin: Cabin = Cabin.BUSINESS, threshold_key: str | None = None,
+        collector: list | None = None,
     ) -> str:
         """Aplica gates (moeda/cabine/sanidade) + detector de teto e envia
         o alerta 🟢 p/ UMA cotação Duffel. Devolve um código de resultado
@@ -538,6 +553,31 @@ class Monitor:
             is_hot_route=tkey in HOT_ROUTE_KEYS,
         )
 
+        # PR #71: order_flow NÃO envia alerta standalone — entra na mensagem
+        # AGRUPADA "compra pendente", respeitando cooldown de 6h (a menos que
+        # o preço melhore ≥5%). Só `direct_link` (futuro) sai imediato.
+        if link_status_for(quote) == LINK_STATUS_ORDER_FLOW:
+            ck = cooldown_key(quote)
+            cd = self.duffel_cooldown_state
+            if cd is not None and cd.is_suppressed(ck, quote.price_brl, now_fn()):
+                notes.append(
+                    f"{prefix}{_route_note(route)}: Duffel suprimido por cooldown (6h)"
+                )
+                return "cooldown_suppressed"
+            if collector is not None:
+                collector.append(
+                    (
+                        build_duffel_pending_offer(quote, decision),
+                        ck, quote.price_brl, quote.currency,
+                    )
+                )
+            notes.append(
+                f"{prefix}{_route_note(route)}: Duffel coletado p/ agrupamento "
+                f"({decision.reason})"
+            )
+            return "collected"
+
+        # direct_link (futuro): alerta standalone imediato (não agrupa).
         if self.notifier:
             ok = self.notifier.send_alert(quote, decision, priority=priority)
             if ok:
@@ -556,16 +596,18 @@ class Monitor:
         return "notifier_absent"
 
     def _run_duffel_watchlist(
-        self, *, duffel_store, notes, now_fn,
-    ) -> "DuffelWatchlistSummary | None":
+        self, *, duffel_store, notes, now_fn, collector,
+    ) -> "tuple[DuffelWatchlistSummary | None, int]":
         """Pass premium (PR #67): consulta combinações Londres/Paris setembro
         ANTES da rota genérica, com cap dedicado e rotação. Histórico/dedup
-        por combinação de datas. Devolve summary sanitizado ou None (no-op).
+        por combinação de datas. PR #71: ofertas order_flow vão para o
+        `collector` (mensagem agrupada), não alertas standalone. Devolve
+        `(summary, suprimidas_por_cooldown)`.
         """
         entries = self.duffel_watchlist or []
         cap = self.duffel_watchlist_max_requests
         if not entries or cap <= 0:
-            return None
+            return None, 0
 
         n = len(entries)
         if self.duffel_watchlist_state is not None:
@@ -576,6 +618,7 @@ class Monitor:
         checked = 0
         business_alerts = 0
         economy_alerts = 0
+        suppressed = 0
         for i in idxs:
             entry = entries[i]
             checked += 1
@@ -595,22 +638,28 @@ class Monitor:
                 history_key=entry.history_key, label="watchlist",
                 notes=notes, duffel_store=duffel_store, now_fn=now_fn,
                 expected_cabin=expected, threshold_key=tkey,
+                collector=collector,
             )
-            if code == "alert_sent":
+            if code in ("collected", "alert_sent"):
                 if expected == Cabin.ECONOMY:
                     economy_alerts += 1
                 else:
                     business_alerts += 1
+            elif code == "cooldown_suppressed":
+                suppressed += 1
 
         # Avança a rotação p/ cobrir as demais combinações no próximo ciclo.
         if self.duffel_watchlist_state is not None:
             self.duffel_watchlist_state.advance(n, cap)
             self.duffel_watchlist_state.save()
 
-        return DuffelWatchlistSummary(
-            enabled=True, checked=checked,
-            confirmed_alerts=business_alerts + economy_alerts,
-            business_alerts=business_alerts, economy_alerts=economy_alerts,
+        return (
+            DuffelWatchlistSummary(
+                enabled=True, checked=checked,
+                confirmed_alerts=business_alerts + economy_alerts,
+                business_alerts=business_alerts, economy_alerts=economy_alerts,
+            ),
+            suppressed,
         )
 
     def run_duffel_confirmations(
@@ -656,10 +705,18 @@ class Monitor:
         def _now():
             return datetime.now(timezone.utc)
 
+        # PR #71: coletor único de ofertas order_flow p/ a mensagem agrupada
+        # + contador global de suprimidas por cooldown.
+        # Itens: (DuffelPendingOffer, cooldown_key, price_brl, currency).
+        collector: list = []
+        suppressed_total = 0
+
         # ---- WATCHLIST PREMIUM (prioridade, antes da rota genérica) ----
-        watchlist_summary = self._run_duffel_watchlist(
+        watchlist_summary, wl_suppressed = self._run_duffel_watchlist(
             duffel_store=duffel_store, notes=notes, now_fn=_now,
+            collector=collector,
         )
+        suppressed_total += wl_suppressed
 
         # ---- PASS GENÉRICO (rota provada primeiro) ----
         if routes is None:
@@ -688,6 +745,7 @@ class Monitor:
             code = self._process_one_duffel_quote(
                 route=route, quote=quote, history_key=f"{route.key}::duffel",
                 label="", notes=notes, duffel_store=duffel_store, now_fn=_now,
+                collector=collector,
             )
             if code == "blocked_fx":
                 blocked += 1
@@ -700,13 +758,53 @@ class Monitor:
                 n_suspicious += 1
             elif code == "above_threshold":
                 n_above += 1
-            elif code == "alert_sent":
+            elif code in ("collected", "alert_sent"):
                 confirmed_alerts += 1
+            elif code == "cooldown_suppressed":
+                suppressed_total += 1
             elif code == "send_failed":
                 n_send_failed += 1
             # no_offer / notifier_absent → sem contador adicional
 
         duffel_store.save()
+
+        # ---- MENSAGEM AGRUPADA (PR #71): no máx. UMA por ciclo ----
+        grouped = len(collector)
+        message_sent = False
+        if collector and self.notifier is not None:
+            offers = [item[0] for item in collector]
+            try:
+                ok = self.notifier.send(format_grouped_duffel_pending(offers))
+            except Exception:
+                ok = False
+            if ok:
+                message_sent = True
+                # Registra cooldown SÓ após envio bem-sucedido.
+                if self.duffel_cooldown_state is not None:
+                    now = _now()
+                    for _offer, ck, price_brl, currency in collector:
+                        self.duffel_cooldown_state.record(
+                            ck, price_brl, currency, now,
+                        )
+                    self.duffel_cooldown_state.save(now)
+                notes.append(
+                    f"Duffel: mensagem agrupada enviada ({grouped} oferta(s) "
+                    f"compra pendente)"
+                )
+            else:
+                notes.append("Duffel: envio da mensagem agrupada falhou")
+        elif collector:
+            notes.append(
+                f"Duffel: {grouped} oferta(s) compra pendente coletadas "
+                f"(notifier ausente — não enviado)"
+            )
+
+        group_summary = DuffelGroupSummary(
+            confirmed_pending=grouped + suppressed_total,
+            grouped=grouped,
+            suppressed_cooldown=suppressed_total,
+            message_sent=message_sent,
+        )
 
         # Deriva o `outcome` canônico por prioridade (o mais informativo
         # primeiro). Com cap=1 há um único request, mas a ordem cobre cap>1.
@@ -741,4 +839,5 @@ class Monitor:
             duffel_blocked=blocked,
             duffel_summary=summary,
             duffel_watchlist_summary=watchlist_summary,
+            duffel_group_summary=group_summary,
         )

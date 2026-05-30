@@ -58,10 +58,15 @@ class _FakeResp:
 class _StubNotifier:
     def __init__(self, ok: bool = True):
         self.ok = ok
-        self.messages: list[str] = []
+        self.messages: list[str] = []   # standalone (send_alert)
+        self.grouped: list[str] = []    # agrupadas (send) — PR #71
 
     def send_alert(self, quote, decision, priority=False) -> bool:
         self.messages.append(format_alert(quote, decision, priority=priority))
+        return self.ok
+
+    def send(self, text) -> bool:
+        self.grouped.append(text)
         return self.ok
 
 
@@ -223,18 +228,20 @@ def test_watchlist_confirmed_offer_sends_green_with_roundtrip_dates(tmp_path):
     )
     result = monitor.run_duffel_confirmations(routes=[])
     assert result.duffel_watchlist_summary.confirmed_alerts == 1
-    assert len(notifier.messages) == 1
-    msg = notifier.messages[0]
-    # Paris + datas round-trip + cabine + cia + order_flow.
-    # PR #69: order_flow ⇒ 🟡 compra pendente (não 🟢 EXECUTIVA CONFIRMADA).
-    assert "Paris" in msg
+    # PR #71: order_flow NÃO envia standalone — vai p/ a mensagem AGRUPADA.
+    assert notifier.messages == []
+    assert len(notifier.grouped) == 1
+    msg = notifier.grouped[0]
+    assert "🟡 Ofertas confirmadas pela Duffel — compra pendente" in msg
+    assert "São Paulo → Paris" in msg
     assert "2026-09-02 → 2026-09-12" in msg
-    assert "(ida e volta)" in msg
-    assert "🟡 Oferta confirmada, compra pendente" in msg
+    assert "Executiva" in msg
     assert "EXECUTIVA CONFIRMADA" not in msg
-    assert "🛫 Companhia: AF" in msg
-    assert "booking_flow: order_flow (sem link direto de compra)" in msg
-    assert "compra direta ainda não disponível no robô." in msg
+    assert "AF" in msg
+    assert "link_status=order_flow" in msg
+    assert "Sem link direto de compra. Verificar no Duffel Dashboard." in msg
+    assert result.duffel_group_summary.grouped == 1
+    assert result.duffel_group_summary.message_sent is True
 
 
 def test_watchlist_london_offer_renders_londres(tmp_path):
@@ -251,7 +258,8 @@ def test_watchlist_london_offer_renders_londres(tmp_path):
         wl_state=DuffelWatchlistState(path=None, offset=0),
     )
     monitor.run_duffel_confirmations(routes=[])
-    assert "Londres" in notifier.messages[0]
+    # PR #71: renderizado na mensagem agrupada.
+    assert "São Paulo → Londres" in notifier.grouped[0]
 
 
 # ----------------- 5. no offer → safe status -----------------
@@ -399,8 +407,9 @@ def test_watchlist_alert_no_leak(tmp_path, monkeypatch):
         wl_state=DuffelWatchlistState(path=None, offset=4),
     )
     monitor.run_duffel_confirmations(routes=[])
-    assert notifier.messages, "esperava 1 alerta confirmado"
-    msg = notifier.messages[0]
+    # PR #71: a oferta entra na mensagem AGRUPADA (sem leak).
+    assert notifier.grouped, "esperava 1 mensagem agrupada"
+    msg = notifier.grouped[0]
     for sentinel in (
         "off_fixture_xyz", "pas_leak_1", "sentinel_tok_777",
         "api.duffel.com", "https://", "Bearer", "total_amount",
