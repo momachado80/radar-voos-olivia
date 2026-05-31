@@ -188,7 +188,10 @@ def test_daily_only_report_includes_summary_line(tmp_path):
                  mode=DUFFEL_ORDER_FLOW_ALERT_DAILY_ONLY)
     gs = m.run_duffel_confirmations(routes=[]).duffel_group_summary
     text = _report(gs, "daily_only", tmp_path)
-    assert "Duffel: 3 ofertas confirmadas, compra pendente; sem link direto." in text
+    assert (
+        "Duffel order_flow (resumo do ciclo): 3 ofertas confirmadas, "
+        "compra pendente; sem link direto." in text
+    )
 
 
 def test_daily_only_report_lists_top3_section(tmp_path):

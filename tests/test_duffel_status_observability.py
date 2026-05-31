@@ -222,7 +222,7 @@ def test_source_block_includes_duffel_line_when_summary_present(tmp_path):
     block = _source_status_block(
         store, [], [], serpapi_summary=None, duffel_summary=summary,
     )
-    assert "Duffel: ativa; 1 oferta confirmada (compra pendente)." in block
+    assert "Duffel genérico: 1 oferta confirmada (compra pendente)." in block
 
 
 def test_build_message_includes_duffel_status(tmp_path):
@@ -236,7 +236,7 @@ def test_build_message_includes_duffel_status(tmp_path):
         store, datetime.now(timezone.utc), duffel_summary=summary,
     )
     assert "🧭 Status das fontes" in msg
-    assert "Duffel: ativa, mas bloqueada por câmbio EUR→BRL ausente." in msg
+    assert "Duffel genérico: ativo, mas bloqueado por câmbio EUR→BRL ausente." in msg
 
 
 def test_build_message_no_duffel_line_by_default(tmp_path):
@@ -339,6 +339,91 @@ def test_cmd_cycle_threads_duffel_summary_to_report(tmp_path, monkeypatch):
 
     assert "text" in sent, "heartbeat deveria ter sido enviado"
     assert "🧭 Status das fontes" in sent["text"]
-    assert "Duffel:" in sent["text"]
+    # PR #74: a linha do pass genérico usa o prefixo "Duffel genérico:".
+    assert "Duffel genérico:" in sent["text"]
     # Sem leak do token na mensagem.
     assert "tok_cycle_abc" not in sent["text"]
+
+
+# ----------------- PR #74: separação de wording (sem contradição) -----------------
+
+
+def test_pr74_three_duffel_lines_have_distinct_prefixes(tmp_path):
+    """Cenário do goal: pass genérico ACIMA DO TETO + watchlist com oferta
+    'compra pendente' + resumo order_flow. As três linhas devem ter
+    prefixos DISTINTOS (não três 'Duffel:' que parecem conflitar)."""
+    from flight_mapper.duffel_status import (
+        DuffelGroupSummary,
+        DuffelWatchlistSummary,
+    )
+
+    store = PriceStore(tmp_path / "s.json")
+    block = _source_status_block(
+        store, [], [],
+        duffel_summary=DuffelStatusSummary(
+            enabled=True, requests=1, confirmed_alerts=0,
+            outcome=DUFFEL_ABOVE_THRESHOLD,
+        ),
+        duffel_watchlist_summary=DuffelWatchlistSummary(
+            enabled=True, checked=2, confirmed_alerts=1, business_alerts=1,
+        ),
+        duffel_group_summary=DuffelGroupSummary(
+            confirmed_pending=1, grouped=1, suppressed_cooldown=0,
+            mode="daily_only",
+        ),
+        duffel_order_flow_alert_mode="daily_only",
+    )
+    # 1. Pass genérico: sem oferta abaixo do teto (não soa como "preço acima
+    #    do teto" cru e não colide com a watchlist).
+    assert "Duffel genérico: ativo, sem oferta abaixo do teto neste ciclo." in block
+    # 2. Watchlist: linha própria, explícita Londres/Paris + compra pendente.
+    assert (
+        "Duffel watchlist Londres/Paris: 1 oferta executiva confirmada, "
+        "compra pendente; sem link direto." in block
+    )
+    # 3. Resumo order_flow: prefixo distinto (roll-up do ciclo).
+    assert "Duffel order_flow (resumo do ciclo): 1 ofertas confirmadas" in block
+
+    # Nenhuma linha começa com o "Duffel:" cru e ambíguo.
+    duffel_lines = [l for l in block.splitlines() if "Duffel" in l]
+    assert duffel_lines, "esperava linhas Duffel"
+    for line in duffel_lines:
+        body = line.lstrip("• ").strip()
+        assert not body.startswith("Duffel:"), f"linha ambígua: {line!r}"
+    # Prefixos (até o primeiro ':') todos distintos.
+    prefixes = [l.lstrip("• ").split(":")[0].strip() for l in duffel_lines]
+    assert len(set(prefixes)) == len(prefixes), prefixes
+
+
+def test_pr74_no_contradiction_generic_above_threshold_watchlist_pending(tmp_path):
+    """Não pode haver wording contraditório quando o genérico está acima do
+    teto MAS a watchlist tem oferta compra-pendente."""
+    from flight_mapper.duffel_status import (
+        DuffelGroupSummary,
+        DuffelWatchlistSummary,
+    )
+
+    store = PriceStore(tmp_path / "s.json")
+    block = _source_status_block(
+        store, [], [],
+        duffel_summary=DuffelStatusSummary(
+            enabled=True, requests=1, confirmed_alerts=0,
+            outcome=DUFFEL_ABOVE_THRESHOLD,
+        ),
+        duffel_watchlist_summary=DuffelWatchlistSummary(
+            enabled=True, checked=1, confirmed_alerts=1, business_alerts=1,
+        ),
+        duffel_group_summary=DuffelGroupSummary(
+            confirmed_pending=1, grouped=1, suppressed_cooldown=0,
+            mode="daily_only",
+        ),
+        duffel_order_flow_alert_mode="daily_only",
+    )
+    # O genérico fala de "abaixo do teto" (sem oferta), a watchlist fala de
+    # "compra pendente" (oferta confirmada) — leituras coerentes, não
+    # contraditórias, porque os prefixos deixam claro que são passes
+    # diferentes.
+    assert "Duffel genérico:" in block
+    assert "Duffel watchlist Londres/Paris:" in block
+    # A antiga frase crua "Duffel: ativa, mas preço acima do teto." sumiu.
+    assert "Duffel: ativa, mas preço acima do teto." not in block
