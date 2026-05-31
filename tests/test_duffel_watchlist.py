@@ -284,7 +284,10 @@ def test_watchlist_no_offer_is_safe_status_not_failure(tmp_path):
     assert s.checked == 2 and s.confirmed_alerts == 0
     assert notifier.messages == []  # nada enviado, sem falha
     line = humanize_duffel_watchlist_status(s)
-    assert line == "Duffel watchlist: Londres/Paris setembro consultada; 0 alertas."
+    assert line == (
+        "Duffel watchlist Londres/Paris: consultada neste ciclo; "
+        "0 ofertas confirmadas."
+    )
 
 
 def test_watchlist_summary_disabled_renders_no_line():
@@ -299,12 +302,16 @@ def test_watchlist_summary_alerts_phrasing():
         enabled=True, checked=1, confirmed_alerts=1, business_alerts=1,
     )
     assert humanize_duffel_watchlist_status(one) == (
-        "Duffel watchlist: 1 executiva confirmada para Paris/Londres."
+        "Duffel watchlist Londres/Paris: 1 oferta executiva confirmada, "
+        "compra pendente; sem link direto."
     )
     two = DuffelWatchlistSummary(
         enabled=True, checked=2, confirmed_alerts=2, business_alerts=2,
     )
-    assert "2 executivas confirmadas" in humanize_duffel_watchlist_status(two)
+    two_line = humanize_duffel_watchlist_status(two)
+    assert two_line.startswith("Duffel watchlist Londres/Paris:")
+    assert "2 ofertas executivas confirmadas" in two_line
+    assert "compra pendente; sem link direto." in two_line
 
 
 def test_watchlist_summary_economy_phrasing():
@@ -312,14 +319,16 @@ def test_watchlist_summary_economy_phrasing():
         enabled=True, checked=1, confirmed_alerts=1, economy_alerts=1,
     )
     assert humanize_duffel_watchlist_status(eco) == (
-        "Duffel watchlist: 1 econômica muito boa para Paris/Londres."
+        "Duffel watchlist Londres/Paris: 1 oferta econômica muito boa, "
+        "compra pendente; sem link direto."
     )
     both = DuffelWatchlistSummary(
         enabled=True, checked=2, confirmed_alerts=2,
         business_alerts=1, economy_alerts=1,
     )
     line = humanize_duffel_watchlist_status(both)
-    assert "1 executiva confirmada" in line and "1 econômica muito boa" in line
+    assert "1 oferta executiva confirmada" in line
+    assert "1 oferta econômica muito boa" in line
 
 
 # ----------------- report integration -----------------
@@ -337,7 +346,10 @@ def test_report_includes_watchlist_line(tmp_path):
         duffel_watchlist_summary=wl_summary,
     )
     assert "🧭 Status das fontes" in msg
-    assert "Duffel watchlist: Londres/Paris setembro consultada; 0 alertas." in msg
+    assert (
+        "Duffel watchlist Londres/Paris: consultada neste ciclo; "
+        "0 ofertas confirmadas." in msg
+    )
 
 
 def test_report_omits_watchlist_line_when_none(tmp_path):

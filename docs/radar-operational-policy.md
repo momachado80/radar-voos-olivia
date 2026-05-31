@@ -216,16 +216,20 @@ confirmada end-to-end (`cabin_confirmed=yes`, `decision=candidate_for_integratio
 Com cap=1, é a única consultada por ciclo; as demais priority entram só se o
 cap subir.
 
-**Observabilidade no 🧭 Status das fontes (PR #65):** todo ciclo o relatório
-diário inclui UMA linha de status do Duffel, derivada de um resumo
-SANITIZADO (`DuffelStatusSummary`: só contadores + código de resultado,
-NUNCA offer_id/token/URL/payload/order_id/passageiro). Estados possíveis:
-- `Duffel: inativa (token ausente ou flag desligada).`
-- `Duffel: ativa; 1 oferta confirmada enviada como alerta.`
-- `Duffel: ativa, mas bloqueada por câmbio EUR→BRL ausente.`
-- `Duffel: ativa, mas preço acima do teto.`
-- `Duffel: ativa; N consulta(s) neste ciclo; 0 alertas; motivo: sem oferta confirmada.`
-- `Duffel: ativa, mas cabine não confirmada.` / `...preço economicamente suspeito.`
+**Observabilidade no 🧭 Status das fontes (PR #65, wording revisado no PR
+#74):** todo ciclo o relatório diário inclui linhas de status do Duffel,
+derivadas de resumos SANITIZADOS (só contadores + código de resultado,
+NUNCA offer_id/token/URL/payload/order_id/passageiro). **PR #74** separou as
+três linhas com prefixos distintos — antes três linhas começavam com
+`Duffel:` e pareciam estados conflitantes. A linha do **pass genérico**
+(`DuffelStatusSummary`) usa o prefixo **`Duffel genérico:`**. Estados
+possíveis:
+- `Duffel genérico: inativo (token ausente ou flag desligada).`
+- `Duffel genérico: 1 oferta confirmada (compra pendente).`
+- `Duffel genérico: ativo, mas bloqueado por câmbio EUR→BRL ausente.`
+- `Duffel genérico: ativo, sem oferta abaixo do teto neste ciclo.`
+- `Duffel genérico: ativo; N consulta(s) neste ciclo; sem oferta confirmada.`
+- `Duffel genérico: ativo, mas cabine não confirmada.` / `...preço economicamente suspeito.`
 
 ## 2.2 Watchlist premium Londres/Paris setembro (PR #67)
 
@@ -251,9 +255,11 @@ volta `2026-09-12` ou `2026-09-13`.
   business confirmada + companhia + moeda original + estimativa BRL + alvo
   + `order_flow` + "sem compra automática". NUNCA expõe offer_id, token,
   URL, payload ou dado de passageiro.
-- O relatório diário mostra a linha da watchlist no 🧭, ex.:
-  `Duffel watchlist: Londres/Paris setembro consultada; 0 alertas.` ou
-  `Duffel watchlist: 1 executiva confirmada para Paris/Londres.`
+- O relatório diário mostra a linha da watchlist no 🧭 com prefixo próprio
+  **`Duffel watchlist Londres/Paris:`** (PR #74), distinto do pass genérico,
+  ex.:
+  `Duffel watchlist Londres/Paris: consultada neste ciclo; 0 ofertas confirmadas.` ou
+  `Duffel watchlist Londres/Paris: 1 oferta executiva confirmada, compra pendente; sem link direto.`
 - O comportamento Duffel GRU-MIA genérico é **preservado** e roda logo
   após a watchlist.
 
@@ -310,7 +316,7 @@ por padrão; ficam visíveis apenas no relatório/status diário.
 
 | Modo | Push standalone agrupado | Conteúdo no relatório diário |
 |------|--------------------------|------------------------------|
-| `daily_only` *(default)* | **Não** | `Duffel: X ofertas confirmadas, compra pendente; sem link direto.` + seção opcional `🟡 Ofertas confirmadas, compra pendente` com top 3 |
+| `daily_only` *(default)* | **Não** | `Duffel order_flow (resumo do ciclo): X ofertas confirmadas, compra pendente; sem link direto.` + seção opcional `🟡 Ofertas confirmadas, compra pendente` com top 3 |
 | `grouped_push` *(opt-in)* | **Sim** (mensagem agrupada do PR #71) | linha de debug com contadores `X confirmadas / Y agrupadas / Z suprimidas por cooldown` |
 | `disabled` | **Não** | nada (suprime do Telegram; só logs) |
 
@@ -331,6 +337,16 @@ por padrão; ficam visíveis apenas no relatório/status diário.
 - Invariantes preservadas: nunca `/air/orders`, sem order/payment, sem
   dado de passageiro, sem leak; thresholds, detector, provider logic e o
   comportamento `direct_link` intactos.
+
+**Separação de wording no 🧭 (PR #74):** as três linhas Duffel têm prefixos
+distintos para não parecerem estados conflitantes — `Duffel genérico:`
+(pass GRU-MIA + radar), `Duffel watchlist Londres/Paris:` (watchlist
+premium) e `Duffel order_flow (resumo do ciclo):` (roll-up das ofertas
+order_flow). Ex.: o genérico pode dizer "ativo, sem oferta abaixo do teto
+neste ciclo" enquanto a watchlist diz "1 oferta executiva confirmada,
+compra pendente; sem link direto" — leituras coerentes de passes diferentes,
+não contradição. Mudança só de copy: nenhuma alteração de detecção,
+threshold, chamada de provider, workflow ou comportamento de alerta.
 
 ## 3. O que conta como oportunidade para verificação manual
 
