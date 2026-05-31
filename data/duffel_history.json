@@ -114,15 +114,16 @@
   "GRU-CDG-economy::duffel::2026-09-02_2026-09-12": {
     "prices": [
       3975.84,
-      4096.98
+      4096.98,
+      3945.18
     ],
     "last_alert_at": "2026-05-30T07:50:12.225763+00:00",
     "last_alert_price": 3975.84,
     "last_quote": {
-      "price_brl": 4096.98,
-      "amount": 682.83,
+      "price_brl": 3945.18,
+      "amount": 657.53,
       "currency": "EUR",
-      "amount_brl_estimated": 4096.98,
+      "amount_brl_estimated": 3945.18,
       "fx_rate": 6.0,
       "origin": "GRU",
       "destination": "CDG",
@@ -130,7 +131,7 @@
       "return_date": "2026-09-12",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-05-30T18:46:05.641859+00:00",
+      "detected_at": "2026-05-31T11:53:18.926459+00:00",
       "actionable_url": false,
       "cabin": "economy",
       "cabin_confirmed": true,
@@ -141,15 +142,16 @@
   "GRU-CDG-economy::duffel::2026-09-02_2026-09-13": {
     "prices": [
       4196.82,
-      4072.26
+      4072.26,
+      4045.2
     ],
     "last_alert_at": "2026-05-30T07:50:16.310586+00:00",
     "last_alert_price": 4196.82,
     "last_quote": {
-      "price_brl": 4072.26,
-      "amount": 678.71,
+      "price_brl": 4045.2,
+      "amount": 674.2,
       "currency": "EUR",
-      "amount_brl_estimated": 4072.26,
+      "amount_brl_estimated": 4045.2,
       "fx_rate": 6.0,
       "origin": "GRU",
       "destination": "CDG",
@@ -157,7 +159,7 @@
       "return_date": "2026-09-13",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-05-30T18:46:10.161952+00:00",
+      "detected_at": "2026-05-31T11:53:23.277251+00:00",
       "actionable_url": false,
       "cabin": "economy",
       "cabin_confirmed": true,
@@ -497,6 +499,7 @@
       5777.58,
       5777.58,
       5777.58,
+      5777.58,
       5777.58
     ],
     "last_alert_at": "2026-05-30T05:10:40.923770+00:00",
@@ -513,7 +516,7 @@
       "return_date": null,
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-05-31T08:00:36.887043+00:00",
+      "detected_at": "2026-05-31T11:53:24.882874+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
