@@ -220,7 +220,7 @@ def format_duffel_pending_daily_section(
     offers = getattr(summary, "top_offers", ()) or ()
     if not offers:
         return ""
-    lines = ["🟡 Ofertas confirmadas, compra pendente"]
+    lines = ["🟡 Ofertas business confirmadas (Duffel) — buscar no Google Flights"]
     for i, o in enumerate(offers[:3], 1):
         parts = [o.route_label, o.cabin_pt, o.dates, o.price_display]
         if o.target_display:
@@ -228,5 +228,12 @@ def format_duffel_pending_daily_section(
         if o.airline:
             parts.append(o.airline)
         lines.append(f"{i}. " + " — ".join(parts))
-    lines.append("Sem link direto de compra. Verificar no Duffel Dashboard.")
+        # PR #76: link de busca pré-preenchida no Google Flights por oferta.
+        search_url = getattr(o, "search_url", None)
+        if search_url:
+            lines.append(f'   🔎 <a href="{search_url}">Buscar no Google Flights</a>')
+    lines.append(
+        "Busca pré-preenchida a partir da oferta confirmada pela Duffel. "
+        "Preço e disponibilidade podem variar; confira antes de comprar."
+    )
     return "\n".join(lines)

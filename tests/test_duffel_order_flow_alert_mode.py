@@ -200,10 +200,12 @@ def test_daily_only_report_lists_top3_section(tmp_path):
                  mode=DUFFEL_ORDER_FLOW_ALERT_DAILY_ONLY)
     gs = m.run_duffel_confirmations(routes=[]).duffel_group_summary
     text = _report(gs, "daily_only", tmp_path)
-    assert "🟡 Ofertas confirmadas, compra pendente" in text
-    # Rota/cidade + cabine + fecho sem link direto.
+    # PR #76: seção lista as ofertas com link de busca no Google Flights.
+    assert "🟡 Ofertas business confirmadas (Duffel) — buscar no Google Flights" in text
     assert "São Paulo →" in text
-    assert "Sem link direto de compra. Verificar no Duffel Dashboard." in text
+    assert "Buscar no Google Flights" in text
+    assert "google.com/travel/flights" in text
+    assert "Preço e disponibilidade podem variar; confira antes de comprar." in text
     # No máximo 3 itens listados.
     assert "3. " in text
     assert "4. " not in text
@@ -220,7 +222,7 @@ def test_grouped_push_sends_grouped_message(tmp_path):
     result = m.run_duffel_confirmations(routes=[])
     assert notifier.standalone == []
     assert len(notifier.grouped) == 1
-    assert "🟡 Ofertas confirmadas pela Duffel — compra pendente" in notifier.grouped[0]
+    assert "🟡 Ofertas business confirmadas (Duffel) — buscar no Google Flights" in notifier.grouped[0]
     assert result.duffel_group_summary.message_sent is True
 
 
@@ -233,7 +235,7 @@ def test_grouped_push_report_shows_debug_counts_line(tmp_path):
     # Linha de debug com contadores (Y agrupadas / Z suprimidas).
     assert "agrupadas" in text and "suprimidas por cooldown" in text
     # NÃO renderiza a seção 🟡 de top-3 (exclusiva do daily_only).
-    assert "🟡 Ofertas confirmadas, compra pendente" not in text
+    assert "🟡 Ofertas business confirmadas (Duffel) — buscar no Google Flights" not in text
 
 
 # ---------------- 4. disabled suprime do Telegram ----------------
@@ -256,10 +258,10 @@ def test_disabled_report_omits_order_flow_content(tmp_path):
                  mode="disabled")
     gs = m.run_duffel_confirmations(routes=[]).duffel_group_summary
     text = _report(gs, "disabled", tmp_path)
-    # Nada de "compra pendente" no relatório (isolamos os demais summaries).
-    assert "compra pendente" not in text
-    assert "🟡 Ofertas confirmadas, compra pendente" not in text
-    assert "sem link direto" not in text
+    # Nada de conteúdo order_flow no relatório (isolamos os demais summaries).
+    assert "🟡 Ofertas business confirmadas (Duffel)" not in text
+    assert "Buscar no Google Flights" not in text
+    assert "Duffel order_flow" not in text
 
 
 # ---------------- 5. direct_link continua standalone ----------------

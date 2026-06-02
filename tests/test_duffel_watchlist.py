@@ -236,14 +236,16 @@ def test_watchlist_confirmed_offer_sends_green_with_roundtrip_dates(tmp_path):
     assert notifier.messages == []
     assert len(notifier.grouped) == 1
     msg = notifier.grouped[0]
-    assert "🟡 Ofertas confirmadas pela Duffel — compra pendente" in msg
+    # PR #76: mensagem agrupada com link de busca no Google Flights.
+    assert "🟡 Ofertas business confirmadas (Duffel) — buscar no Google Flights" in msg
     assert "São Paulo → Paris" in msg
     assert "2026-09-02 → 2026-09-12" in msg
     assert "Executiva" in msg
     assert "EXECUTIVA CONFIRMADA" not in msg
     assert "AF" in msg
-    assert "link_status=order_flow" in msg
-    assert "Sem link direto de compra. Verificar no Duffel Dashboard." in msg
+    assert "Buscar no Google Flights" in msg
+    assert "google.com/travel/flights" in msg
+    assert "Preço e disponibilidade podem variar; confira antes de comprar." in msg
     assert result.duffel_group_summary.grouped == 1
     assert result.duffel_group_summary.message_sent is True
 
@@ -423,15 +425,19 @@ def test_watchlist_alert_no_leak(tmp_path, monkeypatch):
         wl_state=DuffelWatchlistState(path=None, offset=4),
     )
     monitor.run_duffel_confirmations(routes=[])
-    # PR #71: a oferta entra na mensagem AGRUPADA (sem leak).
+    # PR #71/#76: a oferta entra na mensagem AGRUPADA (sem leak sensível;
+    # o link do Google Flights é legítimo).
     assert notifier.grouped, "esperava 1 mensagem agrupada"
     msg = notifier.grouped[0]
     for sentinel in (
         "off_fixture_xyz", "pas_leak_1", "sentinel_tok_777",
-        "api.duffel.com", "https://", "Bearer", "total_amount",
+        "api.duffel.com", "Bearer", "total_amount",
         "cabin_class", "order_id", "offer_id",
     ):
         assert sentinel not in msg, f"LEAK no alerta watchlist: {sentinel!r}"
+    import re
+    hosts = re.findall(r'href="https://([^/"]+)', msg)
+    assert all(h == "www.google.com" for h in hosts), hosts
 
 
 # ----------------- 9. GRU-MIA genérico preservado após watchlist -----------------

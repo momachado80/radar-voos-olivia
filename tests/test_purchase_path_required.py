@@ -80,18 +80,20 @@ def test_duffel_order_flow_not_fully_actionable_green():
 
 
 def test_duffel_order_flow_appears_as_purchase_pending():
+    # PR #76: Duffel order_flow agora leva ao Google Flights (busca
+    # pré-preenchida), mas continua 🟡 (não é a oferta travada).
     msg = format_alert(_duffel_quote(), _ceiling())
     headline = msg.splitlines()[0]
-    assert "🟡 Oferta confirmada, compra pendente" in headline
-    assert "booking_flow: order_flow" in msg
-    assert "Ação: verificar no Duffel Dashboard." in msg
-    # Resumo honesto.
-    assert "Oferta confirmada, mas sem caminho de compra direto." in msg
+    assert "🟡 Oferta confirmada" in headline
+    assert "buscar no Google Flights" in headline
+    assert "🔎 <a href=" in msg and "google.com/travel/flights" in msg
+    assert "Preço e disponibilidade podem variar" in msg
 
 
 def test_duffel_economy_order_flow_also_pending():
     headline = format_alert(_duffel_quote(Cabin.ECONOMY), _ceiling()).splitlines()[0]
-    assert "🟡 Oferta confirmada, compra pendente" in headline
+    assert "🟡 Oferta confirmada" in headline
+    assert "buscar no Google Flights" in headline
     assert "💸 ECONÔMICA MUITO BOA" not in headline
 
 
@@ -115,20 +117,28 @@ def test_link_status_for_duffel_is_order_flow():
 # ----------------- 4 & 5. wording + não insinua clique para comprar -----------------
 
 
-def test_wording_includes_compra_direta_indisponivel():
+def test_wording_includes_google_flights_disclaimer():
+    # PR #76: a oferta Duffel vira link de busca pré-preenchida no Google
+    # Flights, com aviso honesto de que preço/disponibilidade variam.
     msg = format_alert(_duffel_quote(), _ceiling())
-    assert "compra direta ainda não disponível" in msg
+    assert "Buscar esta oferta no Google Flights" in msg
+    assert (
+        "Busca pré-preenchida a partir da oferta confirmada pela Duffel" in msg
+    )
+    assert "Preço e disponibilidade podem variar; confira antes de comprar." in msg
 
 
-def test_duffel_does_not_imply_click_to_buy():
+def test_duffel_does_not_imply_guaranteed_purchase():
     msg = format_alert(_duffel_quote(), _ceiling())
     lowered = msg.lower()
+    # Não promete oferta travada / compra garantida.
     assert "clique para comprar" not in lowered
     assert "clique e compre" not in lowered
     assert "comprar agora" not in lowered
-    # Sem hyperlink de compra/checkout para Duffel.
-    assert "<a href=" not in msg
-    # Não diz "sem compra automática" como se fosse compra (wording antiga).
+    assert "compra garantida" not in lowered
+    assert "oferta garantida" not in lowered
+    # O ÚNICO link é o de busca no Google Flights (não checkout direto).
+    assert "google.com/travel/flights" in msg
     assert "sem compra automática" not in msg
 
 
@@ -179,15 +189,23 @@ def test_no_orders_call_and_no_leak_end_to_end(monkeypatch):
     assert "offer_requests" in captured["url"]
     assert "orders" not in captured["url"] and "payments" not in captured["url"]
     assert captured["method"] == "POST"
-    # 7. alerta não vaza nada sensível.
+    # 7. alerta não vaza nada sensível. PR #76: o alerta agora TEM um link
+    # legítimo (Google Flights), então `https://` deixa de ser sentinela —
+    # checamos os sentinelas SENSÍVEIS e que a única URL é a do Google.
     msg = format_alert(q, _ceiling(threshold=8000.0))
     for sentinel in (
         "off_secret_69", "pas_secret_69", "sentinel_tok_69",
-        "api.duffel.com", "https://", "Bearer", "total_amount",
+        "api.duffel.com", "Bearer", "total_amount",
         "cabin_class", "offer_id", "order_id",
     ):
-        assert sentinel not in msg, f"LEAK PR#69: {sentinel!r}"
+        assert sentinel not in msg, f"LEAK PR#76: {sentinel!r}"
+    # O único host clicável é o Google Flights (busca pré-preenchida).
+    import re
+    hosts = re.findall(r'href="https://([^/"]+)', msg)
+    assert hosts, "esperava o link do Google Flights"
+    assert all(h == "www.google.com" for h in hosts), hosts
     # 8. detecção Duffel ainda funciona (cabine business confirmada + preço).
     assert q is not None
     assert q.cabin == Cabin.BUSINESS and q.cabin_confirmed is True
-    assert "🟡 Oferta confirmada, compra pendente" in msg
+    assert "🟡 Oferta confirmada" in msg
+    assert "buscar no Google Flights" in msg

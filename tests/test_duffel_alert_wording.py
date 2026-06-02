@@ -125,30 +125,32 @@ def test_duffel_eur_without_fx_still_no_unconfirmed():
 # ----------------- 4,5. mantém copy obrigatória -----------------
 
 
-def test_duffel_alert_keeps_confirmed_no_auto_purchase():
-    # PR #69: order_flow = compra pendente, não compra automática nem link.
+def test_duffel_alert_links_to_google_flights():
+    # PR #76: oferta Duffel confirmada → link de busca pré-preenchida no GF.
     msg = format_alert(_duffel_eur_quote(), _ceiling_good())
+    assert "Buscar esta oferta no Google Flights" in msg
+    assert "google.com/travel/flights" in msg
     assert (
-        "Oferta confirmada por Duffel; compra direta ainda não "
-        "disponível no robô." in msg
+        "Busca pré-preenchida a partir da oferta confirmada pela Duffel" in msg
     )
 
 
-def test_duffel_alert_keeps_dashboard_action_and_order_flow():
+def test_duffel_alert_keeps_order_flow_link_status():
+    # O link_status segue order_flow (GF é busca, não a oferta travada).
     msg = format_alert(_duffel_eur_quote(), _ceiling_good())
-    assert "Ação: verificar no Duffel Dashboard." in msg
-    assert "booking_flow: order_flow (sem link direto de compra)" in msg
+    assert "🔗 link_status: order_flow" in msg
 
 
 # ----------------- headline emphasis + score secondary -----------------
 
 
 def test_duffel_headline_is_pending_not_score():
-    # PR #69: Duffel order_flow → 🟡 "compra pendente" (não green actionable);
+    # PR #76: Duffel order_flow → 🟡 "buscar no Google Flights" (não green);
     # o score nunca vai no título.
     msg = format_alert(_duffel_eur_quote(), _ceiling_good(score=40))
     headline = msg.splitlines()[0]
-    assert "🟡 Oferta confirmada, compra pendente" in headline
+    assert "🟡 Oferta confirmada" in headline
+    assert "buscar no Google Flights" in headline
     assert "EXECUTIVA CONFIRMADA" not in headline
     assert "Score" not in headline
     assert "🎯 BOM" not in headline
@@ -161,13 +163,14 @@ def test_duffel_score_is_secondary_line():
 
 
 def test_duffel_headline_pending_even_when_excellent():
-    # Mesmo preço excelente, sem caminho de compra ⇒ segue 🟡 pendente.
+    # Mesmo preço excelente, Duffel order_flow ⇒ segue 🟡 (busca GF), não 🟢.
     d = Decision(
         alert=True, reason="excelente", criterion=CRITERION_CEILING,
         threshold=6000.0, level=LEVEL_EXCELLENT, score=92,
     )
     headline = format_alert(_duffel_eur_quote(), d).splitlines()[0]
-    assert "🟡 Oferta confirmada, compra pendente" in headline
+    assert "🟡 Oferta confirmada" in headline
+    assert "buscar no Google Flights" in headline
     assert "EXECUTIVA CONFIRMADA" not in headline
     assert "Score" not in headline
 
@@ -179,20 +182,27 @@ def test_duffel_no_score_line_when_score_none():
     )
     msg = format_alert(_duffel_eur_quote(), d)
     assert "Score operacional" not in msg
-    assert "🟡 Oferta confirmada, compra pendente" in msg
+    assert "🟡 Oferta confirmada" in msg
+    assert "buscar no Google Flights" in msg
 
 
-# ----------------- 6. no leak -----------------
+# ----------------- 6. no leak (sensitive sentinels only) -----------------
 
 
 def test_duffel_alert_no_leak():
+    # PR #76: o alerta agora tem o link legítimo do Google Flights, então
+    # `https://` deixa de ser sentinela. Checamos os SENSÍVEIS + que o único
+    # host é o google.com.
     msg = format_alert(_duffel_eur_quote(), _ceiling_good())
     for sentinel in (
-        "https://", "http://", "Bearer", "api.duffel.com",
+        "Bearer", "api.duffel.com",
         "offer_id", "off_", "order_id", "token", "?token=",
         "passenger", "total_amount", "cabin_class",
     ):
         assert sentinel not in msg, f"LEAK no alerta Duffel: {sentinel!r}"
+    import re
+    hosts = re.findall(r'href="https://([^/"]+)', msg)
+    assert hosts and all(h == "www.google.com" for h in hosts), hosts
 
 
 # ----------------- 7. não-Duffel inalterado -----------------
