@@ -162,13 +162,15 @@ def test_group_includes_route_dates_price_airline_linkstatus(tmp_path):
     monitor = _monitor(provider, notifier, tmp_path, wl=wl, wl_cap=16)
     monitor.run_duffel_confirmations(routes=[])
     msg = notifier.grouped[0]
-    assert "🟡 Ofertas confirmadas pela Duffel — compra pendente" in msg
+    # PR #76: grupo com link de busca no Google Flights por oferta.
+    assert "🟡 Ofertas business confirmadas (Duffel) — buscar no Google Flights" in msg
     assert "São Paulo → Paris" in msg          # rota/cidade
     assert "2026-09-02 → 2026-09-12" in msg     # datas
     assert "R$ 1.500" in msg                    # preço
     assert "AF" in msg                          # cia
-    assert "link_status=order_flow" in msg      # link_status
-    assert "Sem link direto de compra. Verificar no Duffel Dashboard." in msg
+    assert "Buscar no Google Flights" in msg    # link clicável
+    assert "google.com/travel/flights" in msg
+    assert "Preço e disponibilidade podem variar; confira antes de comprar." in msg
 
 
 # ----------------- 4. cap em 5 + excedente -----------------
@@ -341,9 +343,13 @@ def test_grouped_message_no_leak(tmp_path, monkeypatch):
     monitor.run_duffel_confirmations(routes=[])
     assert notifier.grouped, "esperava mensagem agrupada"
     msg = notifier.grouped[0]
+    # PR #76: `https://` legítimo (Google Flights) — checa sensíveis + host.
     for sentinel in (
         "off_secret_grp", "pas_secret_grp", "sentinel_tok_grp",
-        "api.duffel.com", "https://", "Bearer", "total_amount",
+        "api.duffel.com", "Bearer", "total_amount",
         "cabin_class", "order_id", "offer_id", "payment_id",
     ):
         assert sentinel not in msg, f"LEAK na mensagem agrupada: {sentinel!r}"
+    import re
+    hosts = re.findall(r'href="https://([^/"]+)', msg)
+    assert all(h == "www.google.com" for h in hosts), hosts

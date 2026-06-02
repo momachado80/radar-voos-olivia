@@ -128,14 +128,15 @@ def test_economy_thresholds_present_and_separate():
 # ----------------- 1 & 4. business order_flow + link_status -----------------
 
 
-def test_business_alert_says_order_flow_and_no_direct_link():
-    # PR #69: business Duffel order_flow ⇒ 🟡 compra pendente (não 🟢).
+def test_business_alert_links_google_flights_not_direct():
+    # PR #76: business Duffel order_flow ⇒ 🟡 + busca no Google Flights.
     msg = format_alert(_duffel_quote(Cabin.BUSINESS), _ceiling())
-    assert "booking_flow: order_flow (sem link direto de compra)" in msg
     assert "🔗 link_status: order_flow" in msg
-    assert "🟡 Oferta confirmada, compra pendente" in msg
+    assert "🟡 Oferta confirmada" in msg
+    assert "buscar no Google Flights" in msg
+    assert "google.com/travel/flights" in msg
     assert "EXECUTIVA CONFIRMADA" not in msg
-    # Não promete link direto.
+    # link_status segue order_flow (não direct_link: GF é busca, não oferta).
     assert "link_status: direct_link" not in msg
 
 
@@ -143,19 +144,20 @@ def test_business_alert_says_order_flow_and_no_direct_link():
 
 
 def test_economy_alert_is_pending_with_economy_cabin():
-    # PR #69: economy Duffel order_flow também é 🟡 compra pendente — mas a
-    # cabine Econômica fica visível no título e no corpo (sinal preservado).
+    # PR #76: economy Duffel order_flow → 🟡 + busca GF; a cabine Econômica
+    # fica visível no título e no corpo (sinal preservado).
     msg = format_alert(_duffel_quote(Cabin.ECONOMY), _ceiling())
     headline = msg.splitlines()[0]
-    assert "🟡 Oferta confirmada, compra pendente — Econômica" in headline
+    assert "🟡 Oferta confirmada — Econômica" in headline
+    assert "buscar no Google Flights" in headline
     assert "EXECUTIVA CONFIRMADA" not in headline
     assert "Business" not in headline
     # cabine econômica confirmada explícita.
     assert "cabine econômica confirmada" in msg
-    # order_flow + link_status presentes também na econômica.
+    # order_flow + link de busca pré-preenchida presentes na econômica.
     assert "🔗 link_status: order_flow" in msg
-    assert "compra direta ainda não disponível no robô." in msg
-    assert "verificar no Duffel Dashboard" in msg
+    assert "Buscar esta oferta no Google Flights" in msg
+    assert "Preço e disponibilidade podem variar" in msg
 
 
 def test_economy_alert_shows_currency_brl_target_dates_airline():
@@ -259,14 +261,19 @@ def test_economy_alert_no_leak(monkeypatch):
         _RT_LHR, "2026-09-02", "2026-09-12", cabin="economy",
     )
     msg = format_alert(q, _ceiling(threshold=4000.0))
+    # PR #76: `https://` deixa de ser sentinela (link legítimo do GF).
     for sentinel in (
         "off_fixture_leak", "pas_leak", "sentinel_tok_leak",
-        "api.duffel.com", "https://", "Bearer", "total_amount",
+        "api.duffel.com", "Bearer", "total_amount",
         "cabin_class", "offer_id", "order_id",
     ):
         assert sentinel not in msg, f"LEAK no alerta economy: {sentinel!r}"
-    # PR #69: economy Duffel order_flow ⇒ 🟡 compra pendente.
-    assert "🟡 Oferta confirmada, compra pendente" in msg
+    import re
+    hosts = re.findall(r'href="https://([^/"]+)', msg)
+    assert hosts and all(h == "www.google.com" for h in hosts), hosts
+    # PR #76: economy Duffel order_flow ⇒ 🟡 + busca no Google Flights.
+    assert "🟡 Oferta confirmada" in msg
+    assert "buscar no Google Flights" in msg
 
 
 # ----------------- 4 (cont). non-Duffel economy headline unchanged -----------------

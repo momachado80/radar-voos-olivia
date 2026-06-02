@@ -166,26 +166,35 @@ altera Travelpayouts/SerpApi/Kiwi — roda em paralelo, com história própria
 - Companhia aérea (código IATA).
 - Rota + datas + trip_type.
 
-**`booking_flow=order_flow` ⇒ NÃO há link direto ⇒ NÃO é alerta verde
-acionável (PR #69).** Regra de produto: **uma oferta sem caminho de compra
-direto não é alerta totalmente acionável — é "oferta confirmada, compra
-pendente".** O fluxo de compra do Duffel é uma ordem via API
-(server-to-server), não uma URL clicável. Por isso o alerta Duffel:
-- lidera com **"🟡 Oferta confirmada, compra pendente — Executiva/Econômica"**
-  (🟡, NUNCA 🟢; NUNCA "EXECUTIVA CONFIRMADA" nem "clique para comprar");
-- exibe **"Oferta confirmada por Duffel; compra direta ainda não disponível
-  no robô."**, **"🛒 Fonte: Duffel (Offer Request, cabine ... confirmada)"**,
-  a companhia, **"booking_flow: order_flow (sem link direto de compra)"** e
-  **"Ação: verificar no Duffel Dashboard."**;
-- fecha com o resumo honesto **"Oferta confirmada, mas sem caminho de compra
-  direto."**;
-- **não** mostra hyperlink de compra (não existe), e o pass Duffel **não**
-  passa pela resolução de link comercial (`_resolve_actionable_link`).
+**`booking_flow=order_flow` ⇒ Duffel não dá checkout clicável; o robô cruza
+com o Google Flights (PR #76).** A oferta da Duffel é uma ordem via API
+(server-to-server), não uma URL de compra. Em vez de mandar a usuária ao
+Duffel Dashboard (painel de dev, sem compra), o robô monta um link de
+**busca PRÉ-PREENCHIDA no Google Flights** (rota/datas/cabine) a partir da
+oferta confirmada. Por isso o alerta Duffel:
+- lidera com **"🟡 Oferta confirmada — Executiva/Econômica — buscar no Google
+  Flights"** (🟡, NUNCA 🟢; NUNCA "EXECUTIVA CONFIRMADA" nem "clique para
+  comprar" — não é a oferta travada);
+- exibe **"🛒 Fonte: Duffel (Offer Request, cabine ... confirmada)"**, a
+  companhia, o `Score operacional`, e o link
+  **🔎 "Buscar esta oferta no Google Flights"**;
+- fecha com o aviso honesto **"Busca pré-preenchida a partir da oferta
+  confirmada pela Duffel. Preço e disponibilidade podem variar; confira
+  antes de comprar."**;
+- mantém `link_status: order_flow` — o link do Google Flights é um **atalho
+  de busca**, não a oferta Duffel travada nem um checkout direto.
 
-**Verde acionável exige caminho de compra.** Só um provider que devolve um
-`deep_link` clicável real (ex.: Kiwi) gera alerta verde acionável
-(`link_status: direct_link`, com link "Conferir busca"). Duffel order_flow
-fica em 🟡 até existir um caminho de compra.
+**Sanitização do link (PR #76):** a URL do Google Flights contém APENAS
+dados públicos — origem/destino (IATA), datas e cabine. NUNCA offer_id,
+token, preço, payload ou dado de passageiro. O único host clicável no alerta
+Duffel é `www.google.com`.
+
+**Verde acionável (`direct_link`) exige caminho de compra real.** Só um
+provider que devolve um `deep_link` clicável da própria oferta (ex.: Kiwi)
+gera alerta verde acionável (`link_status: direct_link`, com link "Conferir
+busca"). Se a `KIWI_API_KEY` for liberada, a Kiwi vence o Duffel nessas
+rotas. Até lá, o cruzamento Duffel → Google Flights é o melhor caminho
+honesto: leva a usuária ao lugar certo, com os filtros prontos.
 
 **Moeda do alerta (PR #66):** alertas Duffel mostram a moeda original (ex.:
 EUR) mais a estimativa em BRL usando o câmbio configurado (`EUR_BRL_RATE`),

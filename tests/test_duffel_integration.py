@@ -280,12 +280,14 @@ def test_alert_contains_duffel_confirmed_wording(tmp_path):
     assert notifier.messages == []
     assert len(notifier.grouped) == 1
     msg = notifier.grouped[0]
-    assert "🟡 Ofertas confirmadas pela Duffel — compra pendente" in msg
+    # PR #76: mensagem agrupada lista as ofertas com link de busca no GF.
+    assert "🟡 Ofertas business confirmadas (Duffel) — buscar no Google Flights" in msg
     assert "Duffel" in msg
     assert "Executiva" in msg
-    assert "link_status=order_flow" in msg
+    assert "Buscar no Google Flights" in msg
+    assert "google.com/travel/flights" in msg
     assert "CM" in msg
-    assert "Sem link direto de compra. Verificar no Duffel Dashboard." in msg
+    assert "Preço e disponibilidade podem variar; confira antes de comprar." in msg
 
 
 def test_alert_does_not_leak_offer_id_token_or_payload(tmp_path, monkeypatch):
@@ -306,16 +308,21 @@ def test_alert_does_not_leak_offer_id_token_or_payload(tmp_path, monkeypatch):
         threshold=9000.0, level=LEVEL_EXCELLENT, score=90,
     )
     msg = format_alert(quote, decision)
+    # PR #76: o alerta tem o link legítimo do Google Flights, então
+    # `https://` deixa de ser sentinela — checamos os SENSÍVEIS e que o
+    # único host clicável é o google.com.
     for sentinel in (
         "off_fixture_business_001",   # offer_id
         "pas_fixture_001",            # passenger_id
         "sentinel_token_zzz",         # token
         "api.duffel.com",             # URL crua / domínio da API
-        "https://",
         "total_amount",               # chave de payload cru
         "cabin_class",
     ):
         assert sentinel not in msg, f"LEAK no alerta Duffel: {sentinel!r}"
+    import re
+    hosts = re.findall(r'href="https://([^/"]+)', msg)
+    assert hosts and all(h == "www.google.com" for h in hosts), hosts
     # Token nunca vai na URL (vai no header Authorization).
     assert "sentinel_token_zzz" not in captured.get("url", "")
 

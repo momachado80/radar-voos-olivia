@@ -40,20 +40,20 @@ def _level_title(level: str | None, score: int | None = None) -> str:
 
 
 def _duffel_pending_headline(quote: Quote, trip_suffix: str) -> str:
-    """Título de oferta Duffel CONFIRMADA mas SEM caminho de compra direto
-    (booking_flow=order_flow) — PR #69.
+    """Título de oferta Duffel CONFIRMADA (booking_flow=order_flow) — PR #69,
+    revisado no PR #76.
 
-    Regra de produto: oferta sem caminho de compra NÃO é alerta totalmente
-    acionável; é "oferta confirmada, compra pendente". Por isso 🟡 (não 🟢)
-    e nunca "EXECUTIVA CONFIRMADA"/"clique para comprar". Mantém a cabine
-    visível p/ não perder o sinal (o valor/alvo segue no corpo)."""
+    Regra de produto: a oferta é confirmada pela Duffel, mas a Duffel não dá
+    link de checkout. O robô cruza com o Google Flights e leva a usuária à
+    BUSCA PRÉ-PREENCHIDA — não é a oferta travada, então segue 🟡 (não 🟢) e
+    nunca "clique para comprar". Cabine visível p/ não perder o sinal."""
     if quote.cabin == Cabin.BUSINESS:
         cab_part = " — Executiva"
     elif quote.cabin == Cabin.ECONOMY:
         cab_part = " — Econômica"
     else:
         cab_part = ""
-    return f"🟡 Oferta confirmada, compra pendente{cab_part}{trip_suffix}"
+    return f"🟡 Oferta confirmada{cab_part} — buscar no Google Flights{trip_suffix}"
 
 
 # link_status normalizado (PR #68): descreve a ACIONABILIDADE do link em
@@ -95,11 +95,16 @@ class DuffelPendingOffer:
     target_display: str    # "alvo R$ 14.400" | ""
     airline: str | None    # "AF"
     score: int | None      # p/ ordenar por qualidade (desc)
+    # PR #76: link de busca PRÉ-PREENCHIDA no Google Flights (rota/datas/
+    # cabine). NÃO é a oferta Duffel travada — atalho de busca. Só dados
+    # públicos no URL (sem offer_id/token/preço/payload/passageiro).
+    search_url: str | None = None
 
 
 def build_duffel_pending_offer(quote: Quote, decision: Decision) -> DuffelPendingOffer:
     """Constrói a linha sanitizada da oferta a partir do quote/decision.
     Só usa campos não-sensíveis do Quote (rota/cabine/datas/preço/cia)."""
+    from .google_flights_link import duffel_google_flights_url
     route_label = route_city_label(quote.route.origin, quote.route.destination)
     if quote.cabin == Cabin.BUSINESS:
         cabin_pt = "Executiva"
@@ -125,28 +130,34 @@ def build_duffel_pending_offer(quote: Quote, decision: Decision) -> DuffelPendin
         route_label=route_label, cabin_pt=cabin_pt, dates=dates,
         price_display=price_display, target_display=target_display,
         airline=quote.airline, score=decision.score,
+        search_url=duffel_google_flights_url(quote),
     )
 
 
 def format_grouped_duffel_pending(offers: list[DuffelPendingOffer]) -> str:
-    """Mensagem ÚNICA agrupando ofertas Duffel order_flow "compra pendente"
-    (PR #71). Lista até 5 (por qualidade), some o excedente, e fecha com a
-    nota de que não há link direto. NUNCA expõe dado sensível."""
+    """Mensagem ÚNICA agrupando ofertas Duffel order_flow confirmadas
+    (PR #71). Lista até 5 (por qualidade), some o excedente. PR #76: cada
+    oferta traz o link de busca PRÉ-PREENCHIDA no Google Flights. NUNCA
+    expõe dado sensível (o URL só tem rota/datas/cabine públicas)."""
     ordered = sorted(offers, key=lambda o: (o.score or 0), reverse=True)
     top = ordered[:5]
     extra = len(ordered) - len(top)
-    lines = ["🟡 Ofertas confirmadas pela Duffel — compra pendente"]
+    lines = ["🟡 Ofertas business confirmadas (Duffel) — buscar no Google Flights"]
     for i, o in enumerate(top, 1):
         parts = [o.route_label, o.cabin_pt, o.dates, o.price_display]
         if o.target_display:
             parts.append(o.target_display)
         if o.airline:
             parts.append(o.airline)
-        parts.append("link_status=order_flow")
         lines.append(f"{i}. " + " — ".join(parts))
+        if o.search_url:
+            lines.append(f'   🔎 <a href="{o.search_url}">Buscar no Google Flights</a>')
     if extra > 0:
         lines.append(f"+{extra} outras ofertas confirmadas no ciclo.")
-    lines.append("Sem link direto de compra. Verificar no Duffel Dashboard.")
+    lines.append(
+        "Busca pré-preenchida a partir da oferta confirmada pela Duffel. "
+        "Preço e disponibilidade podem variar; confira antes de comprar."
+    )
     return "\n".join(lines)
 
 
@@ -282,20 +293,28 @@ def format_alert(
         # NUNCA expomos offer_id / token / payload — só fonte, cabine,
         # carrier e a ação manual no Dashboard. NUNCA "clique para comprar".
         _cab_pt = "econômica" if quote.cabin == Cabin.ECONOMY else "business"
-        extras.append(
-            "Oferta confirmada por Duffel; compra direta ainda não "
-            "disponível no robô."
-        )
         extras.append(f"🛒 Fonte: Duffel (Offer Request, cabine {_cab_pt} confirmada)")
         if quote.airline:
             extras.append(f"🛫 Companhia: {quote.airline}")
         # Score como linha SECUNDÁRIA (não no título).
         if decision.score is not None:
             extras.append(f"Score operacional: {decision.score}/100")
-        extras.append("booking_flow: order_flow (sem link direto de compra)")
-        extras.append("Ação: verificar no Duffel Dashboard.")
-        # Resumo honesto (PR #69): confirmada, mas sem como comprar pelo robô.
-        extras.append("Oferta confirmada, mas sem caminho de compra direto.")
+        # PR #76: cruzamento Duffel → Google Flights. O alerta passa a levar
+        # a usuária à BUSCA PRÉ-PREENCHIDA no Google Flights (rota/datas/
+        # cabine), em vez do Duffel Dashboard (painel de dev, sem compra).
+        # Honestidade: NÃO é a oferta Duffel travada — atalho de busca.
+        from .google_flights_link import duffel_google_flights_url
+        _gf = duffel_google_flights_url(quote)
+        if _gf:
+            extras.append(f'🔎 <a href="{_gf}">Buscar esta oferta no Google Flights</a>')
+            extras.append(
+                "Busca pré-preenchida a partir da oferta confirmada pela "
+                "Duffel. Preço e disponibilidade podem variar; confira antes "
+                "de comprar."
+            )
+        else:
+            extras.append("Ação: verificar no Duffel Dashboard.")
+            extras.append("Oferta confirmada, mas sem caminho de compra direto.")
     elif quote.source == "manual_purchase":
         # Manual purchase fallback: preço veio do Travelpayouts mas não há
         # link comercial acionável (Kiwi indisponível, Aviasales bloqueado).
