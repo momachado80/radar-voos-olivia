@@ -136,6 +136,7 @@ class Monitor:
         duffel_watchlist_state=None,
         duffel_cooldown_state=None,
         duffel_order_flow_alert_mode: str = DUFFEL_ORDER_FLOW_ALERT_DAILY_ONLY,
+        duffel_pool_label: str = "watchlist",
     ):
         self.provider = provider
         self.notifier = notifier
@@ -156,6 +157,8 @@ class Monitor:
         self.duffel_watchlist = duffel_watchlist or []
         self.duffel_watchlist_max_requests = max(0, duffel_watchlist_max_requests)
         self.duffel_watchlist_state = duffel_watchlist_state
+        # PR #77: rótulo do pool ativo p/ a linha do 🧭 (broad / watchlist).
+        self.duffel_pool_label = duffel_pool_label
         # PR #71: cooldown 6h dos alertas Duffel order_flow agrupados. None ⇒
         # sem persistência (cada ciclo agrupa o que achar, sem supressão).
         self.duffel_cooldown_state = duffel_cooldown_state
@@ -675,6 +678,7 @@ class Monitor:
                 enabled=True, checked=checked,
                 confirmed_alerts=business_alerts + economy_alerts,
                 business_alerts=business_alerts, economy_alerts=economy_alerts,
+                pool=self.duffel_pool_label,
             ),
             suppressed,
         )

@@ -240,7 +240,41 @@ possíveis:
 - `Duffel genérico: ativo; N consulta(s) neste ciclo; sem oferta confirmada.`
 - `Duffel genérico: ativo, mas cabine não confirmada.` / `...preço economicamente suspeito.`
 
-## 2.2 Watchlist premium Londres/Paris setembro (PR #67)
+## 2.1.1 Pool broad de candidatos Duffel (PR #77) — DEFAULT atual
+
+O foco exclusivo Londres/Paris setembro (PR #67) **não é mais o default** —
+travou a observação porque, sem oferta nas 16 combinações específicas, o
+robô ficava em silêncio e o link novo do Google Flights (PR #76) não dava
+para ser testado. Em vez disso, o robô agora varre um pool **broad** de 8
+rotas premium × duas cabines × dois trip_types (32 entradas), com datas
+dinâmicas (hoje+90d), maximizando a chance de achar qualquer oferta
+Duffel-confirmada genuinamente útil.
+
+Configurável por `DUFFEL_ROUTE_MODE` (default `broad`; valor inválido cai
+em `broad`):
+- **`broad`** — pool de 32 entradas. Rotas: `GRU-MIA`, `GRU-LHR` (Londres),
+  `GRU-CDG` (Paris), `GRU-JFK`, `GRU-MAD`, `GRU-LIS`, `GRU-FCO`, `GRU-AMS`.
+  Londres e Paris continuam no pool, **mas não como primeiras slots
+  exclusivas** — entram intercaladas com as outras na rotação. Cabines:
+  `business` e `economy`. Trip types: `one_way` e `round_trip` (10 noites).
+- **`watchlist`** (opt-in) — pool fixo Londres/Paris setembro do PR #67/#68.
+- **`disabled`** — pool vazio (sem Offer Requests).
+
+A rotação usa o mesmo `data/duffel_watchlist_state.json` (offset rotativo),
+respeita o cap `DUFFEL_WATCHLIST_MAX_REQUESTS_PER_CYCLE` (produção: **3**) e
+preserva integralmente o cruzamento Duffel → Google Flights (PR #76): toda
+oferta confirmada gera o link de busca pré-preenchida `🔎 Buscar esta oferta
+no Google Flights`, mantendo `link_status: order_flow` (atalho de busca, não
+checkout direto). `direct_link` (ex.: Kiwi) segue superior e imediato.
+
+Linha do 🧭 no modo broad (frase do goal):
+- `Duffel broad scan: X rotas consultadas; Y ofertas confirmadas; Z com link Google Flights.`
+
+Invariantes: nenhum `/air/orders`, nenhum order/payment, nenhum dado de
+passageiro, nenhum link auxiliar além do único cruzamento Google Flights;
+detector, thresholds e provider Duffel intactos.
+
+## 2.2 Watchlist premium Londres/Paris setembro (PR #67, opt-in no PR #77)
 
 Watchlist TEMPORÁRIA de alta prioridade para confirmar executiva nas
 combinações exatas pedidas pela Olivia. O pass Duffel consulta estas

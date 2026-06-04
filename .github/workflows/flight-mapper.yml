@@ -59,14 +59,17 @@ jobs:
           DUFFEL_ACCESS_TOKEN: ${{ secrets.DUFFEL_ACCESS_TOKEN }}
           DUFFEL_MAX_REQUESTS_PER_CYCLE: "1"
           EUR_BRL_RATE: ${{ vars.EUR_BRL_RATE }}
-          # Watchlist premium Londres/Paris setembro (PR #67/#68). Consultada
-          # ANTES da rota genérica GRU-MIA. Cobre business E economy (16
-          # combinações no total). Cap dedicado conservador: 2 combinações
-          # por ciclo, com rotação cobrindo todas ao longo dos ciclos
-          # (offset em data/duffel_watchlist_state.json). Default 0 (opt-in):
-          # aqui ligamos com 2. Mesmas garantias read-only — só Offer
-          # Requests, nunca order/payment.
-          DUFFEL_WATCHLIST_MAX_REQUESTS_PER_CYCLE: "2"
+          # PR #77: pool de rotas Duffel.
+          # - `broad` (default): 8 rotas (MIA/LHR/CDG/JFK/MAD/LIS/FCO/AMS) ×
+          #   business+economy × one_way+round_trip = 32 entradas, com
+          #   rotação pelo offset em data/duffel_watchlist_state.json.
+          # - `watchlist` (opt-in): Londres/Paris setembro/2026 (PR #67/#68).
+          # - `disabled`: pool vazio.
+          # Cap dedicado de 3 consultas/ciclo (mais que 1, suficiente p/
+          # testar o link Google Flights em rotação sem estourar quota).
+          # Mesmas garantias read-only — só Offer Requests, nunca order/payment.
+          DUFFEL_ROUTE_MODE: "broad"
+          DUFFEL_WATCHLIST_MAX_REQUESTS_PER_CYCLE: "3"
           # PR #76: as ofertas Duffel agora têm DESTINO ÚTIL — o robô cruza
           # a oferta confirmada com o Google Flights e leva a usuária à
           # BUSCA PRÉ-PREENCHIDA (rota/datas/cabine), com 1-2 cliques p/

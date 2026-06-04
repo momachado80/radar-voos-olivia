@@ -110,20 +110,36 @@ class DuffelWatchlistSummary:
     confirmed_alerts: int
     business_alerts: int = 0
     economy_alerts: int = 0
+    # PR #77: rótulo do pool — "watchlist" (Londres/Paris, opt-in) ou
+    # "broad" (8 rotas, default). Só rotulagem; nenhum dado sensível.
+    pool: str = "watchlist"
 
 
 def humanize_duffel_watchlist_status(
     summary: DuffelWatchlistSummary | None,
 ) -> str | None:
-    """Linha do 🧭 p/ a watchlist premium Londres/Paris. `None` quando a
-    watchlist não rodou (omite a linha). Distingue executiva (business) de
-    econômica muito boa (economy). NUNCA expõe dado sensível.
+    """Linha do 🧭 p/ o pass de candidatos Duffel. `None` quando não rodou.
+    NUNCA expõe dado sensível — só contadores + nome do pool.
 
-    PR #74: prefixo "Duffel watchlist Londres/Paris:" + deixa explícito que
-    as ofertas confirmadas são order_flow ("compra pendente; sem link
-    direto"), separando da linha do pass genérico."""
+    PR #77: o prefixo segue o `pool`:
+    - `broad` (default) ⇒ "Duffel broad scan: X rotas consultadas; Y
+      confirmadas (Google Flights)."
+    - `watchlist` ⇒ "Duffel watchlist Londres/Paris: ..." (PR #74)."""
     if summary is None or not summary.enabled:
         return None
+    pool = getattr(summary, "pool", "watchlist")
+    confirmed = summary.business_alerts + summary.economy_alerts
+    if pool == "broad":
+        # Frase do goal: "Duffel broad scan: X rotas consultadas;
+        # Y ofertas confirmadas; Z com link Google Flights."
+        # Todas as ofertas confirmadas do Duffel (order_flow) hoje ganham
+        # link Google Flights pré-preenchido (PR #76) — Z == Y.
+        return (
+            f"Duffel broad scan: {summary.checked} rotas consultadas; "
+            f"{confirmed} ofertas confirmadas; "
+            f"{confirmed} com link Google Flights."
+        )
+    # Pool legado watchlist Londres/Paris (PR #74).
     parts: list[str] = []
     if summary.business_alerts > 0:
         n = summary.business_alerts
