@@ -50,6 +50,11 @@ class Config:
     # agrupada do PR #71 (debug/opt-in). `disabled` suprime do Telegram
     # (só logs). Valor inválido cai p/ o default seguro `daily_only`.
     duffel_order_flow_alert_mode: str = DUFFEL_ORDER_FLOW_ALERT_DAILY_ONLY
+    # PR #77: modo de seleção de rotas Duffel. Default `broad` (varredura
+    # ampla das 8 rotas premium × business+economy × one_way+round_trip).
+    # `watchlist` mantém Londres/Paris setembro como opt-in. `disabled`
+    # zera o pool. Inválido cai p/ `broad`.
+    duffel_route_mode: str = "broad"
 
     @classmethod
     def from_env(cls, repo_root: Path | None = None) -> "Config":
@@ -81,6 +86,17 @@ class Config:
             if raw_mode in DUFFEL_ORDER_FLOW_ALERT_MODES
             else DUFFEL_ORDER_FLOW_ALERT_DAILY_ONLY
         )
+        # PR #77: DUFFEL_ROUTE_MODE (broad / watchlist / disabled), fallback
+        # seguro p/ `broad` quando inválido. Import tardio p/ não ciclar.
+        from .duffel_broad import DUFFEL_ROUTE_MODES, DUFFEL_ROUTE_MODE_BROAD
+        raw_route_mode = (
+            os.environ.get("DUFFEL_ROUTE_MODE", "").strip().lower()
+        )
+        route_mode = (
+            raw_route_mode
+            if raw_route_mode in DUFFEL_ROUTE_MODES
+            else DUFFEL_ROUTE_MODE_BROAD
+        )
         return cls(
             telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN"),
             telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID"),
@@ -97,6 +113,7 @@ class Config:
             duffel_max_requests_per_cycle=duffel_cap,
             duffel_watchlist_max_requests_per_cycle=wl_cap,
             duffel_order_flow_alert_mode=order_flow_mode,
+            duffel_route_mode=route_mode,
         )
 
     @property

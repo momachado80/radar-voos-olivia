@@ -116,23 +116,30 @@ def cmd_cycle(args: argparse.Namespace) -> int:
         PriceStore(config.duffel_history_path)
         if duffel_provider is not None else None
     )
-    # PR #67: watchlist premium Londres/Paris setembro — só montada quando o
-    # Duffel está ligado E o cap dedicado > 0. Rotação persistida em
-    # data/duffel_watchlist_state.json (só um offset, sem dado sensível).
+    # PR #77: pool Duffel agora obedece DUFFEL_ROUTE_MODE:
+    # - `broad` (default): 8 rotas × business+economy × one_way+round_trip,
+    #   datas dinâmicas (hoje+90d). Rotação reusa o mesmo `DuffelWatchlistState`.
+    # - `watchlist`: pool fixo Londres/Paris setembro (PR #67) — opt-in.
+    # - `disabled`: pool vazio.
     duffel_watchlist = []
     duffel_watchlist_state = None
+    duffel_pool_label = "off"
     if (
         duffel_provider is not None
         and config.duffel_watchlist_max_requests_per_cycle > 0
+        and config.duffel_route_mode != "disabled"
     ):
-        from .duffel_watchlist import (
-            DuffelWatchlistState,
-            build_september_watchlist,
-        )
-        # PR #68: watchlist cobre business E economy (econômica muito boa).
-        duffel_watchlist = build_september_watchlist(
-            cabins=("business", "economy"),
-        )
+        from .duffel_watchlist import DuffelWatchlistState
+        if config.duffel_route_mode == "watchlist":
+            from .duffel_watchlist import build_september_watchlist
+            duffel_watchlist = build_september_watchlist(
+                cabins=("business", "economy"),
+            )
+            duffel_pool_label = "watchlist"
+        else:  # broad (default)
+            from .duffel_broad import build_broad_candidate_pool
+            duffel_watchlist = build_broad_candidate_pool()
+            duffel_pool_label = "broad"
         duffel_watchlist_state = DuffelWatchlistState.load(
             config.duffel_watchlist_state_path
         )
@@ -155,6 +162,7 @@ def cmd_cycle(args: argparse.Namespace) -> int:
         duffel_watchlist_state=duffel_watchlist_state,
         duffel_cooldown_state=duffel_cooldown_state,
         duffel_order_flow_alert_mode=config.duffel_order_flow_alert_mode,
+        duffel_pool_label=duffel_pool_label,
     )
     result = monitor.run_cycle()
     print(f"cycle scanned={result.scanned} quotes={result.quotes_received} alerts={result.alerts_sent}")
@@ -170,8 +178,10 @@ def cmd_cycle(args: argparse.Namespace) -> int:
     duffel_watchlist_summary = duffel_result.duffel_watchlist_summary
     duffel_group_summary = duffel_result.duffel_group_summary
     if duffel_provider is not None:
+        # PR #77: rótulo do pool ativo (broad / watchlist / off) p/ debug.
         print(
-            f"duffel requests={duffel_result.duffel_requests} "
+            f"duffel pool={duffel_pool_label} "
+            f"requests={duffel_result.duffel_requests} "
             f"confirmed={duffel_result.duffel_confirmed_alerts} "
             f"blocked={duffel_result.duffel_blocked}"
         )
