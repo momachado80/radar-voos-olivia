@@ -44,6 +44,11 @@ class CycleSnapshot:
     manual_check_keys: tuple[str, ...]     # rotas atualmente em 🟡
     serpapi_used: int                      # queries SerpApi usadas no mês
     serpapi_elevated: int                  # candidatos elevados nesta cycle
+    # PR #78: estado do orçamento mensal SerpApi neste ciclo. Quando True,
+    # a frase "SerpApi gastou X queries neste ciclo" é SUBSTITUÍDA pela
+    # frase de orçamento esgotado — o delta pode ser ruído de snapshots
+    # anteriores e não representa gasto novo no ciclo atual.
+    serpapi_budget_exhausted: bool = False
 
     @classmethod
     def empty(cls) -> "CycleSnapshot":
@@ -53,6 +58,7 @@ class CycleSnapshot:
             manual_check_keys=(),
             serpapi_used=0,
             serpapi_elevated=0,
+            serpapi_budget_exhausted=False,
         )
 
     @classmethod
@@ -92,12 +98,14 @@ class CycleSnapshot:
             serpapi_elevated = max(0, int(raw.get("serpapi_elevated") or 0))
         except (TypeError, ValueError):
             serpapi_elevated = 0
+        serpapi_exhausted = bool(raw.get("serpapi_budget_exhausted") or False)
         return cls(
             snapshot_at=snapshot_at,
             latest_prices=latest_prices,
             manual_check_keys=manual_keys,
             serpapi_used=serpapi_used,
             serpapi_elevated=serpapi_elevated,
+            serpapi_budget_exhausted=serpapi_exhausted,
         )
 
     def save(self, path: Path | None) -> None:
@@ -114,6 +122,7 @@ class CycleSnapshot:
                         "manual_check_keys": list(self.manual_check_keys),
                         "serpapi_used": self.serpapi_used,
                         "serpapi_elevated": self.serpapi_elevated,
+                        "serpapi_budget_exhausted": self.serpapi_budget_exhausted,
                     },
                     ensure_ascii=False,
                 ),
@@ -143,6 +152,7 @@ def compute_changes(
     *,
     threshold_pct: float = PRICE_CHANGE_THRESHOLD_PCT,
     max_lines: int = MAX_CHANGE_LINES,
+    serpapi_monthly_budget: int = 0,
 ) -> list[str]:
     """Compara dois snapshots e devolve até `max_lines` linhas humanas
     descrevendo as mudanças relevantes (PT). Pura — sem rede, sem I/O.
@@ -227,6 +237,15 @@ def compute_changes(
         changes.append(
             f"🔎 SerpApi confirmou {current.serpapi_elevated} "
             f"candidato{plural} neste ciclo."
+        )
+    elif current.serpapi_budget_exhausted:
+        # PR #78: orçamento mensal esgotado ANTES do ciclo — não houve
+        # gasto novo, mesmo se o delta vs snapshot anterior for > 0. Mostra
+        # a frase real e suprime o "gastou X queries".
+        denom = serpapi_monthly_budget if serpapi_monthly_budget > 0 else current.serpapi_used
+        changes.append(
+            f"🔎 SerpApi já consumiu {current.serpapi_used}/{denom} "
+            "queries no mês; validação pausada."
         )
     elif delta_used > 0:
         changes.append(

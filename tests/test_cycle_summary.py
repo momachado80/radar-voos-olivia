@@ -132,7 +132,8 @@ def test_snapshot_load_ignores_unexpected_keys_and_types():
 
 
 def test_snapshot_save_schema_closed():
-    """save() escreve APENAS os 5 campos autorizados."""
+    """save() escreve APENAS os 6 campos autorizados (PR #78: adicionou
+    serpapi_budget_exhausted ao schema fechado)."""
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp) / "s.json"
         s = CycleSnapshot(
@@ -147,6 +148,7 @@ def test_snapshot_save_schema_closed():
     assert set(raw.keys()) == {
         "snapshot_at", "latest_prices",
         "manual_check_keys", "serpapi_used", "serpapi_elevated",
+        "serpapi_budget_exhausted",
     }
 
 

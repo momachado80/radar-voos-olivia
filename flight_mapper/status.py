@@ -713,15 +713,35 @@ def _no_alert_reason(
     *,
     manual_check_present: bool = False,
     serpapi_price_mismatch_only: bool = False,
+    duffel_pending_count: int = 0,
 ) -> str:
     """PR #60: aceita contexto p/ evitar contradição com as outras
     seções. Se já existe Verificação manual no relatório, a frase
     final reconhece isso em vez de dizer só "sem oportunidade".
     Se SerpApi encontrou business em preço diferente, a frase indica
     explicitamente que o preço original NÃO foi confirmado.
+
+    PR #78: `duffel_pending_count` (total Duffel order_flow confirmado
+    no ciclo, gen+broad/watchlist) evita "nenhuma cabine confirmada" no
+    rodapé quando o Duffel acabou de confirmar uma oferta. Diferencia
+    "link direto enviado" vs "oferta confirmada com busca Google Flights".
     """
     if result.alerts_sent > 0:
-        return f"🔥 {result.alerts_sent} alerta(s) enviado(s) neste ciclo."
+        # PR #78: alerta enviado = direct_link real (Kiwi/composto).
+        return (
+            f"🔥 Alerta acionável com link direto enviado "
+            f"({result.alerts_sent} no ciclo)."
+        )
+    if duffel_pending_count > 0:
+        # PR #78: Duffel confirmou oferta(s) com link Google Flights —
+        # NUNCA dizer "nenhuma cabine confirmada" nesse caso. A linha
+        # diferencia o atalho de busca do checkout direto.
+        word = "oferta" if duffel_pending_count == 1 else "ofertas"
+        word2 = "confirmada" if duffel_pending_count == 1 else "confirmadas"
+        return (
+            f"ℹ️ Sem link direto de compra. Há {duffel_pending_count} "
+            f"{word} Duffel {word2} com busca Google Flights."
+        )
     # PR #60: prioriza a frase mais informativa quando há sinais
     # parciais. Evita contradição visual com 🟡 (Verificação manual).
     if manual_check_present:
@@ -825,6 +845,19 @@ def _source_status_block(
             # Defesa final: erro na renderização da linha SerpApi NÃO
             # pode derrubar o relatório inteiro.
             pass
+    # PR #78: calcula `generic_confirmed` p/ passar à frase do broad e
+    # também usar na linha-resumo "Duffel total" — separa sem contradição.
+    _gen_confirmed = 0
+    try:
+        from .duffel_status import DUFFEL_ALERT_SENT as _DUF_OK
+        if (
+            duffel_summary is not None
+            and getattr(duffel_summary, "enabled", False)
+            and getattr(duffel_summary, "outcome", None) == _DUF_OK
+        ):
+            _gen_confirmed = max(0, int(getattr(duffel_summary, "confirmed_alerts", 0)))
+    except Exception:
+        _gen_confirmed = 0
     if duffel_summary is not None:
         try:
             from .duffel_status import humanize_duffel_status
@@ -835,11 +868,24 @@ def _source_status_block(
     if duffel_watchlist_summary is not None:
         try:
             from .duffel_status import humanize_duffel_watchlist_status
-            wl_line = humanize_duffel_watchlist_status(duffel_watchlist_summary)
+            wl_line = humanize_duffel_watchlist_status(
+                duffel_watchlist_summary, generic_confirmed=_gen_confirmed,
+            )
             if wl_line:
                 lines.append(f"• {wl_line}")
         except Exception:
             # Defesa final: erro na linha da watchlist NÃO derruba o relatório.
+            pass
+    # PR #78: linha-resumo TOTAL Duffel (combina genérico + broad/watchlist).
+    if duffel_summary is not None or duffel_watchlist_summary is not None:
+        try:
+            from .duffel_status import humanize_duffel_total_status
+            total_line = humanize_duffel_total_status(
+                duffel_summary, duffel_watchlist_summary,
+            )
+            if total_line:
+                lines.append(f"• {total_line}")
+        except Exception:
             pass
     if duffel_group_summary is not None:
         # PR #73: linha do agrupamento order_flow conforme o modo.
@@ -1117,10 +1163,36 @@ def _build_message(
         and not actionable_confirmed
         and bool(informational_validations)
     )
+    # PR #78: total Duffel order_flow confirmado neste ciclo (gen + broad/
+    # watchlist). Evita rodapé "nenhuma cabine confirmada" quando o Duffel
+    # acabou de produzir uma oferta com link Google Flights.
+    _duffel_pending_total = 0
+    try:
+        from .duffel_status import DUFFEL_ALERT_SENT as _DUF_OK
+        if (
+            duffel_summary is not None
+            and getattr(duffel_summary, "enabled", False)
+            and getattr(duffel_summary, "outcome", None) == _DUF_OK
+        ):
+            _duffel_pending_total += max(
+                0, int(getattr(duffel_summary, "confirmed_alerts", 0))
+            )
+        if (
+            duffel_watchlist_summary is not None
+            and getattr(duffel_watchlist_summary, "enabled", False)
+        ):
+            _duffel_pending_total += max(
+                0,
+                int(getattr(duffel_watchlist_summary, "business_alerts", 0))
+                + int(getattr(duffel_watchlist_summary, "economy_alerts", 0)),
+            )
+    except Exception:
+        _duffel_pending_total = 0
     reason = _no_alert_reason(
         result,
         manual_check_present=_has_manual_check,
         serpapi_price_mismatch_only=_serpapi_mismatch_only,
+        duffel_pending_count=_duffel_pending_total,
     )
     legacy_line = (
         f"• Entradas legadas sem moeda comprovada (omitidas): {legacy_omitted}\n"
@@ -1263,14 +1335,24 @@ def _render_cycle_overview(
     manual_keys += [k for k, _, _ in elevated_via_serpapi]
     s_used = getattr(serpapi_summary, "monthly_used", 0) or 0
     s_elevated = getattr(serpapi_summary, "elevated_to_manual_check", 0) or 0
+    s_budget = getattr(serpapi_summary, "monthly_budget", 0) or 0
+    # PR #78: detecta orçamento mensal esgotado p/ suprimir o "gastou X
+    # queries neste ciclo" quando o delta é só ruído de snapshots
+    # anteriores (uso atual == orçamento OU skipped_reason explícito).
+    _skipped = getattr(serpapi_summary, "skipped_reason", None) or ""
+    serpapi_exhausted = bool(
+        _skipped == "monthly_budget_exhausted"
+        or (s_budget > 0 and s_used >= s_budget)
+    )
     current = CycleSnapshot(
         snapshot_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         latest_prices=current_prices,
         manual_check_keys=tuple(manual_keys),
         serpapi_used=int(s_used),
         serpapi_elevated=int(s_elevated),
+        serpapi_budget_exhausted=serpapi_exhausted,
     )
-    changes = compute_changes(prev, current)
+    changes = compute_changes(prev, current, serpapi_monthly_budget=int(s_budget))
     if changes:
         changes_block = "📈 Mudanças desde o último ciclo\n" + "\n".join(
             f"• {line}" for line in changes

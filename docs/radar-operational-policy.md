@@ -196,6 +196,32 @@ busca"). Se a `KIWI_API_KEY` for liberada, a Kiwi vence o Duffel nessas
 rotas. Até lá, o cruzamento Duffel → Google Flights é o melhor caminho
 honesto: leva a usuária ao lugar certo, com os filtros prontos.
 
+**Semântica do relatório diário (PR #78).** O rodapé final, as três linhas
+Duffel no 🧭 e o bloco de mudanças SerpApi precisam refletir o que de fato
+aconteceu no ciclo — sem contradição:
+
+- **"Oferta confirmada com busca Google Flights" ≠ "Alerta acionável com
+  link direto enviado".** O rodapé final diferencia explicitamente:
+  - `🔥 Alerta acionável com link direto enviado (N no ciclo).` quando há
+    `direct_link` real (Kiwi);
+  - `ℹ️ Sem link direto de compra. Há X oferta(s) Duffel confirmada(s) com
+    busca Google Flights.` quando o Duffel confirmou mas o `link_status`
+    segue `order_flow` (busca pré-preenchida, não checkout).
+- **Nunca "nenhuma cabine confirmada" no rodapé quando o Duffel acabou
+  de confirmar uma oferta.** O bloqueio do Travelpayouts no Monitor
+  primário não anula o sinal positivo do Duffel.
+- **Três linhas Duffel sem se contradizer:** `Duffel genérico: ...`
+  (pass GRU-MIA + radar), `Duffel broad scan: ...` (pool broad), e
+  `Duffel total: X com busca Google Flights; link_status=order_flow.`
+  Quando o broad não acha nada mas o genérico achou, o broad diz
+  *"sem novas ofertas neste bloco"* em vez de "0 confirmadas" — para não
+  parecer estado conflitante.
+- **SerpApi com orçamento mensal esgotado** NÃO diz "gastou X queries
+  neste ciclo" (o delta entre snapshots era só ruído de estado anterior).
+  Frase usada: `🔎 SerpApi já consumiu 90/90 queries no mês; validação
+  pausada.` O sinalizador `serpapi_budget_exhausted` foi adicionado ao
+  `CycleSnapshot` (schema fechado preservado).
+
 **Moeda do alerta (PR #66):** alertas Duffel mostram a moeda original (ex.:
 EUR) mais a estimativa em BRL usando o câmbio configurado (`EUR_BRL_RATE`),
 ex.: `964 EUR ≈ R$ 5.784 (câmbio EUR_BRL_RATE=6.00; alvo R$ 6.000)`. A moeda

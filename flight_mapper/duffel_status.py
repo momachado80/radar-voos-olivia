@@ -63,11 +63,13 @@ def humanize_duffel_status(summary: DuffelStatusSummary) -> str:
     if summary.outcome == DUFFEL_ALERT_SENT:
         # PR #71: Duffel order_flow não envia alerta standalone — entra na
         # mensagem agrupada "compra pendente". Wording sem "enviada".
+        # PR #78: explícito que toda oferta confirmada hoje vem com link
+        # Google Flights pré-preenchido (PR #76).
         n = summary.confirmed_alerts
         if n == 1:
-            return "Duffel genérico: 1 oferta confirmada (compra pendente)."
+            return "Duffel genérico: 1 oferta confirmada com busca Google Flights."
         return (
-            f"Duffel genérico: {n} ofertas confirmadas (compra pendente)."
+            f"Duffel genérico: {n} ofertas confirmadas com busca Google Flights."
         )
 
     if summary.outcome == DUFFEL_SEND_FAILED:
@@ -117,6 +119,8 @@ class DuffelWatchlistSummary:
 
 def humanize_duffel_watchlist_status(
     summary: DuffelWatchlistSummary | None,
+    *,
+    generic_confirmed: int = 0,
 ) -> str | None:
     """Linha do 🧭 p/ o pass de candidatos Duffel. `None` quando não rodou.
     NUNCA expõe dado sensível — só contadores + nome do pool.
@@ -124,12 +128,23 @@ def humanize_duffel_watchlist_status(
     PR #77: o prefixo segue o `pool`:
     - `broad` (default) ⇒ "Duffel broad scan: X rotas consultadas; Y
       confirmadas (Google Flights)."
-    - `watchlist` ⇒ "Duffel watchlist Londres/Paris: ..." (PR #74)."""
+    - `watchlist` ⇒ "Duffel watchlist Londres/Paris: ..." (PR #74).
+
+    PR #78: `generic_confirmed` evita contradição com o pass genérico —
+    quando o broad acha 0 mas o genérico achou alguma, dizemos
+    "sem novas ofertas neste bloco" em vez de "0 ofertas confirmadas"
+    (que soa como se o Duffel não tivesse achado nada no ciclo)."""
     if summary is None or not summary.enabled:
         return None
     pool = getattr(summary, "pool", "watchlist")
     confirmed = summary.business_alerts + summary.economy_alerts
     if pool == "broad":
+        # PR #78: se o broad não achou mas o genérico achou, frase neutra.
+        if confirmed == 0 and generic_confirmed > 0:
+            return (
+                f"Duffel broad scan: {summary.checked} rotas consultadas; "
+                f"sem novas ofertas neste bloco."
+            )
         # Frase do goal: "Duffel broad scan: X rotas consultadas;
         # Y ofertas confirmadas; Z com link Google Flights."
         # Todas as ofertas confirmadas do Duffel (order_flow) hoje ganham
@@ -157,6 +172,35 @@ def humanize_duffel_watchlist_status(
     return (
         "Duffel watchlist Londres/Paris: consultada neste ciclo; "
         "0 ofertas confirmadas."
+    )
+
+
+def humanize_duffel_total_status(
+    generic: DuffelStatusSummary | None,
+    watchlist: DuffelWatchlistSummary | None,
+) -> str | None:
+    """Linha-resumo do TOTAL Duffel no 🧭 (PR #78).
+
+    Combina o pass genérico + o pass broad/watchlist em um único contador
+    Duffel para o ciclo. Frase do goal:
+    `Duffel total: 1 oferta confirmada com busca Google Flights; link_status=order_flow.`
+    `None` quando não há nada útil a dizer (Duffel desligado e watchlist
+    inativa). NUNCA expõe dado sensível — só contadores e o link_status."""
+    gen_confirmed = 0
+    if generic is not None and generic.enabled and generic.outcome == DUFFEL_ALERT_SENT:
+        gen_confirmed = max(0, generic.confirmed_alerts)
+    wl_confirmed = 0
+    if watchlist is not None and watchlist.enabled:
+        wl_confirmed = max(0, watchlist.business_alerts + watchlist.economy_alerts)
+    total = gen_confirmed + wl_confirmed
+    if total <= 0:
+        # Sem oferta nem no genérico nem no broad/watchlist — outras linhas
+        # já dizem o estado de cada pass. Evita repetição.
+        return None
+    word = "oferta confirmada" if total == 1 else "ofertas confirmadas"
+    return (
+        f"Duffel total: {total} {word} com busca Google Flights; "
+        f"link_status=order_flow."
     )
 
 
@@ -236,7 +280,7 @@ def format_duffel_pending_daily_section(
     offers = getattr(summary, "top_offers", ()) or ()
     if not offers:
         return ""
-    lines = ["🟡 Ofertas business confirmadas (Duffel) — buscar no Google Flights"]
+    lines = ["🟡 Ofertas confirmadas pela Duffel — buscar no Google Flights"]
     for i, o in enumerate(offers[:3], 1):
         parts = [o.route_label, o.cabin_pt, o.dates, o.price_display]
         if o.target_display:
