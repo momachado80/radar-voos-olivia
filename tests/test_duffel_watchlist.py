@@ -237,7 +237,7 @@ def test_watchlist_confirmed_offer_sends_green_with_roundtrip_dates(tmp_path):
     assert len(notifier.grouped) == 1
     msg = notifier.grouped[0]
     # PR #76: mensagem agrupada com link de busca no Google Flights.
-    assert "🟡 Ofertas business confirmadas (Duffel) — buscar no Google Flights" in msg
+    assert "🟡 Ofertas confirmadas pela Duffel — buscar no Google Flights" in msg
     assert "São Paulo → Paris" in msg
     assert "2026-09-02 → 2026-09-12" in msg
     assert "Executiva" in msg

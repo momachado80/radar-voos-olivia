@@ -281,7 +281,7 @@ def test_alert_contains_duffel_confirmed_wording(tmp_path):
     assert len(notifier.grouped) == 1
     msg = notifier.grouped[0]
     # PR #76: mensagem agrupada lista as ofertas com link de busca no GF.
-    assert "🟡 Ofertas business confirmadas (Duffel) — buscar no Google Flights" in msg
+    assert "🟡 Ofertas confirmadas pela Duffel — buscar no Google Flights" in msg
     assert "Duffel" in msg
     assert "Executiva" in msg
     assert "Buscar no Google Flights" in msg

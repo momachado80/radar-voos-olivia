@@ -222,7 +222,7 @@ def test_source_block_includes_duffel_line_when_summary_present(tmp_path):
     block = _source_status_block(
         store, [], [], serpapi_summary=None, duffel_summary=summary,
     )
-    assert "Duffel genérico: 1 oferta confirmada (compra pendente)." in block
+    assert "Duffel genérico: 1 oferta confirmada com busca Google Flights." in block
 
 
 def test_build_message_includes_duffel_status(tmp_path):

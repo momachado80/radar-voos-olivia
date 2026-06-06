@@ -142,7 +142,7 @@ def format_grouped_duffel_pending(offers: list[DuffelPendingOffer]) -> str:
     ordered = sorted(offers, key=lambda o: (o.score or 0), reverse=True)
     top = ordered[:5]
     extra = len(ordered) - len(top)
-    lines = ["🟡 Ofertas business confirmadas (Duffel) — buscar no Google Flights"]
+    lines = ["🟡 Ofertas confirmadas pela Duffel — buscar no Google Flights"]
     for i, o in enumerate(top, 1):
         parts = [o.route_label, o.cabin_pt, o.dates, o.price_display]
         if o.target_display:

@@ -163,7 +163,7 @@ def test_group_includes_route_dates_price_airline_linkstatus(tmp_path):
     monitor.run_duffel_confirmations(routes=[])
     msg = notifier.grouped[0]
     # PR #76: grupo com link de busca no Google Flights por oferta.
-    assert "🟡 Ofertas business confirmadas (Duffel) — buscar no Google Flights" in msg
+    assert "🟡 Ofertas confirmadas pela Duffel — buscar no Google Flights" in msg
     assert "São Paulo → Paris" in msg          # rota/cidade
     assert "2026-09-02 → 2026-09-12" in msg     # datas
     assert "R$ 1.500" in msg                    # preço
