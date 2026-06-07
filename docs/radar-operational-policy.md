@@ -189,6 +189,21 @@ dados públicos — origem/destino (IATA), datas e cabine. NUNCA offer_id,
 token, preço, payload ou dado de passageiro. O único host clicável no alerta
 Duffel é `www.google.com`.
 
+**Preservação do trip_type, rota, datas e cabine (PR #79).** A query do
+Google Flights é construída de forma **EXPLÍCITA**:
+- **one-way** → `one way flight from <ORG> to <DST> on YYYY-MM-DD <cabin> class`
+- **round-trip** → `round trip flight from <ORG> to <DST> departing YYYY-MM-DD return YYYY-MM-DD <cabin> class`
+
+Por que: sem o token `one way` explícito, o Google escolhia round-trip por
+default e inventava uma data de retorno (bug real de produção: GRU-MIA
+one-way de 978 EUR virava round-trip de R$ 10.212). Em todo alerta o robô
+adiciona ainda uma linha-label imediatamente abaixo do link, ex.:
+`Busca Google Flights: somente ida, cabine executiva.` /
+`Busca Google Flights: ida e volta, cabine econômica.` — assim a Olivia lê
+o que o link vai abrir antes de clicar. O disclaimer honesto continua
+("Preço e disponibilidade podem variar; confira antes de comprar.") e
+`link_status` segue `order_flow`.
+
 **Verde acionável (`direct_link`) exige caminho de compra real.** Só um
 provider que devolve um `deep_link` clicável da própria oferta (ex.: Kiwi)
 gera alerta verde acionável (`link_status: direct_link`, com link "Conferir
