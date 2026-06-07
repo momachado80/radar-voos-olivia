@@ -292,6 +292,16 @@ def format_duffel_pending_daily_section(
         search_url = getattr(o, "search_url", None)
         if search_url:
             lines.append(f'   🔎 <a href="{search_url}">Buscar no Google Flights</a>')
+            # PR #79: label trip_type+cabine na sub-linha (mesma do alerta).
+            trip_pt = getattr(o, "trip_pt", "")
+            if trip_pt:
+                cab_low = (
+                    "econômica" if (o.cabin_pt or "").lower() == "econômica"
+                    else "executiva"
+                )
+                lines.append(
+                    f"      Busca Google Flights: {trip_pt}, cabine {cab_low}."
+                )
     lines.append(
         "Busca pré-preenchida a partir da oferta confirmada pela Duffel. "
         "Preço e disponibilidade podem variar; confira antes de comprar."

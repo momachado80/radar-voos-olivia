@@ -99,6 +99,10 @@ class DuffelPendingOffer:
     # cabine). NÃO é a oferta Duffel travada — atalho de busca. Só dados
     # públicos no URL (sem offer_id/token/preço/payload/passageiro).
     search_url: str | None = None
+    # PR #79: rótulo PT do trip_type p/ a linha "Busca Google Flights:
+    # somente ida/ida e volta, cabine ..." — garante que a busca abra com
+    # o tipo correto e que a Olivia leia o que está sendo aberto.
+    trip_pt: str = ""
 
 
 def build_duffel_pending_offer(quote: Quote, decision: Decision) -> DuffelPendingOffer:
@@ -131,7 +135,22 @@ def build_duffel_pending_offer(quote: Quote, decision: Decision) -> DuffelPendin
         price_display=price_display, target_display=target_display,
         airline=quote.airline, score=decision.score,
         search_url=duffel_google_flights_url(quote),
+        # PR #79: trip_pt humano para a linha de label.
+        trip_pt=trip_label_pt(quote.trip_type),
     )
+
+
+def _duffel_search_label_line(quote: Quote) -> str:
+    """Linha PT-BR de label da busca pré-preenchida (PR #79).
+    Ex.: 'Busca Google Flights: somente ida, cabine executiva.'
+    Sem URL, sem dado sensível — só rótulos de trip_type + cabine."""
+    trip_pt = trip_label_pt(quote.trip_type)
+    if quote.cabin == Cabin.ECONOMY:
+        cabin_pt = "econômica"
+    else:
+        # rota Duffel é monitorada como executiva (gate de cabine garante).
+        cabin_pt = "executiva"
+    return f"Busca Google Flights: {trip_pt}, cabine {cabin_pt}."
 
 
 def format_grouped_duffel_pending(offers: list[DuffelPendingOffer]) -> str:
@@ -152,6 +171,14 @@ def format_grouped_duffel_pending(offers: list[DuffelPendingOffer]) -> str:
         lines.append(f"{i}. " + " — ".join(parts))
         if o.search_url:
             lines.append(f'   🔎 <a href="{o.search_url}">Buscar no Google Flights</a>')
+            # PR #79: label trip_type+cabine na sub-linha da oferta.
+            if o.trip_pt:
+                cab_low = (
+                    "econômica" if o.cabin_pt.lower() == "econômica" else "executiva"
+                )
+                lines.append(
+                    f"      Busca Google Flights: {o.trip_pt}, cabine {cab_low}."
+                )
     if extra > 0:
         lines.append(f"+{extra} outras ofertas confirmadas no ciclo.")
     lines.append(
@@ -307,6 +334,9 @@ def format_alert(
         _gf = duffel_google_flights_url(quote)
         if _gf:
             extras.append(f'🔎 <a href="{_gf}">Buscar esta oferta no Google Flights</a>')
+            # PR #79: deixa explícito o trip_type+cabine que vai abrir, p/
+            # a Olivia ler o que será aberto antes de clicar.
+            extras.append(_duffel_search_label_line(quote))
             extras.append(
                 "Busca pré-preenchida a partir da oferta confirmada pela "
                 "Duffel. Preço e disponibilidade podem variar; confira antes "

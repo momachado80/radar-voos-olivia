@@ -55,17 +55,23 @@ def build_google_flights_query_url(
     Usa o endpoint `/travel/flights?q=...`. É menos preciso que deep-link
     nativo (que tem parâmetros frágeis baseados em IDs internos), mas é
     estável: o Google interpreta a query semanticamente.
+
+    PR #79: codifica o trip_type EXPLICITAMENTE na query. Sem o "one way"
+    explícito, o Google abria round-trip por default (caso real de produção:
+    GRU-MIA one-way de 978 EUR virou round-trip de R$ 10.212). Round-trip
+    mantém os tokens "return YYYY-MM-DD" usados pelos testes existentes
+    (PR #76).
     """
     cls = cabin_search_term(cabin)
     if return_date:
         q = (
-            f"flights from {route.origin} to {route.destination} "
-            f"{departure_date} return {return_date} {cls} class"
+            f"round trip flight from {route.origin} to {route.destination} "
+            f"departing {departure_date} return {return_date} {cls} class"
         )
     else:
         q = (
-            f"flights from {route.origin} to {route.destination} "
-            f"{departure_date} {cls} class"
+            f"one way flight from {route.origin} to {route.destination} "
+            f"on {departure_date} {cls} class"
         )
     return f"https://www.google.com/travel/flights?q={quote_plus(q)}"
 
