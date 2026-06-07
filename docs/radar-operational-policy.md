@@ -395,13 +395,16 @@ por padrão; ficam visíveis apenas no relatório/status diário.
 
 - **`direct_link` ⇒ alerta standalone imediato** (ex.: Kiwi). Único push de
   compra imediato. Não é agrupado nem atrasado, nem afetado pelo modo abaixo.
-- **Duffel `order_flow` ⇒ controlado por `DUFFEL_ORDER_FLOW_ALERT_MODE`**,
-  com três modos (default seguro `daily_only`):
+- **Duffel `order_flow` ⇒ controlado por `DUFFEL_ORDER_FLOW_ALERT_MODE`**.
+  **Produção usa `grouped_push` (PR #80):** a Olivia quer as ofertas em
+  TEMPO REAL, não um resumo 1x/dia. O code default seguro do `Config`
+  continua `daily_only`, mas o workflow de produção define `grouped_push`
+  explicitamente.
 
-| Modo | Push standalone agrupado | Conteúdo no relatório diário |
-|------|--------------------------|------------------------------|
-| `daily_only` *(default)* | **Não** | `Duffel order_flow (resumo do ciclo): X ofertas confirmadas, compra pendente; sem link direto.` + seção opcional `🟡 Ofertas confirmadas, compra pendente` com top 3 |
-| `grouped_push` *(opt-in)* | **Sim** (mensagem agrupada do PR #71) | linha de debug com contadores `X confirmadas / Y agrupadas / Z suprimidas por cooldown` |
+| Modo | Push standalone agrupado | Conteúdo |
+|------|--------------------------|----------|
+| `grouped_push` *(produção, PR #80)* | **Sim** — UMA mensagem agrupada por ciclo (15 min) com as ofertas que batem o alvo + link Google Flights por oferta; cooldown 6h por combo, furado por queda de preço ≥5% | tempo real |
+| `daily_only` *(code default)* | **Não** | resumo 1x/dia com top 3 |
 | `disabled` | **Não** | nada (suprime do Telegram; só logs) |
 
 - **`daily_only` (default):** nenhum push agrupado. O relatório diário mostra

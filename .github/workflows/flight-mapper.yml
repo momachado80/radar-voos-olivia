@@ -65,20 +65,22 @@ jobs:
           #   rotação pelo offset em data/duffel_watchlist_state.json.
           # - `watchlist` (opt-in): Londres/Paris setembro/2026 (PR #67/#68).
           # - `disabled`: pool vazio.
-          # Cap dedicado de 3 consultas/ciclo (mais que 1, suficiente p/
-          # testar o link Google Flights em rotação sem estourar quota).
-          # Mesmas garantias read-only — só Offer Requests, nunca order/payment.
+          # PR #80: cap de 8 consultas/ciclo. Com 32 entradas no pool broad
+          # e rotação, cobre o pool inteiro em ~4 ciclos (≈1h) — alinhado ao
+          # objetivo de ofertas em TEMPO REAL, sem represar. Ainda read-only
+          # (só Offer Requests, nunca order/payment) e conservador p/ quota.
           DUFFEL_ROUTE_MODE: "broad"
-          DUFFEL_WATCHLIST_MAX_REQUESTS_PER_CYCLE: "3"
-          # PR #76: as ofertas Duffel agora têm DESTINO ÚTIL — o robô cruza
-          # a oferta confirmada com o Google Flights e leva a usuária à
-          # BUSCA PRÉ-PREENCHIDA (rota/datas/cabine), com 1-2 cliques p/
-          # conferir/comprar. Por isso voltamos a `daily_only`: o relatório
-          # diário lista as ofertas confirmadas com o link "Buscar no Google
-          # Flights" (sem push standalone agrupado). `grouped_push` reativa a
-          # mensagem agrupada; `disabled` suprime tudo. Só `direct_link`
-          # (ex.: Kiwi, se houver chave) dispara push imediato de compra.
-          DUFFEL_ORDER_FLOW_ALERT_MODE: "daily_only"
+          DUFFEL_WATCHLIST_MAX_REQUESTS_PER_CYCLE: "8"
+          # PR #80: a Olivia quer as ofertas EM TEMPO REAL (não resumo
+          # diário). `grouped_push`: quando o ciclo (a cada 15 min) acha
+          # ofertas Duffel confirmadas que batem o alvo, manda UMA mensagem
+          # agrupada na hora, com o link Google Flights pré-preenchido por
+          # oferta. Cooldown de 6h por combo (rota/cabine/datas) evita
+          # repetir a mesma oferta; queda de preço ≥5% fura o cooldown.
+          # `daily_only` (resumo 1x/dia) e `disabled` continuam disponíveis.
+          # Só `direct_link` (ex.: Kiwi, se houver chave) dispara push de
+          # COMPRA imediato; Duffel segue order_flow (busca, não checkout).
+          DUFFEL_ORDER_FLOW_ALERT_MODE: "grouped_push"
         run: python -m flight_mapper cycle
 
       - name: Commit state
