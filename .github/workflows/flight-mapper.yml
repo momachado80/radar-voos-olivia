@@ -59,18 +59,19 @@ jobs:
           DUFFEL_ACCESS_TOKEN: ${{ secrets.DUFFEL_ACCESS_TOKEN }}
           DUFFEL_MAX_REQUESTS_PER_CYCLE: "1"
           EUR_BRL_RATE: ${{ vars.EUR_BRL_RATE }}
-          # PR #77: pool de rotas Duffel.
-          # - `broad` (default): 8 rotas (MIA/LHR/CDG/JFK/MAD/LIS/FCO/AMS) ×
-          #   business+economy × one_way+round_trip = 32 entradas, com
-          #   rotação pelo offset em data/duffel_watchlist_state.json.
+          # PR #77/#81: pool de rotas Duffel.
+          # - `broad` (default): ESCOPO AMPLIADO (PR #81) — 24 destinos
+          #   (América do Sul/Central/Norte, Canadá, Europa, China/Japão) ×
+          #   business+economy × one_way+round_trip = 96 entradas, com
+          #   rotação pelo offset em data/duffel_watchlist_state.json. Todos
+          #   têm teto "só promoção" em thresholds.py.
           # - `watchlist` (opt-in): Londres/Paris setembro/2026 (PR #67/#68).
           # - `disabled`: pool vazio.
-          # PR #80: cap de 8 consultas/ciclo. Com 32 entradas no pool broad
-          # e rotação, cobre o pool inteiro em ~4 ciclos (≈1h) — alinhado ao
-          # objetivo de ofertas em TEMPO REAL, sem represar. Ainda read-only
-          # (só Offer Requests, nunca order/payment) e conservador p/ quota.
+          # PR #81: cap de 12 consultas/ciclo. Com 96 entradas e rotação,
+          # cobre o pool inteiro em ~8 ciclos (≈2h). Read-only (só Offer
+          # Requests, nunca order/payment) e conservador p/ a quota Duffel.
           DUFFEL_ROUTE_MODE: "broad"
-          DUFFEL_WATCHLIST_MAX_REQUESTS_PER_CYCLE: "8"
+          DUFFEL_WATCHLIST_MAX_REQUESTS_PER_CYCLE: "12"
           # PR #80: a Olivia quer as ofertas EM TEMPO REAL (não resumo
           # diário). `grouped_push`: quando o ciclo (a cada 15 min) acha
           # ofertas Duffel confirmadas que batem o alvo, manda UMA mensagem
