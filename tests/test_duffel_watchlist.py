@@ -397,6 +397,9 @@ def test_watchlist_uses_offer_requests_never_orders(tmp_path):
 
 def test_watchlist_alert_no_leak(tmp_path, monkeypatch):
     monkeypatch.setenv("EUR_BRL_RATE", "6.0")
+    # Teto é USD → escala USD→BRL (rate distinta do EUR, expõe o cenário do
+    # bug corrigido: teto não deve usar a taxa EUR da oferta).
+    monkeypatch.setenv("USD_BRL_RATE", "5.5")
     payload = {"data": {"offers": [{
         "id": "off_fixture_xyz", "total_amount": "963", "total_currency": "EUR",
         "owner": {"iata_code": "AF"},
@@ -470,3 +473,119 @@ def test_generic_proven_route_preserved_after_watchlist(tmp_path):
     assert ("route", DUFFEL_PROVEN_ROUTE.key) in provider.calls
     # GRU-MIA one_way 600 (excellent_brl 700) → alerta enviado.
     assert result.duffel_confirmed_alerts == 1
+
+
+# ----------------- regressão: teto USD escala por USD→BRL, não pela taxa da oferta -----------------
+
+
+def _eur_quote(route, ob, ret, *, amount_eur, eur_rate=6.0, airline="AF") -> Quote:
+    """Oferta Duffel EUR confirmada. `amount_brl_estimated` já convertido pela
+    taxa EUR→BRL (como o provider faz); `fx_rate` = taxa EUR da oferta."""
+    brl = round(float(amount_eur) * eur_rate, 2)
+    return Quote(
+        route=route, price_brl=brl, deep_link=None,
+        departure_date=ob, return_date=ret, source="duffel",
+        amount=float(amount_eur), currency="EUR", amount_brl_estimated=brl,
+        fx_rate=eur_rate,
+        cabin=Cabin.BUSINESS, cabin_confirmed=True,
+        trip_type=TripType.ROUND_TRIP, airline=airline,
+    )
+
+
+def _cdg_entry() -> DuffelWatchEntry:
+    return DuffelWatchEntry(
+        route=Route(
+            "GRU", "CDG", "Europa",
+            trip_type=TripType.ROUND_TRIP, cabin=Cabin.BUSINESS,
+        ),
+        outbound_date="2026-09-02", return_date="2026-09-12", cabin="business",
+    )
+
+
+def _run_cdg_eur(tmp_path, *, amount_eur, eur_rate, usd_rate, monkeypatch):
+    """Roda o pass Duffel p/ UMA oferta EUR GRU-CDG-business e devolve o
+    notifier (grouped/messages)."""
+    monkeypatch.setenv("EUR_BRL_RATE", str(eur_rate))
+    monkeypatch.setenv("USD_BRL_RATE", str(usd_rate))
+    entry = _cdg_entry()
+    quote = _eur_quote(
+        entry.route, entry.outbound_date, entry.return_date,
+        amount_eur=amount_eur, eur_rate=eur_rate,
+    )
+    provider = _ScriptedDuffel(
+        by_dates={(entry.route.key, entry.outbound_date, entry.return_date): quote},
+    )
+    notifier = _StubNotifier()
+    monitor = _monitor(
+        provider, notifier, tmp_path,
+        gen_cap=0, wl=[entry], wl_cap=1,
+        wl_state=DuffelWatchlistState(path=None, offset=0),
+    )
+    monitor.run_duffel_confirmations(routes=[])
+    return notifier
+
+
+def test_duffel_ceiling_scales_threshold_by_usd_rate_not_offer_eur_rate(
+    tmp_path, monkeypatch,
+):
+    """REGRESSÃO (correção do bug de moeda): os tetos em thresholds.py são
+    USD e devem ser escalados USD→BRL pela taxa USD→BRL — NUNCA pela taxa
+    EUR→BRL da oferta.
+
+    Cenário discriminante: GRU-CDG-business good=2800 USD, EUR_BRL=6.0,
+    USD_BRL=5.0. Oferta 2600 EUR → R$ 15.600.
+      • teto USD correto : 2800×5.0 = R$ 14.000  → 15.600 ACIMA  → silêncio.
+      • teto EUR (bug)   : 2800×6.0 = R$ 16.800  → 15.600 abaixo → alertaria.
+    Como a oferta NÃO deve alertar, provamos que a escala usa USD, não EUR.
+    """
+    notifier = _run_cdg_eur(
+        tmp_path, amount_eur=2600, eur_rate=6.0, usd_rate=5.0,
+        monkeypatch=monkeypatch,
+    )
+    assert notifier.grouped == [], (
+        "oferta R$15.600 está ACIMA do teto USD (R$14.000); se alertou, o "
+        "teto foi escalado pela taxa EUR da oferta (bug)"
+    )
+    assert notifier.messages == []
+
+
+def test_duffel_ceiling_still_alerts_genuine_promo_under_usd_ceiling(
+    tmp_path, monkeypatch,
+):
+    """Contraprova: com a MESMA escala USD, uma promo real (abaixo do teto
+    USD) ainda alerta — garante que o teste acima não passa por silêncio
+    espúrio. 2000 EUR × 6.0 = R$ 12.000 ≤ excellent 2400×5.0 = R$ 12.000."""
+    notifier = _run_cdg_eur(
+        tmp_path, amount_eur=2000, eur_rate=6.0, usd_rate=5.0,
+        monkeypatch=monkeypatch,
+    )
+    assert notifier.grouped, "promo abaixo do teto USD deveria alertar"
+
+
+def test_duffel_ceiling_blocked_when_usd_rate_absent_even_if_eur_present(
+    tmp_path, monkeypatch,
+):
+    """Sem USD_BRL_RATE confiável não dá p/ escalar o teto USD com honestidade
+    ⇒ o ceiling bloqueia (mesmo com EUR_BRL_RATE presente convertendo o preço).
+    Política consistente: nunca inventamos câmbio para o teto."""
+    monkeypatch.setenv("EUR_BRL_RATE", "6.0")
+    monkeypatch.delenv("USD_BRL_RATE", raising=False)
+    entry = _cdg_entry()
+    # Preço baixíssimo: alertaria sob qualquer teto escalado, mas sem
+    # USD_BRL_RATE o teto não é escalável → ceiling não dispara.
+    quote = _eur_quote(
+        entry.route, entry.outbound_date, entry.return_date,
+        amount_eur=500, eur_rate=6.0,
+    )
+    provider = _ScriptedDuffel(
+        by_dates={(entry.route.key, entry.outbound_date, entry.return_date): quote},
+    )
+    notifier = _StubNotifier()
+    monitor = _monitor(
+        provider, notifier, tmp_path,
+        gen_cap=0, wl=[entry], wl_cap=1,
+        wl_state=DuffelWatchlistState(path=None, offset=0),
+    )
+    monitor.run_duffel_confirmations(routes=[])
+    assert notifier.grouped == []
+    assert notifier.messages == []
