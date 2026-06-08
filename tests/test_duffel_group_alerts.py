@@ -311,6 +311,9 @@ def test_no_air_orders_reference_in_grouping_code():
 
 def test_grouped_message_no_leak(tmp_path, monkeypatch):
     monkeypatch.setenv("EUR_BRL_RATE", "6.0")
+    # Teto é USD → escala USD→BRL (rate distinta do EUR, expõe o cenário do
+    # bug corrigido: teto não deve usar a taxa EUR da oferta).
+    monkeypatch.setenv("USD_BRL_RATE", "5.5")
     payload = {"data": {"offers": [{
         "id": "off_secret_grp", "total_amount": "963", "total_currency": "EUR",
         "owner": {"iata_code": "AF"},

@@ -543,11 +543,20 @@ class Monitor:
 
         history = duffel_store.get(history_key)
         priority = is_priority(route)
-        # Tetos configurados têm magnitude USD; quando o preço veio de
-        # conversão (USD/EUR→BRL) escalamos os tetos pela MESMA taxa usada
-        # na conversão (quote.fx_rate). BRL-nativo usa tetos como estão.
+        # Tetos em thresholds.py são denominados em USD. Para compará-los
+        # com o preço (já normalizado em BRL via amount_brl_estimated, que
+        # usou a taxa da MOEDA DA OFERTA — EUR→BRL p/ ofertas EUR), os tetos
+        # têm de ser escalados USD→BRL pela taxa USD→BRL — NÃO por
+        # quote.fx_rate. Para ofertas EUR, quote.fx_rate é EUR→BRL, o que
+        # inflava o teto em ~(eur_brl/usd_brl) e afrouxava o alerta (bug de
+        # moeda). Usamos get_usd_brl_rate() — igual ao pass genérico (linha
+        # ~280). Sem USD_BRL_RATE confiável não dá p/ escalar o teto com
+        # honestidade ⇒ effective_rate=None ⇒ evaluate_ceiling devolve "sem
+        # teto" (alert=False); o detector de queda legado segue avaliando.
+        # BRL-nativo (teórico p/ Duffel) usa tetos como estão (compat).
+        usd_brl_rate = get_usd_brl_rate()
         effective_rate = (
-            quote.fx_rate if quote.currency.upper() != "BRL" else None
+            usd_brl_rate if quote.currency.upper() != "BRL" else None
         )
         ceiling = evaluate_ceiling(
             history, quote.price_brl, tkey,

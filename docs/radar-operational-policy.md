@@ -245,6 +245,23 @@ confirmada". O preço/alvo e o `Score operacional: N/100` (linha secundária)
 seguem visíveis no corpo, então o **sinal de valor não se perde** — só não é
 rotulado como compra acionável.
 
+**Escala do teto (correção de moeda):** os tetos em `thresholds.py` são
+denominados em **USD**. Duas conversões INDEPENDENTES acontecem no pass
+Duffel e não devem se misturar:
+1. **Preço da oferta → BRL** usa a taxa da MOEDA DA OFERTA (`EUR_BRL_RATE`
+   para ofertas EUR), via `amount_brl_estimated`.
+2. **Teto USD → BRL** usa SEMPRE a taxa **USD→BRL** (`get_usd_brl_rate()`),
+   nunca a taxa da oferta.
+
+Antes, o pass Duffel escalava o teto USD pela `quote.fx_rate` (que para
+ofertas EUR é a taxa EUR→BRL), inflando o teto em ~`(eur_brl/usd_brl)` e
+afrouxando o alerta. Agora o teto é escalado por USD→BRL, alinhado ao pass
+genérico (Travelpayouts). Consequência: sem `USD_BRL_RATE` confiável o teto
+não é escalável com honestidade ⇒ o `evaluate_ceiling` bloqueia (política
+"não inventamos câmbio"); o detector de queda legado segue avaliando.
+Regressão coberta por
+`test_duffel_ceiling_scales_threshold_by_usd_rate_not_offer_eur_rate`.
+
 **Compra automática: NUNCA.** O radar **não** chama `/air/orders`, **não**
 cria order, **não** cria payment, **não** armazena `offer_id`, token, payload
 cru ou dado de passageiro. A criação de orders (booking real) é um **projeto
