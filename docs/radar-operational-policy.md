@@ -281,28 +281,47 @@ possíveis:
 - `Duffel genérico: ativo; N consulta(s) neste ciclo; sem oferta confirmada.`
 - `Duffel genérico: ativo, mas cabine não confirmada.` / `...preço economicamente suspeito.`
 
-## 2.1.1 Pool broad de candidatos Duffel (PR #77) — DEFAULT atual
+## 2.1.1 Pool broad de candidatos Duffel (PR #77; escopo ampliado PR #81) — DEFAULT atual
 
 O foco exclusivo Londres/Paris setembro (PR #67) **não é mais o default** —
 travou a observação porque, sem oferta nas 16 combinações específicas, o
 robô ficava em silêncio e o link novo do Google Flights (PR #76) não dava
-para ser testado. Em vez disso, o robô agora varre um pool **broad** de 8
-rotas premium × duas cabines × dois trip_types (32 entradas), com datas
-dinâmicas (hoje+90d), maximizando a chance de achar qualquer oferta
-Duffel-confirmada genuinamente útil.
+para ser testado. Em vez disso, o robô varre um pool **broad** de muitos
+destinos × duas cabines × dois trip_types, com datas dinâmicas (hoje+90d),
+maximizando a chance de achar qualquer oferta Duffel-confirmada genuinamente
+útil.
+
+**PR #81 — escopo ampliado a pedido da Olivia:** o pool deixou de ser só
+Europa/EUA executiva. A Olivia pediu **promoções de econômica E executiva**
+em várias regiões — América do Sul, América Central/Caribe, América do
+Norte, Canadá, Europa e Ásia (China/Japão). O pool passou de 8 para **24
+destinos** (96 entradas = 24 × 2 cabines × 2 trip_types). A ordem começa
+pela América do Sul (não por Londres/Paris), e a rotação intercala regiões.
+
+Calibração **"só promoções (poucas, boas)"**: os tetos de cada destino (em
+`flight_mapper/thresholds.py`, namespaces `-business` / `-economy` /
+`-one_way-*`) foram afinados para disparar **só em preço de promoção real**,
+não em tarifa de tabela. Cada uma das 96 entradas tem teto correspondente —
+um destino sem teto nunca alertaria (`levels_for` → None →
+`evaluate_ceiling` devolve `alert=False`, falha silenciosa), invariante
+coberta pelo teste `test_every_broad_entry_has_a_threshold`.
 
 Configurável por `DUFFEL_ROUTE_MODE` (default `broad`; valor inválido cai
 em `broad`):
-- **`broad`** — pool de 32 entradas. Rotas: `GRU-MIA`, `GRU-LHR` (Londres),
-  `GRU-CDG` (Paris), `GRU-JFK`, `GRU-MAD`, `GRU-LIS`, `GRU-FCO`, `GRU-AMS`.
-  Londres e Paris continuam no pool, **mas não como primeiras slots
-  exclusivas** — entram intercaladas com as outras na rotação. Cabines:
-  `business` e `economy`. Trip types: `one_way` e `round_trip` (10 noites).
+- **`broad`** — pool de **96 entradas**, 24 destinos: América do Sul (`EZE`,
+  `SCL`, `BOG`, `LIM`); EUA (`MIA`, `JFK`, `ORD`); América Central (`CUN`,
+  `PTY`, `SJO`); Canadá (`YYZ`, `YUL`); Europa (`LHR` Londres, `CDG` Paris,
+  `MAD`, `LIS`, `FCO`, `AMS`, `FRA`); Ásia (`NRT`, `HND`, `PVG`, `PEK`,
+  `HKG`). Londres e Paris continuam no pool, **mas não como primeiras slots
+  exclusivas** — entram intercaladas, depois das Américas, na rotação.
+  Cabines: `business` e `economy`. Trip types: `one_way` e `round_trip`
+  (10 noites).
 - **`watchlist`** (opt-in) — pool fixo Londres/Paris setembro do PR #67/#68.
 - **`disabled`** — pool vazio (sem Offer Requests).
 
 A rotação usa o mesmo `data/duffel_watchlist_state.json` (offset rotativo),
-respeita o cap `DUFFEL_WATCHLIST_MAX_REQUESTS_PER_CYCLE` (produção: **3**) e
+respeita o cap `DUFFEL_WATCHLIST_MAX_REQUESTS_PER_CYCLE` (produção: **12** —
+com 96 entradas e rotação, cobre o pool inteiro em ~8 ciclos ≈ 2h) e
 preserva integralmente o cruzamento Duffel → Google Flights (PR #76): toda
 oferta confirmada gera o link de busca pré-preenchida `🔎 Buscar esta oferta
 no Google Flights`, mantendo `link_status: order_flow` (atalho de busca, não

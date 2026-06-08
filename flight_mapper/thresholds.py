@@ -46,6 +46,28 @@ ROUTE_THRESHOLDS: dict[str, dict[str, float]] = {
     "GRU-MAD-business": {"excellent_brl": 1900, "good_brl": 2200},
     "GRU-FCO-business": {"excellent_brl": 2000, "good_brl": 2300},
     "GRU-AMS-business": {"excellent_brl": 2200, "good_brl": 2500},
+    "GRU-FRA-business": {"excellent_brl": 2100, "good_brl": 2400},
+    # PR #81: escopo ampliado — calibração "só promoção" (valores USD,
+    # escalados em runtime). América do Sul (voos curtos, promo agressiva):
+    "GRU-EZE-business": {"excellent_brl": 600, "good_brl": 850},
+    "GRU-SCL-business": {"excellent_brl": 650, "good_brl": 900},
+    "GRU-BOG-business": {"excellent_brl": 800, "good_brl": 1100},
+    "GRU-LIM-business": {"excellent_brl": 750, "good_brl": 1050},
+    # América Central / Caribe:
+    "GRU-CUN-business": {"excellent_brl": 900, "good_brl": 1250},
+    "GRU-PTY-business": {"excellent_brl": 950, "good_brl": 1300},
+    "GRU-SJO-business": {"excellent_brl": 1000, "good_brl": 1400},
+    # América do Norte extra:
+    "GRU-ORD-business": {"excellent_brl": 1800, "good_brl": 2100},
+    # Canadá:
+    "GRU-YYZ-business": {"excellent_brl": 1900, "good_brl": 2300},
+    "GRU-YUL-business": {"excellent_brl": 1900, "good_brl": 2300},
+    # China / Japão (voos longos, promo business mais cara):
+    "GRU-NRT-business": {"excellent_brl": 2400, "good_brl": 2900},
+    "GRU-HND-business": {"excellent_brl": 2400, "good_brl": 2900},
+    "GRU-PVG-business": {"excellent_brl": 2300, "good_brl": 2800},
+    "GRU-PEK-business": {"excellent_brl": 2300, "good_brl": 2800},
+    "GRU-HKG-business": {"excellent_brl": 2300, "good_brl": 2800},
 }
 
 
@@ -72,6 +94,23 @@ ONE_WAY_ROUTE_THRESHOLDS: dict[str, dict[str, float]] = {
     "GRU-MAD-one_way-business": {"excellent_brl": 1100, "good_brl": 1500},
     "GRU-AMS-one_way-business": {"excellent_brl": 1100, "good_brl": 1500},
     "GRU-FCO-one_way-business": {"excellent_brl": 1100, "good_brl": 1500},
+    "GRU-FRA-one_way-business": {"excellent_brl": 1100, "good_brl": 1500},
+    # PR #81: escopo ampliado — one-way business (~60% do round-trip).
+    "GRU-EZE-one_way-business": {"excellent_brl": 400, "good_brl": 600},
+    "GRU-SCL-one_way-business": {"excellent_brl": 450, "good_brl": 650},
+    "GRU-BOG-one_way-business": {"excellent_brl": 550, "good_brl": 800},
+    "GRU-LIM-one_way-business": {"excellent_brl": 500, "good_brl": 750},
+    "GRU-CUN-one_way-business": {"excellent_brl": 600, "good_brl": 900},
+    "GRU-PTY-one_way-business": {"excellent_brl": 650, "good_brl": 950},
+    "GRU-SJO-one_way-business": {"excellent_brl": 700, "good_brl": 1000},
+    "GRU-ORD-one_way-business": {"excellent_brl": 1100, "good_brl": 1500},
+    "GRU-YYZ-one_way-business": {"excellent_brl": 1200, "good_brl": 1600},
+    "GRU-YUL-one_way-business": {"excellent_brl": 1200, "good_brl": 1600},
+    "GRU-NRT-one_way-business": {"excellent_brl": 1500, "good_brl": 2000},
+    "GRU-HND-one_way-business": {"excellent_brl": 1500, "good_brl": 2000},
+    "GRU-PVG-one_way-business": {"excellent_brl": 1450, "good_brl": 1950},
+    "GRU-PEK-one_way-business": {"excellent_brl": 1450, "good_brl": 1950},
+    "GRU-HKG-one_way-business": {"excellent_brl": 1450, "good_brl": 1950},
 }
 
 # Destinos one-way iniciais (ordem estável p/ testes/preview).
@@ -90,12 +129,64 @@ HOT_ONE_WAY_ROUTE_KEYS: frozenset[str] = frozenset(
 # `-economy` / `-one_way-economy`, isolado do business e do histórico.
 # Calibração conservadora p/ "econômica muito boa" GRU→Europa/EUA.
 ECONOMY_ROUTE_THRESHOLDS: dict[str, dict[str, float]] = {
+    # Europa (calibração "só promoção", USD):
     "GRU-LHR-economy": {"excellent_brl": 550, "good_brl": 750},
     "GRU-CDG-economy": {"excellent_brl": 550, "good_brl": 750},
+    "GRU-MAD-economy": {"excellent_brl": 520, "good_brl": 720},
+    "GRU-LIS-economy": {"excellent_brl": 500, "good_brl": 700},
+    "GRU-FCO-economy": {"excellent_brl": 580, "good_brl": 780},
+    "GRU-AMS-economy": {"excellent_brl": 580, "good_brl": 780},
+    "GRU-FRA-economy": {"excellent_brl": 560, "good_brl": 760},
+    # América do Norte:
+    "GRU-MIA-economy": {"excellent_brl": 400, "good_brl": 600},
+    "GRU-JFK-economy": {"excellent_brl": 450, "good_brl": 650},
+    "GRU-ORD-economy": {"excellent_brl": 480, "good_brl": 700},
+    # PR #81: escopo ampliado — América do Sul (promo curta, agressiva):
+    "GRU-EZE-economy": {"excellent_brl": 180, "good_brl": 280},
+    "GRU-SCL-economy": {"excellent_brl": 200, "good_brl": 320},
+    "GRU-BOG-economy": {"excellent_brl": 280, "good_brl": 420},
+    "GRU-LIM-economy": {"excellent_brl": 250, "good_brl": 380},
+    # América Central / Caribe:
+    "GRU-CUN-economy": {"excellent_brl": 380, "good_brl": 580},
+    "GRU-PTY-economy": {"excellent_brl": 320, "good_brl": 500},
+    "GRU-SJO-economy": {"excellent_brl": 400, "good_brl": 600},
+    # Canadá:
+    "GRU-YYZ-economy": {"excellent_brl": 500, "good_brl": 720},
+    "GRU-YUL-economy": {"excellent_brl": 500, "good_brl": 720},
+    # China / Japão:
+    "GRU-NRT-economy": {"excellent_brl": 750, "good_brl": 1000},
+    "GRU-HND-economy": {"excellent_brl": 750, "good_brl": 1000},
+    "GRU-PVG-economy": {"excellent_brl": 700, "good_brl": 950},
+    "GRU-PEK-economy": {"excellent_brl": 700, "good_brl": 950},
+    "GRU-HKG-economy": {"excellent_brl": 720, "good_brl": 970},
 }
 
 ECONOMY_ONE_WAY_ROUTE_THRESHOLDS: dict[str, dict[str, float]] = {
     "GRU-MIA-one_way-economy": {"excellent_brl": 250, "good_brl": 400},
+    # PR #81: escopo ampliado — one-way economy (~60% do round-trip).
+    "GRU-JFK-one_way-economy": {"excellent_brl": 280, "good_brl": 420},
+    "GRU-ORD-one_way-economy": {"excellent_brl": 300, "good_brl": 450},
+    "GRU-LHR-one_way-economy": {"excellent_brl": 350, "good_brl": 500},
+    "GRU-CDG-one_way-economy": {"excellent_brl": 350, "good_brl": 500},
+    "GRU-MAD-one_way-economy": {"excellent_brl": 330, "good_brl": 480},
+    "GRU-LIS-one_way-economy": {"excellent_brl": 320, "good_brl": 470},
+    "GRU-FCO-one_way-economy": {"excellent_brl": 370, "good_brl": 520},
+    "GRU-AMS-one_way-economy": {"excellent_brl": 370, "good_brl": 520},
+    "GRU-FRA-one_way-economy": {"excellent_brl": 360, "good_brl": 510},
+    "GRU-EZE-one_way-economy": {"excellent_brl": 120, "good_brl": 190},
+    "GRU-SCL-one_way-economy": {"excellent_brl": 130, "good_brl": 210},
+    "GRU-BOG-one_way-economy": {"excellent_brl": 180, "good_brl": 280},
+    "GRU-LIM-one_way-economy": {"excellent_brl": 160, "good_brl": 250},
+    "GRU-CUN-one_way-economy": {"excellent_brl": 250, "good_brl": 380},
+    "GRU-PTY-one_way-economy": {"excellent_brl": 210, "good_brl": 330},
+    "GRU-SJO-one_way-economy": {"excellent_brl": 260, "good_brl": 400},
+    "GRU-YYZ-one_way-economy": {"excellent_brl": 330, "good_brl": 480},
+    "GRU-YUL-one_way-economy": {"excellent_brl": 330, "good_brl": 480},
+    "GRU-NRT-one_way-economy": {"excellent_brl": 480, "good_brl": 650},
+    "GRU-HND-one_way-economy": {"excellent_brl": 480, "good_brl": 650},
+    "GRU-PVG-one_way-economy": {"excellent_brl": 450, "good_brl": 620},
+    "GRU-PEK-one_way-economy": {"excellent_brl": 450, "good_brl": 620},
+    "GRU-HKG-one_way-economy": {"excellent_brl": 460, "good_brl": 630},
 }
 
 

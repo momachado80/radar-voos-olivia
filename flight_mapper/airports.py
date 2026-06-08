@@ -33,6 +33,23 @@ AIRPORTS: dict[str, str] = {
     "ZRH": "Zurique",
     "NRT": "Tóquio",
     "ICN": "Seul",
+    # PR #81: destinos do escopo ampliado (econômica + executiva).
+    # América do Sul:
+    "EZE": "Buenos Aires",
+    "SCL": "Santiago",
+    "BOG": "Bogotá",
+    "LIM": "Lima",
+    # América Central / Caribe:
+    "CUN": "Cancún",
+    "PTY": "Cidade do Panamá",
+    "SJO": "San José",
+    # Canadá:
+    "YYZ": "Toronto",
+    "YUL": "Montreal",
+    # China / Japão (NRT/HKG já existem):
+    "HND": "Tóquio",
+    "PVG": "Xangai",
+    "PEK": "Pequim",
 }
 
 

@@ -45,28 +45,41 @@ def test_broad_pool_includes_london_and_paris():
     assert "CDG" in dests, "Paris deve continuar monitorada"
 
 
-def test_broad_pool_covers_all_eight_routes():
+def test_broad_pool_covers_all_routes():
     pool = build_broad_candidate_pool(today=date(2026, 6, 1))
     dests = {e.route.destination for e in pool}
     expected = {dest for dest, _, _ in BROAD_ROUTE_SPECS}
     assert dests == expected
-    # São 8 rotas × 2 cabines × 2 trip_types = 32 entradas.
-    assert len(pool) == 32
+    # PR #81: escopo ampliado — N destinos × 2 cabines × 2 trip_types.
+    assert len(pool) == len(BROAD_ROUTE_SPECS) * 4
+
+
+def test_broad_pool_spans_multiple_regions():
+    """PR #81: o pool cobre várias regiões (não só Europa/EUA): América do
+    Sul/Central/Norte, Canadá, Europa, Ásia."""
+    pool = build_broad_candidate_pool(today=date(2026, 6, 1))
+    regions = {e.route.region for e in pool}
+    assert "América do Sul" in regions
+    assert "América Central" in regions
+    assert "Canadá" in regions
+    assert "Ásia" in regions
+    assert "Europa" in regions
+    assert "EUA" in regions
 
 
 def test_broad_pool_does_not_prioritize_london_or_paris_exclusively():
-    """Nenhuma das 2 primeiras entradas é simultaneamente CDG e LHR — a
-    ordem diversifica regiões (não começa por Londres/Paris)."""
+    """Londres/Paris continuam monitoradas, mas NÃO nas primeiras slots —
+    a ordem começa pela América do Sul (escopo ampliado PR #81)."""
     pool = build_broad_candidate_pool(today=date(2026, 6, 1))
-    first = pool[0]
-    # A primeira entrada NÃO é Londres nem Paris (regra do goal):
-    assert first.route.destination not in ("LHR", "CDG")
-    # Entre as 4 primeiras (business round-trip), Londres e Paris aparecem
-    # mas não nas posições 1+2 (que costumavam ser GRU-LHR exclusivo).
-    first_four = [e.route.destination for e in pool[:4]]
-    assert "LHR" in first_four and "CDG" in first_four
-    assert first_four.index("LHR") > 0  # não é a 1ª
-    assert first_four.index("CDG") > 0  # não é a 1ª
+    dests = [e.route.destination for e in pool]
+    # A primeira entrada NÃO é Londres nem Paris.
+    assert pool[0].route.destination not in ("LHR", "CDG")
+    # Londres e Paris estão no pool, mas depois das Américas.
+    assert "LHR" in dests and "CDG" in dests
+    assert dests.index("LHR") > 0
+    assert dests.index("CDG") > 0
+    # Há destinos não-europeus ANTES de Londres na ordem de rotação.
+    assert dests.index("LHR") > dests.index("EZE")
 
 
 # ----------------- 2. rotação cobre mais que Londres/Paris -----------------
@@ -187,7 +200,7 @@ def test_broad_pool_quote_still_gets_google_flights_url():
     from flight_mapper.providers import Quote
 
     pool = build_broad_candidate_pool(today=date(2026, 6, 1))
-    e = pool[0]  # primeira entrada (MIA business round-trip)
+    e = pool[0]  # primeira entrada do pool (escopo ampliado PR #81)
     q = Quote(
         route=e.route,
         price_brl=4000.0, deep_link=None,
@@ -233,3 +246,85 @@ def test_broad_module_never_references_orders_or_payments():
     for forbidden in ("/air/orders", "/air/payments", "create_order",
                       "create_payment", "passenger"):
         assert forbidden not in text, f"módulo broad não pode citar {forbidden!r}"
+
+
+# ----------------- PR #81: cobertura de teto + calibração "só promoção" -----------------
+
+
+def test_every_broad_entry_has_a_threshold():
+    """INVARIANTE CRÍTICA (PR #81): toda entrada do pool — cada combinação
+    rota × cabine × trip_type — precisa ter teto em `thresholds.py`. Sem teto,
+    `levels_for(threshold_key)` é None → `evaluate_ceiling` devolve alert=False
+    e a oferta NUNCA vira alerta (falha silenciosa). Este teste impede que um
+    destino entre no pool sem o teto correspondente."""
+    from flight_mapper.thresholds import levels_for
+
+    pool = build_broad_candidate_pool(today=date(2026, 6, 1))
+    faltando = [
+        (e.route.destination, e.cabin, e.route.trip_type.value, e.threshold_key)
+        for e in pool
+        if levels_for(e.threshold_key) is None
+    ]
+    assert not faltando, f"entradas sem teto (nunca alertariam): {faltando}"
+
+
+def test_broad_entries_cover_business_and_economy_thresholds():
+    """Cada destino do pool tem teto TANTO business QUANTO economy (round-trip
+    e one-way), já que a Olivia pediu promoções nas duas cabines."""
+    from flight_mapper.thresholds import levels_for
+
+    pool = build_broad_candidate_pool(today=date(2026, 6, 1))
+    business = {e.threshold_key for e in pool if e.cabin == "business"}
+    economy = {e.threshold_key for e in pool if e.cabin == "economy"}
+    assert business and economy
+    assert all(levels_for(k) is not None for k in business)
+    assert all(levels_for(k) is not None for k in economy)
+    # Garante que economy não é só Europa: há chave economy de cada região.
+    assert "GRU-EZE-economy" in economy           # América do Sul
+    assert "GRU-CUN-economy" in economy           # América Central
+    assert "GRU-YYZ-economy" in economy           # Canadá
+    assert "GRU-NRT-economy" in economy           # Ásia
+    assert "GRU-MIA-economy" in economy           # EUA
+
+
+def _decision_for(threshold_key, price_usd, rate=5.5):
+    """Helper: roda o detector de teto (escalado USD→BRL) p/ um preço em USD
+    e devolve se dispara alerta — reproduz o gate real do pass Duffel."""
+    from flight_mapper.detector import evaluate_ceiling
+    from flight_mapper.state import RouteHistory
+
+    price_brl = price_usd * rate
+    decision = evaluate_ceiling(
+        RouteHistory(), price_brl, threshold_key, priority=False, brl_rate=rate,
+    )
+    return decision.alert
+
+
+def test_promo_offers_alert_expensive_offers_stay_silent():
+    """Calibração "só promoções (poucas, boas)": preço de promo dispara;
+    preço de tabela fica em silêncio. Cobre as novas regiões em economy E
+    business (USD escalado por uma taxa fixa de teste)."""
+    # (threshold_key, preço_promo_USD_alerta, preço_caro_USD_silencio)
+    casos = [
+        ("GRU-EZE-economy", 170, 400),    # América do Sul econômica
+        ("GRU-EZE-business", 580, 1200),  # América do Sul executiva
+        ("GRU-CUN-economy", 350, 700),    # América Central econômica
+        ("GRU-NRT-economy", 720, 1300),   # Ásia econômica
+        ("GRU-NRT-business", 2300, 3500), # Ásia executiva
+        ("GRU-YYZ-economy", 480, 900),    # Canadá econômica
+        ("GRU-MIA-economy", 380, 800),    # EUA econômica
+    ]
+    for tkey, promo, caro in casos:
+        assert _decision_for(tkey, promo), f"{tkey} {promo}USD devia ALERTAR"
+        assert not _decision_for(tkey, caro), f"{tkey} {caro}USD devia silenciar"
+
+
+def test_economy_thresholds_are_tighter_than_business_same_route():
+    """Sanidade da calibração: para o mesmo destino, o teto economy é menor
+    que o business (econômica boa custa menos que executiva boa)."""
+    from flight_mapper.thresholds import levels_for
+
+    for dest in ("EZE", "NRT", "MIA", "YYZ", "CUN"):
+        eco = levels_for(f"GRU-{dest}-economy")["good_brl"]
+        biz = levels_for(f"GRU-{dest}-business")["good_brl"]
+        assert eco < biz, f"economy {dest} ({eco}) deveria ser < business ({biz})"

@@ -23,15 +23,43 @@ from .regions import Cabin, Route, TripType
 # 8 rotas premium do escopo broad (todas têm thresholds business em
 # `flight_mapper/thresholds.py`; AMS é o representante "AMS ou FRA"). Ordem
 # diversifica regiões (EUA, Europa) p/ rotação não concentrar em um destino.
+#
+# PR #81: escopo AMPLIADO a pedido da Olivia — econômica E executiva, em
+# várias regiões: América do Sul/Central/Norte, Canadá, Europa, China/Japão.
+# Todos os destinos abaixo têm teto business E economy (round-trip e
+# one-way) em `thresholds.py` — sem teto, a oferta nunca vira alerta.
+# Ordem intercala regiões p/ a rotação não concentrar em um bloco só.
 BROAD_ROUTE_SPECS: tuple[tuple[str, str, str], ...] = (
-    ("MIA", "EUA",    "Miami"),
+    # América do Sul (voos curtos, promo agressiva):
+    ("EZE", "América do Sul", "Buenos Aires"),
+    ("SCL", "América do Sul", "Santiago"),
+    ("BOG", "América do Sul", "Bogotá"),
+    ("LIM", "América do Sul", "Lima"),
+    # América do Norte:
+    ("MIA", "EUA", "Miami"),
+    ("JFK", "EUA", "Nova York"),
+    ("ORD", "EUA", "Chicago"),
+    # América Central / Caribe:
+    ("CUN", "América Central", "Cancún"),
+    ("PTY", "América Central", "Cidade do Panamá"),
+    ("SJO", "América Central", "San José"),
+    # Canadá:
+    ("YYZ", "Canadá", "Toronto"),
+    ("YUL", "Canadá", "Montreal"),
+    # Europa:
     ("LHR", "Europa", "Londres"),
     ("CDG", "Europa", "Paris"),
-    ("JFK", "EUA",    "Nova York"),
     ("MAD", "Europa", "Madri"),
     ("LIS", "Europa", "Lisboa"),
     ("FCO", "Europa", "Roma"),
     ("AMS", "Europa", "Amsterdã"),
+    ("FRA", "Europa", "Frankfurt"),
+    # China / Japão:
+    ("NRT", "Ásia", "Tóquio"),
+    ("HND", "Ásia", "Tóquio"),
+    ("PVG", "Ásia", "Xangai"),
+    ("PEK", "Ásia", "Pequim"),
+    ("HKG", "Ásia", "Hong Kong"),
 )
 
 # Janela conservadora p/ a busca: ~90 dias à frente é uma janela típica de
