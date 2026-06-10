@@ -185,9 +185,29 @@ oferta confirmada. Por isso o alerta Duffel:
   de busca**, não a oferta Duffel travada nem um checkout direto.
 
 **Sanitização do link (PR #76):** a URL do Google Flights contém APENAS
-dados públicos — origem/destino (IATA), datas e cabine. NUNCA offer_id,
-token, preço, payload ou dado de passageiro. O único host clicável no alerta
-Duffel é `www.google.com`.
+dados públicos — origem/destino (IATA), datas, cabine e **nome da companhia
+operadora** (PR #83, ver abaixo). NUNCA offer_id, token, preço, payload ou
+dado de passageiro. O único host clicável no alerta Duffel é
+`www.google.com`.
+
+**Filtro de companhia (PR #83).** A Duffel devolve o IATA da cia operadora
+(`AF`, `LA`, `TP`, …); o alerta passou a apender `on {Nome}` à query do
+Google Flights quando o IATA é mapeado em `flight_mapper/airlines.py` (ex.:
+`AF` → `Air France`, `LA` → `LATAM`, `TP` → `TAP Air Portugal`). Resultado:
+a página de resultados abre **filtrada pela cia da oferta**, em vez de
+"todas as opções da rota" — muito mais próximo da oferta exata que a Duffel
+confirmou. Para cias não mapeadas, a query fica sem filtro (compat PR #76).
+A linha 🛫 do alerta também ganhou nome+IATA: `🛫 Companhia: Air France
+(AF)` em vez de só `🛫 Companhia: AF` — você confere visualmente antes de
+clicar. O nome da cia é informação pública e já visível no alerta; usá-lo
+no filtro de busca é alinhado ao mesmo propósito.
+
+**Limite estrutural (sem mudança de natureza).** O link continua sendo um
+**atalho de busca**, não checkout da oferta travada: `link_status` segue
+`order_flow`. O filtro PR #83 reduz drasticamente o atrito ("achei a
+oferta?"), mas a única forma de transformar em "click → comprar A OFERTA"
+seria atravessar o hosted checkout da Duffel (decisão arquitetural em
+aberto, fora deste PR).
 
 **Preservação do trip_type, rota, datas e cabine (PR #79).** A query do
 Google Flights é construída de forma **EXPLÍCITA**:

@@ -109,6 +109,42 @@ def test_link_status_still_order_flow_with_google_search():
     assert link_status_for(_duffel_quote()) == LINK_STATUS_ORDER_FLOW
 
 
+# ----------------- PR #83: filtro de companhia narra a busca -----------------
+
+
+def test_duffel_search_url_appends_airline_name_when_known():
+    """A oferta Duffel traz `airline='TP'` → URL apende `on TAP Air Portugal`
+    e o Google Flights filtra os resultados pra essa cia (search mais próxima
+    da oferta exata)."""
+    from urllib.parse import unquote_plus
+    url = duffel_google_flights_url(_duffel_quote())  # fixture: airline="TP"
+    assert url is not None
+    q = unquote_plus(url.split("q=", 1)[1])
+    assert q.endswith("on TAP Air Portugal")
+
+
+def test_duffel_search_url_omits_filter_when_airline_unknown():
+    """Sigla não mapeada (`ZZ`) ⇒ sem filtro; URL é o legado PR #76 (compat).
+    Não inventamos nome de cia."""
+    from urllib.parse import unquote_plus
+    q = _duffel_quote()
+    q.airline = "ZZ"
+    url = duffel_google_flights_url(q)
+    assert url is not None
+    text = unquote_plus(url.split("q=", 1)[1])
+    assert " on " not in text.split("class", 1)[1]
+
+
+def test_duffel_search_url_omits_filter_when_airline_none():
+    """Sem `airline` (None): URL idêntica à anterior ao PR #83."""
+    from urllib.parse import unquote_plus
+    q = _duffel_quote()
+    q.airline = None
+    url = duffel_google_flights_url(q)
+    text = unquote_plus(url.split("q=", 1)[1])
+    assert "on " not in text.split("class", 1)[1].lower()
+
+
 def test_kiwi_direct_link_still_beats_duffel():
     # Se um dia a Kiwi devolver deep_link real, ela continua sendo
     # direct_link (alerta verde imediato) — Duffel não rebaixa esse caminho.

@@ -215,8 +215,10 @@ def test_broad_pool_quote_still_gets_google_flights_url():
     url = duffel_google_flights_url(q)
     assert url is not None
     assert url.startswith("https://www.google.com/travel/flights")
-    # URL não tem dado sensível.
-    for sensitive in ("730", "4000", "EUR", "token", "offer", "LA"):
+    # URL não tem dado sensível: nada de preço, moeda, token ou offer_id.
+    # PR #83: o NOME da companhia ("LATAM") é INTENCIONAL — narra a busca
+    # pra cia da oferta (cia é info pública, já exibida no alerta).
+    for sensitive in ("730", "4000", "EUR", "token", "offer", "passenger"):
         assert sensitive not in url, url
 
 

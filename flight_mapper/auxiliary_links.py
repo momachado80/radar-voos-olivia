@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from urllib.parse import quote_plus
 
+from .airlines import airline_name
 from .formatting import cabin_search_term
 from .providers import Quote
 from .regions import Cabin, Route, TripType
@@ -49,6 +50,7 @@ def build_google_flights_query_url(
     departure_date: str,
     return_date: str | None = None,
     cabin: Cabin = Cabin.BUSINESS,
+    airline_iata: str | None = None,
 ) -> str:
     """URL de busca no Google Flights via query parametrizada.
 
@@ -61,6 +63,12 @@ def build_google_flights_query_url(
     GRU-MIA one-way de 978 EUR virou round-trip de R$ 10.212). Round-trip
     mantém os tokens "return YYYY-MM-DD" usados pelos testes existentes
     (PR #76).
+
+    PR #83: quando `airline_iata` é conhecido (mapeado em
+    `flight_mapper/airlines.py`), apende `on {Nome}` à query. O Google
+    Flights interpreta semanticamente e filtra para aquela companhia,
+    aproximando o resultado da oferta exata que a Duffel confirmou. Sigla
+    desconhecida ou ausente: query sem filtro (compat com PR #76/#79).
     """
     cls = cabin_search_term(cabin)
     if return_date:
@@ -73,6 +81,9 @@ def build_google_flights_query_url(
             f"one way flight from {route.origin} to {route.destination} "
             f"on {departure_date} {cls} class"
         )
+    name = airline_name(airline_iata)
+    if name:
+        q = f"{q} on {name}"
     return f"https://www.google.com/travel/flights?q={quote_plus(q)}"
 
 
