@@ -41,6 +41,10 @@ class Quote:
     # Companhia aérea (código IATA, ex.: "CM"). Opcional; hoje só
     # preenchido pelo provider Duffel para exibição no alerta confirmado.
     airline: str | None = None
+    # PR #84: voos do OUTBOUND slice ("AF447", "KL1234"). Vazio quando
+    # ausente/desconhecido. Informação pública usada pelo alerta e pela
+    # query do Google Flights para cair no voo exato.
+    flight_numbers: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         # Caminho legado/testes: só `price_brl` informado → assume BRL
