@@ -63,6 +63,12 @@ class ActionabilityReport:
     booking_domain: str | None       # apenas o host do link, nunca URL completa
     blockers: tuple[str, ...]        # códigos snake_case
     decision: str                    # ver DECISION_*
+    # PR #84: voos extraídos do OUTBOUND slice no formato canônico "IATA+nº"
+    # (ex.: ("AF447",) p/ direto, ("AF447","KL1234") p/ conexão). Vazia se
+    # o payload não traz `marketing_carrier_flight_number` em algum segmento
+    # — informação pública (consta em boarding pass, app da cia, e-mail) que
+    # narra a busca no Google Flights direto pro voo exato.
+    flight_numbers: tuple[str, ...] = ()
 
 
 def apply_decision(
@@ -532,6 +538,21 @@ def parse_duffel_for_actionability(
     else:
         decision = DECISION_NOT_SUITABLE
 
+    # PR #84: voos do OUTBOUND slice — `marketing_carrier.iata_code` +
+    # `marketing_carrier_flight_number` → "AF447". Segmento sem flight_number
+    # é PULADO (degrada silenciosamente; o alerta volta ao formato sem voo).
+    # Round-trip: ignoramos voos do return slice — pra Olivia conferir basta
+    # o voo de ida na busca; o filtro de cabine já cobre os dois sentidos.
+    flight_numbers: list[str] = []
+    for seg in segments:
+        if not isinstance(seg, dict):
+            continue
+        mk = seg.get("marketing_carrier") or {}
+        code = mk.get("iata_code") if isinstance(mk, dict) else None
+        fn = seg.get("marketing_carrier_flight_number")
+        if code and fn:
+            flight_numbers.append(f"{code}{fn}")
+
     return ActionabilityReport(
         provider="duffel", route=route,
         outbound_date=out_date, return_date=ret_date, trip_type=trip_type,
@@ -544,6 +565,7 @@ def parse_duffel_for_actionability(
         booking_domain=None,
         blockers=tuple(blockers),
         decision=decision,
+        flight_numbers=tuple(flight_numbers),
     )
 
 

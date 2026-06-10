@@ -197,17 +197,37 @@ Google Flights quando o IATA é mapeado em `flight_mapper/airlines.py` (ex.:
 a página de resultados abre **filtrada pela cia da oferta**, em vez de
 "todas as opções da rota" — muito mais próximo da oferta exata que a Duffel
 confirmou. Para cias não mapeadas, a query fica sem filtro (compat PR #76).
-A linha 🛫 do alerta também ganhou nome+IATA: `🛫 Companhia: Air France
-(AF)` em vez de só `🛫 Companhia: AF` — você confere visualmente antes de
-clicar. O nome da cia é informação pública e já visível no alerta; usá-lo
-no filtro de busca é alinhado ao mesmo propósito.
+
+**Número do voo (PR #84).** A Duffel também devolve
+`marketing_carrier_flight_number` em cada segmento; o parser extrai e
+combina com o IATA → `AF447` (direto) ou `("AF447", "KL1234")` (conexão,
+voos do **outbound** slice — o return é ignorado pra não poluir a busca,
+que já cobre o sentido pelo filtro de cabine). A query do Google Flights
+apende esses números após o filtro de cia (ex.:
+`... business class on Air France AF447`), e o Google interpreta
+semanticamente — a página abre **literalmente no voo exato**, em vez de
+"todos os voos da rota nesta data". Quando a Duffel não devolve
+flight_number (payload incompleto, codeshare obscuro), degrada
+silenciosamente pra busca com filtro só de cia (comportamento PR #83).
+
+A linha 🛫 do alerta foi reformatada:
+- Com voo: `🛫 Companhia: Air France — voo AF447`
+- Com conexão: `🛫 Companhia: Air France — voos AF447 → KL1234`
+- Sem voo conhecido: `🛫 Companhia: Air France (AF)` (formato PR #83)
+
+Você confere visualmente o voo antes de clicar; e clica direto pra ele no
+Google Flights. O número do voo é **informação pública** (consta em
+boarding pass, app da cia, e-mail de confirmação) — usar no alerta e na
+query de busca é alinhado ao mesmo propósito do filtro de cia.
 
 **Limite estrutural (sem mudança de natureza).** O link continua sendo um
 **atalho de busca**, não checkout da oferta travada: `link_status` segue
-`order_flow`. O filtro PR #83 reduz drasticamente o atrito ("achei a
-oferta?"), mas a única forma de transformar em "click → comprar A OFERTA"
-seria atravessar o hosted checkout da Duffel (decisão arquitetural em
-aberto, fora deste PR).
+`order_flow`. Os PRs #83/#84 reduzem drasticamente o atrito ("achei a
+oferta?" / "qual voo era mesmo?"), mas a única forma de transformar em
+"click → comprar A OFERTA" seria atravessar o hosted checkout da Duffel —
+investigação fechada (Duffel Links existe e funciona, mas exige KYC + plano
+pago + lida com `expires_at` ~30min da oferta; ver decisão da Olivia em
+junho/2026).
 
 **Preservação do trip_type, rota, datas e cabine (PR #79).** A query do
 Google Flights é construída de forma **EXPLÍCITA**:

@@ -173,4 +173,5 @@ class DuffelProvider:
             cabin_confirmed=True,
             trip_type=trip_type,
             airline=airline,
+            flight_numbers=report.flight_numbers,
         )

@@ -324,10 +324,22 @@ def format_alert(
         if quote.airline:
             # PR #83: prefere "Nome (IATA)" quando o IATA está mapeado em
             # `airlines.py`; cai pro IATA bruto caso contrário (sem inventar).
-            from .airlines import airline_label
-            extras.append(
-                f"🛫 Companhia: {airline_label(quote.airline) or quote.airline}"
-            )
+            # PR #84: com voo(s) extraído(s) da Duffel, mostra "Nome — voo
+            # AF447" (sem repetir o IATA — o número do voo já o contém). O
+            # nome longo (ou IATA bruto) sempre vai à esquerda; voos à
+            # direita após o travessão.
+            from .airlines import airline_label, airline_name
+            fns = getattr(quote, "flight_numbers", ()) or ()
+            if fns:
+                base = airline_name(quote.airline) or quote.airline
+                label = "voo" if len(fns) == 1 else "voos"
+                extras.append(
+                    f"🛫 Companhia: {base} — {label} {' → '.join(fns)}"
+                )
+            else:
+                extras.append(
+                    f"🛫 Companhia: {airline_label(quote.airline) or quote.airline}"
+                )
         # Score como linha SECUNDÁRIA (não no título).
         if decision.score is not None:
             extras.append(f"Score operacional: {decision.score}/100")

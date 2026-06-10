@@ -51,6 +51,7 @@ def build_google_flights_query_url(
     return_date: str | None = None,
     cabin: Cabin = Cabin.BUSINESS,
     airline_iata: str | None = None,
+    flight_numbers: tuple[str, ...] | None = None,
 ) -> str:
     """URL de busca no Google Flights via query parametrizada.
 
@@ -84,6 +85,12 @@ def build_google_flights_query_url(
     name = airline_name(airline_iata)
     if name:
         q = f"{q} on {name}"
+    # PR #84: cada voo extraído da Duffel ("AF447", "KL1234"). O Google
+    # Flights interpreta o flight number e cai EXATAMENTE no voo, em vez
+    # de "todos os voos da rota nesta data". Voos são públicos (consta em
+    # boarding pass etc.) — sem leak de offer_id/preço/passageiro.
+    if flight_numbers:
+        q = f"{q} {' '.join(flight_numbers)}"
     return f"https://www.google.com/travel/flights?q={quote_plus(q)}"
 
 
