@@ -122,3 +122,38 @@ def test_build_auxiliary_search_links_all_urls_carry_route_date_class():
         assert "cdg" in lowered
         assert "2026-06-09" in url
         assert "business" in lowered
+
+
+# ---------- PR #83: filtro de companhia no Google Flights ----------
+
+
+def test_google_flights_appends_known_airline_name():
+    """`airline_iata` conhecido vira `on {Nome}` na query, narrando a busca
+    pra cia da oferta — Google Flights filtra resultados semanticamente."""
+    from urllib.parse import unquote_plus
+    url = build_google_flights_query_url(
+        _ROUTE, "2026-09-02", "2026-09-12", airline_iata="AF",
+    )
+    q = unquote_plus(url.split("q=", 1)[1])
+    assert q.endswith("on Air France")
+
+
+def test_google_flights_omits_airline_when_iata_unknown():
+    """Sigla desconhecida ⇒ NÃO inventa nome; query fica sem o filtro
+    (mantém compat com PR #76/#79)."""
+    from urllib.parse import unquote_plus
+    url = build_google_flights_query_url(
+        _ROUTE, "2026-09-02", "2026-09-12", airline_iata="ZZ",
+    )
+    q = unquote_plus(url.split("q=", 1)[1])
+    assert " on " not in q.split("class", 1)[1]  # nada após "class"
+
+
+def test_google_flights_omits_airline_when_iata_missing():
+    """Sem `airline_iata` (None): query idêntica ao comportamento anterior."""
+    from urllib.parse import unquote_plus
+    a = build_google_flights_query_url(_ROUTE, "2026-09-02", "2026-09-12")
+    b = build_google_flights_query_url(
+        _ROUTE, "2026-09-02", "2026-09-12", airline_iata=None,
+    )
+    assert unquote_plus(a) == unquote_plus(b)

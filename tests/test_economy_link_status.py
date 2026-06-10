@@ -166,7 +166,8 @@ def test_economy_alert_shows_currency_brl_target_dates_airline():
     assert "≈ R$ 3.300" in msg           # estimativa BRL
     assert "alvo R$ 3.300" in msg        # alvo
     assert "2026-09-02 → 2026-09-12" in msg  # datas round-trip
-    assert "🛫 Companhia: TP" in msg     # airline
+    # PR #83: companhia exibida como "Nome (IATA)" quando o IATA é mapeado.
+    assert "🛫 Companhia: TAP Air Portugal (TP)" in msg
     assert "Duffel" in msg               # provider
 
 

@@ -44,6 +44,9 @@ def duffel_google_flights_url(quote: Quote) -> str | None:
     return_date = quote.return_date if show_return else None
     # Cabine: usa a do quote; default business (rota é monitorada como exec).
     cabin = quote.cabin if quote.cabin in (Cabin.BUSINESS, Cabin.ECONOMY) else Cabin.BUSINESS
+    # PR #83: filtra a busca pela companhia operadora da oferta Duffel
+    # (quando IATA conhecido), aproximando o resultado da oferta exata.
     return build_google_flights_query_url(
         route, departure, return_date, cabin=cabin,
+        airline_iata=getattr(quote, "airline", None),
     )

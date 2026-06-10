@@ -322,7 +322,12 @@ def format_alert(
         _cab_pt = "econômica" if quote.cabin == Cabin.ECONOMY else "business"
         extras.append(f"🛒 Fonte: Duffel (Offer Request, cabine {_cab_pt} confirmada)")
         if quote.airline:
-            extras.append(f"🛫 Companhia: {quote.airline}")
+            # PR #83: prefere "Nome (IATA)" quando o IATA está mapeado em
+            # `airlines.py`; cai pro IATA bruto caso contrário (sem inventar).
+            from .airlines import airline_label
+            extras.append(
+                f"🛫 Companhia: {airline_label(quote.airline) or quote.airline}"
+            )
         # Score como linha SECUNDÁRIA (não no título).
         if decision.score is not None:
             extras.append(f"Score operacional: {decision.score}/100")
