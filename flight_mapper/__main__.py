@@ -202,39 +202,51 @@ def cmd_cycle(args: argparse.Namespace) -> int:
             print(f"  {note}")
 
     status_state = StatusState.load(config.status_path)
-    # PR #65/#67/#71: summaries Duffel (genérico + watchlist + agrupamento)
-    # entram no relatório/heartbeat p/ as linhas do 🧭. NUNCA contêm
-    # offer_id/token/payload/order_id — só contadores + código de resultado.
-    decision = maybe_send_status(
-        result=result,
-        store=store,
-        state=status_state,
-        notifier=notifier,
-        state_path=config.status_path,
-        throttle_hours=config.status_throttle_hours,
-        duffel_summary=duffel_summary,
-        duffel_watchlist_summary=duffel_watchlist_summary,
-        duffel_group_summary=duffel_group_summary,
-        duffel_order_flow_alert_mode=config.duffel_order_flow_alert_mode,
-    )
-    print(f"status action={decision.action} reason={decision.reason}")
+    # PR #85: heartbeat diário virou opt-in. A Olivia roda com
+    # DAILY_REPORT_ENABLED=false porque os alertas em tempo real do
+    # `grouped_push` (PR #80) já entregam o que importa — o heartbeat de 24h
+    # virou ruído pra ela. Quando desligado, NÃO construímos nem enviamos o
+    # relatório (skip total). Alertas em tempo real do monitor não passam
+    # por aqui — seguem fluindo normalmente.
+    if not config.daily_report_enabled:
+        print("status action=skipped reason=daily_report_disabled")
+        decision = None
+    else:
+        # PR #65/#67/#71: summaries Duffel (genérico + watchlist + agrupamento)
+        # entram no relatório/heartbeat p/ as linhas do 🧭. NUNCA contêm
+        # offer_id/token/payload/order_id — só contadores + código de resultado.
+        decision = maybe_send_status(
+            result=result,
+            store=store,
+            state=status_state,
+            notifier=notifier,
+            state_path=config.status_path,
+            throttle_hours=config.status_throttle_hours,
+            duffel_summary=duffel_summary,
+            duffel_watchlist_summary=duffel_watchlist_summary,
+            duffel_group_summary=duffel_group_summary,
+            duffel_order_flow_alert_mode=config.duffel_order_flow_alert_mode,
+        )
+        print(f"status action={decision.action} reason={decision.reason}")
     # PR #59: visibilidade operacional. Se o Telegram falhar ou o
     # heartbeat for pulado por motivo não-trivial, imprimimos um aviso
     # explícito p/ o workflow log do GitHub Actions. NUNCA loga token
-    # nem chat_id.
-    if decision.action == "failed":
-        print(
-            "  ⚠️ Telegram heartbeat FAILED — verifique se "
-            "TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID estão presentes "
-            "nos Actions Secrets e se o bot ainda está autorizado "
-            "no chat. State NÃO atualizado; próximo ciclo tentará "
-            "novamente."
-        )
-    elif decision.action == "skipped" and decision.reason == "no_notifier":
-        print(
-            "  ⚠️ Heartbeat skipped: notifier ausente. Verifique "
-            "TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID nos Actions Secrets."
-        )
+    # nem chat_id. PR #85: quando o heartbeat está desligado, `decision`
+    # é None e esses avisos não se aplicam — pula tudo.
+    if decision is not None:
+        if decision.action == "failed":
+            print(
+                "  ⚠️ Telegram heartbeat FAILED — verifique se "
+                "TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID estão presentes "
+                "nos Actions Secrets e se o bot ainda está autorizado "
+                "no chat. State NÃO atualizado; próximo ciclo tentará "
+                "novamente."
+            )
+        elif decision.action == "skipped" and decision.reason == "no_notifier":
+            print(
+                "  ⚠️ Heartbeat skipped: notifier ausente. Verifique "
+                "TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID nos Actions Secrets."
+            )
     return 0
 
 

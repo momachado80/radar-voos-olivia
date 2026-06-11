@@ -511,6 +511,34 @@ compra pendente; sem link direto" — leituras coerentes de passes diferentes,
 não contradição. Mudança só de copy: nenhuma alteração de detecção,
 threshold, chamada de provider, workflow ou comportamento de alerta.
 
+## 2.5 Heartbeat diário desligado em produção (PR #85)
+
+O "Radar de Voos Olivia — relatório diário" — heartbeat de 24h, ~200 linhas
+— virou ruído para a Olivia. Os alertas em tempo real do `grouped_push`
+(PR #80) já entregam as ofertas confirmadas pela Duffel **na hora**, e o
+resto do relatório (contadores internos do ciclo, "👀 Sinais em observação",
+"🛡️ Bloqueios de segurança", explicações verbosas por sinal, blocos
+vazios "Nenhuma executiva confirmada agora") era debug operacional, não
+informação acionável.
+
+Controle: env `DAILY_REPORT_ENABLED`. Default `true` (mantém compat com a
+suíte de testes e qualquer outro uso fora da Olivia). O workflow de
+produção (`flight-mapper.yml`) define `DAILY_REPORT_ENABLED: "false"`.
+Qualquer valor diferente de `"false"` (case-insensitive) mantém o
+heartbeat ligado — fail-safe contra typo no env.
+
+Em `__main__.py`, `cmd_cycle` faz o gate antes de chamar `maybe_send_status`:
+quando desligado, imprime `status action=skipped reason=daily_report_disabled`
+e não toca a `StatusState` nem o `notifier`. **Não afeta NENHUM alerta em
+tempo real:** `grouped_push`, alertas executivos `direct_link` e
+notificações de quedas reais seguem inteiramente pela mesma rota
+(`notifier.send`/`notifier.send_alert`), independente do heartbeat.
+
+Re-ligar é uma linha no workflow YAML (trocar `"false"` por `"true"` ou
+remover a env). Cobertura: `tests/test_daily_report_disable.py` (sentinela
+que faz o ciclo explodir se `maybe_send_status` for chamado com a flag
+desligada + asserção de que o YAML de produção mantém a flag em `"false"`).
+
 ## 3. O que conta como oportunidade para verificação manual
 
 Mesmas duas primeiras condições do confirmado (cabine + preço), mas

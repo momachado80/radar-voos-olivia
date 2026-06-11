@@ -82,6 +82,13 @@ jobs:
           # Só `direct_link` (ex.: Kiwi, se houver chave) dispara push de
           # COMPRA imediato; Duffel segue order_flow (busca, não checkout).
           DUFFEL_ORDER_FLOW_ALERT_MODE: "grouped_push"
+          # PR #85: o heartbeat diário (~200 linhas, 1x/dia) virou ruído pra
+          # Olivia — `grouped_push` acima já entrega os alertas em tempo real
+          # quando a Duffel confirma promo. Desligado em produção:
+          # 0 mensagens "Radar de Voos Olivia — relatório diário"; só
+          # alertas reais quando há oferta. Para re-ligar, troque para "true"
+          # (ou remova o env). Não afeta nenhum alerta em tempo real.
+          DAILY_REPORT_ENABLED: "false"
         run: python -m flight_mapper cycle
 
       - name: Commit state

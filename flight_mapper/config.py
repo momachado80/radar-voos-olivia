@@ -30,6 +30,12 @@ class Config:
     kiwi_api_key: str | None
     data_dir: Path
     status_throttle_hours: int = 24
+    # PR #85: liga/desliga o relatório diário (heartbeat de 24h) no Telegram.
+    # Default True por compat (testes/uso fora da Olivia); produção da Olivia
+    # roda com False — ela só recebe os alertas em tempo real do
+    # `grouped_push` (PR #80) quando a Duffel confirma promo de verdade.
+    # NÃO afeta os alertas em tempo real — só o heartbeat agregado.
+    daily_report_enabled: bool = True
     # Câmbio USD→BRL obrigatório p/ converter preços Travelpayouts (USD).
     # None ⇒ alertas com preço USD são bloqueados (ver Monitor).
     usd_brl_rate: float | None = None
@@ -114,6 +120,13 @@ class Config:
             duffel_watchlist_max_requests_per_cycle=wl_cap,
             duffel_order_flow_alert_mode=order_flow_mode,
             duffel_route_mode=route_mode,
+            # PR #85: DAILY_REPORT_ENABLED="false" desliga o heartbeat de 24h.
+            # Qualquer valor diferente de "false" (case-insensitive) mantém
+            # ligado — fail-safe para tests/uso de outras pessoas.
+            daily_report_enabled=(
+                os.environ.get("DAILY_REPORT_ENABLED", "true").strip().lower()
+                != "false"
+            ),
         )
 
     @property
