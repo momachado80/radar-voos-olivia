@@ -103,6 +103,11 @@ class DuffelPendingOffer:
     # somente ida/ida e volta, cabine ..." — garante que a busca abra com
     # o tipo correto e que a Olivia leia o que está sendo aberto.
     trip_pt: str = ""
+    # PR #86: segundo atalho de busca, no Kiwi (formato /deep documentado).
+    # Mesma natureza do search_url (busca, não oferta travada). O formato
+    # não tem parâmetro de cabine — pra executiva, a renderização rotula
+    # "ajuste a cabine". NUNCA vai em quote.deep_link (viraria direct_link).
+    kiwi_url: str | None = None
 
 
 def build_duffel_pending_offer(quote: Quote, decision: Decision) -> DuffelPendingOffer:
@@ -130,6 +135,7 @@ def build_duffel_pending_offer(quote: Quote, decision: Decision) -> DuffelPendin
         f"alvo {format_brl(decision.threshold)}"
         if decision.threshold is not None else ""
     )
+    from .auxiliary_links import build_kiwi_deep_link
     return DuffelPendingOffer(
         route_label=route_label, cabin_pt=cabin_pt, dates=dates,
         price_display=price_display, target_display=target_display,
@@ -137,6 +143,12 @@ def build_duffel_pending_offer(quote: Quote, decision: Decision) -> DuffelPendin
         search_url=duffel_google_flights_url(quote),
         # PR #79: trip_pt humano para a linha de label.
         trip_pt=trip_label_pt(quote.trip_type),
+        # PR #86: atalho Kiwi (busca, não checkout — ver DuffelPendingOffer).
+        kiwi_url=build_kiwi_deep_link(
+            quote.route, quote.departure_date,
+            quote.return_date
+            if quote.trip_type == TripType.ROUND_TRIP else None,
+        ),
     )
 
 
@@ -178,6 +190,16 @@ def format_grouped_duffel_pending(offers: list[DuffelPendingOffer]) -> str:
                 )
                 lines.append(
                     f"      Busca Google Flights: {o.trip_pt}, cabine {cab_low}."
+                )
+        # PR #86: segundo atalho — busca no Kiwi (checkout na mesma página
+        # do Kiwi). O formato /deep não tem parâmetro de cabine: pra
+        # executiva, avisa que abre em econômica e é preciso ajustar.
+        if o.kiwi_url:
+            lines.append(f'   🥝 <a href="{o.kiwi_url}">Buscar no Kiwi</a>')
+            if o.cabin_pt.lower() != "econômica":
+                lines.append(
+                    "      Kiwi abre em econômica — ajuste a cabine para "
+                    "executiva ao abrir."
                 )
     if extra > 0:
         lines.append(f"+{extra} outras ofertas confirmadas no ciclo.")
@@ -354,6 +376,22 @@ def format_alert(
             # PR #79: deixa explícito o trip_type+cabine que vai abrir, p/
             # a Olivia ler o que será aberto antes de clicar.
             extras.append(_duffel_search_label_line(quote))
+            # PR #86: segundo atalho — busca no Kiwi (/deep documentado,
+            # checkout na própria página do Kiwi). Sem parâmetro de cabine
+            # no formato: executiva pede ajuste manual ao abrir.
+            from .auxiliary_links import build_kiwi_deep_link
+            _kw = build_kiwi_deep_link(
+                quote.route, quote.departure_date,
+                quote.return_date
+                if quote.trip_type == TripType.ROUND_TRIP else None,
+            )
+            if _kw:
+                extras.append(f'🥝 <a href="{_kw}">Buscar no Kiwi</a>')
+                if quote.cabin != Cabin.ECONOMY:
+                    extras.append(
+                        "Kiwi abre em econômica — ajuste a cabine para "
+                        "executiva ao abrir."
+                    )
             extras.append(
                 "Busca pré-preenchida a partir da oferta confirmada pela "
                 "Duffel. Preço e disponibilidade podem variar; confira antes "

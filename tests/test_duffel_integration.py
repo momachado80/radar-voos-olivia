@@ -322,7 +322,11 @@ def test_alert_does_not_leak_offer_id_token_or_payload(tmp_path, monkeypatch):
         assert sentinel not in msg, f"LEAK no alerta Duffel: {sentinel!r}"
     import re
     hosts = re.findall(r'href="https://([^/"]+)', msg)
-    assert hosts and all(h == "www.google.com" for h in hosts), hosts
+    # PR #86: Kiwi /deep entrou como segundo atalho de busca — host
+    # intencional (URL só com rota+datas). Whitelist: Google + Kiwi.
+    assert hosts and all(
+        h in ("www.google.com", "www.kiwi.com") for h in hosts
+    ), hosts
     # Token nunca vai na URL (vai no header Authorization).
     assert "sentinel_token_zzz" not in captured.get("url", "")
 

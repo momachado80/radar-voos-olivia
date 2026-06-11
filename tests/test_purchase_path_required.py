@@ -203,7 +203,11 @@ def test_no_orders_call_and_no_leak_end_to_end(monkeypatch):
     import re
     hosts = re.findall(r'href="https://([^/"]+)', msg)
     assert hosts, "esperava o link do Google Flights"
-    assert all(h == "www.google.com" for h in hosts), hosts
+    # PR #86: Kiwi /deep entrou como segundo atalho de busca — host
+    # intencional (URL só com rota+datas). Whitelist: Google + Kiwi.
+    assert all(
+        h in ("www.google.com", "www.kiwi.com") for h in hosts
+    ), hosts
     # 8. detecção Duffel ainda funciona (cabine business confirmada + preço).
     assert q is not None
     assert q.cabin == Cabin.BUSINESS and q.cabin_confirmed is True

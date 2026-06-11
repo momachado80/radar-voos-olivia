@@ -355,4 +355,8 @@ def test_grouped_message_no_leak(tmp_path, monkeypatch):
         assert sentinel not in msg, f"LEAK na mensagem agrupada: {sentinel!r}"
     import re
     hosts = re.findall(r'href="https://([^/"]+)', msg)
-    assert all(h == "www.google.com" for h in hosts), hosts
+    # PR #86: Kiwi /deep entrou como segundo atalho de busca — host
+    # intencional (URL só com rota+datas). Whitelist: Google + Kiwi.
+    assert all(
+        h in ("www.google.com", "www.kiwi.com") for h in hosts
+    ), hosts
