@@ -202,7 +202,11 @@ def test_duffel_alert_no_leak():
         assert sentinel not in msg, f"LEAK no alerta Duffel: {sentinel!r}"
     import re
     hosts = re.findall(r'href="https://([^/"]+)', msg)
-    assert hosts and all(h == "www.google.com" for h in hosts), hosts
+    # PR #86: Kiwi /deep entrou como segundo atalho de busca — host
+    # intencional (URL só com rota+datas). Whitelist: Google + Kiwi.
+    assert hosts and all(
+        h in ("www.google.com", "www.kiwi.com") for h in hosts
+    ), hosts
 
 
 # ----------------- 7. não-Duffel inalterado -----------------

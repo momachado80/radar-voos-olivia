@@ -15,7 +15,7 @@ Regras invioláveis:
 
 from __future__ import annotations
 
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlencode
 
 from .airlines import airline_name
 from .formatting import cabin_search_term
@@ -110,6 +110,44 @@ def build_kayak_search_url(
     if return_date:
         path += f"/{return_date}"
     return f"https://www.kayak.com/flights/{path}/{cabin_search_term(cabin)}"
+
+
+def build_kiwi_deep_link(
+    route: Route,
+    departure_date: str,
+    return_date: str | None = None,
+) -> str | None:
+    """Deep link de busca pré-preenchida no Kiwi (PR #86).
+
+    Formato DOCUMENTADO oficialmente (Travelpayouts Help Center, artigo
+    "Kiwi.com affiliate links"): `https://www.kiwi.com/deep?from=GRU&to=LHR
+    &departure=YYYY-MM-DD[&return=YYYY-MM-DD]`. Aceita IATA + datas ISO.
+    Não exige chave/API/conta — a Tequila API segue fechada (invitation
+    only); este link é o caminho público que restou.
+
+    LIMITES (regra de produto, igual ao Google Flights do PR #76):
+    - É um atalho de BUSCA no Kiwi, NÃO a oferta Duffel travada e NÃO um
+      deep_link de checkout (não vai em `quote.deep_link` — host kiwi.com
+      seria classificado como direct_link e mentiria "compra direta").
+    - O formato `/deep` documentado NÃO tem parâmetro de cabine — a busca
+      abre no padrão do Kiwi (econômica). Pra oferta executiva, o caller
+      deve rotular "ajuste a cabine" na mensagem.
+
+    Sanitização: URL só com rota IATA + datas (dados públicos). NUNCA
+    offer_id/token/preço/payload/passageiro. `None` se faltar essencial.
+    """
+    if not route or not route.origin or not route.destination:
+        return None
+    if not departure_date:
+        return None
+    params: list[tuple[str, str]] = [
+        ("from", route.origin),
+        ("to", route.destination),
+        ("departure", departure_date),
+    ]
+    if return_date:
+        params.append(("return", return_date))
+    return f"https://www.kiwi.com/deep?{urlencode(params)}"
 
 
 def build_auxiliary_search_links(quote: Quote) -> list[tuple[str, str]]:

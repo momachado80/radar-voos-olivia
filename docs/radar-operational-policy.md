@@ -220,14 +220,38 @@ Google Flights. O número do voo é **informação pública** (consta em
 boarding pass, app da cia, e-mail de confirmação) — usar no alerta e na
 query de busca é alinhado ao mesmo propósito do filtro de cia.
 
-**Limite estrutural (sem mudança de natureza).** O link continua sendo um
-**atalho de busca**, não checkout da oferta travada: `link_status` segue
-`order_flow`. Os PRs #83/#84 reduzem drasticamente o atrito ("achei a
-oferta?" / "qual voo era mesmo?"), mas a única forma de transformar em
-"click → comprar A OFERTA" seria atravessar o hosted checkout da Duffel —
-investigação fechada (Duffel Links existe e funciona, mas exige KYC + plano
-pago + lida com `expires_at` ~30min da oferta; ver decisão da Olivia em
-junho/2026).
+**Atalho de busca no Kiwi (PR #86).** A Tequila API segue fechada
+(invitation-only desde 2024) e a via Travelpayouts exige 50k MAU — sem
+acesso pra uso pessoal. O que restou, e é DOCUMENTADO (Travelpayouts Help
+Center, artigo "Kiwi.com affiliate links"), é o deep link público de busca:
+`https://www.kiwi.com/deep?from=GRU&to=LHR&departure=YYYY-MM-DD
+[&return=YYYY-MM-DD]`. Todo alerta Duffel agora traz esse link como
+**segundo atalho** (`🥝 Buscar no Kiwi`), depois do Google Flights — no
+Kiwi o checkout acontece na mesma página, e o virtual interlining às vezes
+acha combinação mais barata.
+
+Regras do PR #86:
+- **Mesma natureza do link Google Flights**: busca pré-preenchida, não a
+  oferta travada. Por isso o URL **NUNCA** entra em `quote.deep_link` —
+  o host kiwi.com seria classificado `direct_link` e o alerta mentiria
+  "compra direta". `link_status` segue `order_flow`. Coberto por
+  `test_duffel_quote_with_kiwi_search_keeps_order_flow`.
+- **Só parâmetros documentados** (`from`/`to`/`departure`/`return`). O
+  formato não tem parâmetro de cabine: a busca abre no padrão do Kiwi
+  (econômica). Pra oferta executiva, a mensagem avisa: "Kiwi abre em
+  econômica — ajuste a cabine para executiva ao abrir." Econômica não
+  precisa de aviso.
+- URL só com rota IATA + datas. Sem offer_id/token/preço/payload.
+- Hosts clicáveis no alerta Duffel: `www.google.com` e `www.kiwi.com`.
+
+**Limite estrutural (sem mudança de natureza).** Os links continuam sendo
+**atalhos de busca**, não checkout da oferta travada: `link_status` segue
+`order_flow`. Os PRs #83/#84/#86 reduzem drasticamente o atrito ("achei a
+oferta?" / "qual voo era mesmo?" / "onde fecho a compra?"), mas a única
+forma de transformar em "click → comprar A OFERTA" seria atravessar o
+hosted checkout da Duffel — investigação fechada (Duffel Links existe e
+funciona, mas exige KYC + plano pago + lida com `expires_at` ~30min da
+oferta; ver decisão da Olivia em junho/2026).
 
 **Preservação do trip_type, rota, datas e cabine (PR #79).** A query do
 Google Flights é construída de forma **EXPLÍCITA**:

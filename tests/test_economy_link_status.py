@@ -271,7 +271,11 @@ def test_economy_alert_no_leak(monkeypatch):
         assert sentinel not in msg, f"LEAK no alerta economy: {sentinel!r}"
     import re
     hosts = re.findall(r'href="https://([^/"]+)', msg)
-    assert hosts and all(h == "www.google.com" for h in hosts), hosts
+    # PR #86: Kiwi /deep entrou como segundo atalho de busca — host
+    # intencional (URL só com rota+datas). Whitelist: Google + Kiwi.
+    assert hosts and all(
+        h in ("www.google.com", "www.kiwi.com") for h in hosts
+    ), hosts
     # PR #76: economy Duffel order_flow ⇒ 🟡 + busca no Google Flights.
     assert "🟡 Oferta confirmada" in msg
     assert "buscar no Google Flights" in msg
