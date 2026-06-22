@@ -1,15 +1,5 @@
 {
   "entries": {
-    "duffel|GRU-LIM|business|round_trip|2026-09-12|2026-09-22": {
-      "last_alert_at": "2026-06-14T21:39:47.739157+00:00",
-      "last_price_brl": 5080.92,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-YUL|business|round_trip|2026-09-12|2026-09-22": {
-      "last_alert_at": "2026-06-14T21:39:47.739157+00:00",
-      "last_price_brl": 11788.14,
-      "last_currency": "EUR"
-    },
     "duffel|GRU-BOG|economy|round_trip|2026-09-13|2026-09-23": {
       "last_alert_at": "2026-06-15T15:34:36.879506+00:00",
       "last_price_brl": 1958.34,
@@ -598,6 +588,21 @@
     "duffel|GRU-FRA|economy|round_trip|2026-09-19|2026-09-29": {
       "last_alert_at": "2026-06-21T20:52:59.033553+00:00",
       "last_price_brl": 4142.7,
+      "last_currency": "EUR"
+    },
+    "duffel|GRU-LIM|business|round_trip|2026-09-20|2026-09-30": {
+      "last_alert_at": "2026-06-22T07:38:32.794849+00:00",
+      "last_price_brl": 5658.12,
+      "last_currency": "EUR"
+    },
+    "duffel|GRU-YUL|business|round_trip|2026-09-20|2026-09-30": {
+      "last_alert_at": "2026-06-22T07:38:32.794849+00:00",
+      "last_price_brl": 11910.24,
+      "last_currency": "EUR"
+    },
+    "duffel|GRU-MIA|business|one_way|2026-08-21|": {
+      "last_alert_at": "2026-06-22T07:38:32.794849+00:00",
+      "last_price_brl": 5444.1,
       "last_currency": "EUR"
     }
   }
