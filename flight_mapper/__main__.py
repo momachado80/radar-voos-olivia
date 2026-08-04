@@ -1011,6 +1011,40 @@ def cmd_provider_readiness(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_promo_feed_readiness(args: argparse.Namespace) -> int:
+    """Spike PR #88: os feeds RSS de sites caça-promoção servem como fonte
+    das promoções relâmpago (que não circulam por API)?
+
+    Read-only: só GET em feed público. Não envia Telegram, não toca data/,
+    não gera Quote/alerta. `--mock-file` roda offline com fixture."""
+    from .promo_feeds import (
+        PROMO_FEEDS,
+        format_readiness_report,
+        parse_feed,
+        FeedFetch,
+        run_readiness,
+    )
+
+    if args.mock_file:
+        with open(args.mock_file, "rb") as fh:
+            body = fh.read()
+        fetch = FeedFetch(
+            name="(fixture)", url=args.mock_file, ok=True, status=200,
+            raw_bytes=len(body), items=parse_feed(body),
+        )
+        print(format_readiness_report([fetch]))
+        return 0
+
+    feeds = PROMO_FEEDS
+    if args.feed:
+        feeds = tuple((u, u) for u in args.feed)
+    report, fetches = run_readiness(feeds=feeds)
+    print(report)
+    # Exit 1 se NENHUM feed respondeu — o Actions marca vermelho e fica
+    # óbvio que a hipótese não se sustenta.
+    return 0 if any(f.ok for f in fetches) else 1
+
+
 def cmd_amadeus_smoke(args: argparse.Namespace) -> int:
     """Smoke read-only Amadeus. Com `--mock-file PATH`: parsing offline
     de fixture JSON (zero rede). Sem mock: chamada real (test env), só
@@ -1898,6 +1932,19 @@ def main(argv: list[str] | None = None) -> int:
         help="Data de retorno YYYY-MM-DD (opcional, só em --real round_trip).",
     )
     p_pr.set_defaults(func=cmd_provider_readiness)
+
+    p_feeds = sub.add_parser(
+        "promo-feed-readiness",
+        help="Spike: verifica feeds RSS de sites caça-promoção (read-only).",
+    )
+    p_feeds.add_argument(
+        "--feed", action="append", default=None,
+        help="URL de feed p/ testar (repetível). Vazio = lista padrão.",
+    )
+    p_feeds.add_argument(
+        "--mock-file", default=None, help="Fixture XML p/ rodar offline.",
+    )
+    p_feeds.set_defaults(func=cmd_promo_feed_readiness)
 
     p_am = sub.add_parser(
         "amadeus-smoke",
