@@ -535,6 +535,65 @@ compra pendente; sem link direto" — leituras coerentes de passes diferentes,
 não contradição. Mudança só de copy: nenhuma alteração de detecção,
 threshold, chamada de provider, workflow ou comportamento de alerta.
 
+## 2.4.1 Trechos DOMÉSTICOS brasileiros (PR #87)
+
+A pedido da Olivia, o pool passou a cobrir promoções **dentro do Brasil**:
+São Paulo/Congonhas ↔ Salvador e São Paulo/Congonhas ↔ Brasília, **nos dois
+sentidos** (`CGH→SSA`, `SSA→CGH`, `CGH→BSB`, `BSB→CGH`), em econômica e
+executiva, ida e ida-e-volta. Pool: 96 → **112 entradas**; cap do ciclo
+12 → **14** (cobre o pool em ~8 ciclos ≈ 2h). Os trechos domésticos vêm
+**primeiro** na ordem de rotação — são a prioridade declarada.
+
+Isso exigiu destravar **três bloqueios que fariam a promo doméstica falhar
+em silêncio** (o alerta simplesmente nunca sairia, sem erro visível):
+
+**1. O pool só sabia sair de GRU.** `build_broad_candidate_pool` fixava
+`origin="GRU"` e `BROAD_ROUTE_SPECS` era `(destino, região, cidade)` — não
+havia como expressar `SSA→CGH`. Agora existe `BROAD_DOMESTIC_SPECS` com
+origem explícita `(origem, destino, região, cidade)`, e o builder monta as
+entradas domésticas e internacionais na mesma rotação.
+
+**2. Piso de sanidade calibrado só para internacional.** `sanity.py` exigia
+≥ R$ 1.000 (econômica ida) para o preço não ser "suspeito" — piso pensado
+para GRU→intl de longo curso. Uma promo real `CGH→BSB` sai por ~R$ 210 e
+seria **bloqueada como preço suspeito**. Agora há
+`DOMESTIC_SUSPICIOUS_FLOOR_BRL` (R$ 80 econômica ida, R$ 150 econômica ida
+e volta, R$ 200 / R$ 350 executiva), selecionado por
+`regions.is_domestic_brazil(route)` — origem **e** destino em
+`BRAZIL_AIRPORTS`. O piso não sumiu, só foi recalibrado: tarifa em USD
+rotulada como BRL (o bug que o piso existe para pegar) segue bloqueada, e o
+piso internacional está **intacto**. Rota ausente/`None` ⇒ trata como
+internacional (piso mais rígido — na dúvida, bloqueia).
+
+**3. Teto não escalava quando a oferta vinha em BRL.** Os tetos são
+denominados em **USD** e `quote.price_brl` é sempre BRL, mas o pass Duffel
+pulava a escala USD→BRL quando `currency == "BRL"`, comparando reais contra
+número USD cru. Latente até aqui porque nenhuma rota internacional volta em
+BRL — mas em trecho doméstico **a Duffel devolve BRL nativo**, então uma
+promo de R$ 450 era comparada contra `125` e nunca alertava. Agora a escala
+USD→BRL é aplicada **sempre**, para qualquer moeda. É a mesma família da
+correção do PR #82 (que consertou EUR-vs-USD); esta fecha BRL-vs-USD.
+Regressão coberta por `test_brl_native_quote_scales_threshold_end_to_end`,
+que **falha** se a escala voltar a ser condicional.
+
+Calibração "só promoção" (valores USD em `thresholds.py`, escalados em
+runtime; ida-e-volta / somente-ida). Ambos os sentidos de um trecho
+compartilham o mesmo teto — assimetria faria um sentido alertar e o outro
+não, sem motivo:
+
+| Trecho | Econômica ida e volta | Econômica ida | Executiva ida e volta |
+|---|---|---|---|
+| CGH ↔ SSA | alerta até ~R$ 690 | até ~R$ 396 | até ~R$ 1.815 |
+| CGH ↔ BSB | alerta até ~R$ 605 | até ~R$ 330 | até ~R$ 1.485 |
+
+Tarifa de tabela (R$ 900–1.600 econômica) fica em silêncio. Nota: no
+doméstico brasileiro "executiva" é na prática premium economy (LATAM
+Premium / GOL Conforto) — os tetos refletem isso.
+
+Janela de busca própria: **45 dias** de antecedência e **4 noites**
+(a internacional usa 90 d / 10 noites) — promo doméstica abre mais perto e
+a viagem típica é bem mais curta.
+
 ## 2.5 Heartbeat diário desligado em produção (PR #85)
 
 O "Radar de Voos Olivia — relatório diário" — heartbeat de 24h, ~200 linhas

@@ -22,6 +22,7 @@ import pytest
 
 from flight_mapper.config import Config
 from flight_mapper.duffel_broad import (
+    BROAD_DOMESTIC_SPECS,
     BROAD_ROUTE_SPECS,
     DUFFEL_ROUTE_MODE_BROAD,
     DUFFEL_ROUTE_MODE_DISABLED,
@@ -47,11 +48,15 @@ def test_broad_pool_includes_london_and_paris():
 
 def test_broad_pool_covers_all_routes():
     pool = build_broad_candidate_pool(today=date(2026, 6, 1))
-    dests = {e.route.destination for e in pool}
-    expected = {dest for dest, _, _ in BROAD_ROUTE_SPECS}
-    assert dests == expected
-    # PR #81: escopo ampliado — N destinos × 2 cabines × 2 trip_types.
-    assert len(pool) == len(BROAD_ROUTE_SPECS) * 4
+    pairs = {(e.route.origin, e.route.destination) for e in pool}
+    expected = {("GRU", dest) for dest, _, _ in BROAD_ROUTE_SPECS} | {
+        (org, dst) for org, dst, _, _ in BROAD_DOMESTIC_SPECS
+    }
+    assert pairs == expected
+    # PR #81/#87: (domésticas + internacionais) × 2 cabines × 2 trip_types.
+    assert len(pool) == (
+        len(BROAD_DOMESTIC_SPECS) + len(BROAD_ROUTE_SPECS)
+    ) * 4
 
 
 def test_broad_pool_spans_multiple_regions():

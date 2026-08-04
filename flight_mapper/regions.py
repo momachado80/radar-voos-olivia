@@ -32,6 +32,38 @@ REGIONS = {
     "Ásia": ASIA,
 }
 
+# Aeroportos brasileiros (PR #87). NÃO entram em `REGIONS` de propósito:
+# `all_routes()` faz REGIONS × ORIGINS(GRU) e criaria rotas sem sentido
+# (GRU→CGH, mesma cidade) no pass genérico do Travelpayouts. Esta lista
+# serve só para classificar um trecho como doméstico — o que muda o piso
+# de sanidade (`flight_mapper/sanity.py`), já que a malha doméstica opera
+# em outra ordem de grandeza de preço.
+BRAZIL_AIRPORTS = frozenset({
+    "GRU", "CGH", "VCP",   # São Paulo (Guarulhos, Congonhas, Viracopos)
+    "GIG", "SDU",          # Rio de Janeiro (Galeão, Santos Dumont)
+    "BSB",                 # Brasília
+    "SSA",                 # Salvador
+    "CNF",                 # Belo Horizonte (Confins)
+    "REC", "FOR",          # Recife, Fortaleza
+    "POA", "CWB",          # Porto Alegre, Curitiba
+    "MAO", "BEL",          # Manaus, Belém
+})
+
+
+def is_domestic_brazil(route: "Route | None") -> bool:
+    """True quando origem E destino são aeroportos brasileiros.
+
+    Defensivo: rota ausente/malformada ⇒ False (trata como internacional).
+    Alguns caminhos do relatório chamam a sanidade sem uma `Route` real, e
+    o default internacional é o mais rígido — na dúvida, bloqueia.
+    """
+    if route is None:
+        return False
+    return (
+        getattr(route, "origin", None) in BRAZIL_AIRPORTS
+        and getattr(route, "destination", None) in BRAZIL_AIRPORTS
+    )
+
 PRIORITY_KEYS = frozenset({
     "GRU-SFO-business",
     "GRU-JFK-business",

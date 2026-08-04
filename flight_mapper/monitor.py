@@ -554,10 +554,15 @@ class Monitor:
         # honestidade ⇒ effective_rate=None ⇒ evaluate_ceiling devolve "sem
         # teto" (alert=False); o detector de queda legado segue avaliando.
         # BRL-nativo (teórico p/ Duffel) usa tetos como estão (compat).
-        usd_brl_rate = get_usd_brl_rate()
-        effective_rate = (
-            usd_brl_rate if quote.currency.upper() != "BRL" else None
-        )
+        # PR #87: os tetos são SEMPRE denominados em USD e `quote.price_brl`
+        # é SEMPRE BRL — logo a escala USD→BRL vale para QUALQUER moeda da
+        # oferta, inclusive BRL-nativa. Antes, oferta em BRL pulava a escala
+        # e comparava R$ contra número USD cru: p/ GRU-LHR-business (teto
+        # 1700 USD) só alertaria abaixo de R$ 1.700 — absurdo. O bug ficou
+        # latente porque nenhuma rota internacional volta em BRL; nas rotas
+        # DOMÉSTICAS brasileiras (Duffel devolve BRL nativo) ele bloquearia
+        # toda promo em silêncio. Escalar sempre é o comportamento correto.
+        effective_rate = get_usd_brl_rate()
         ceiling = evaluate_ceiling(
             history, quote.price_brl, tkey,
             priority=priority, brl_rate=effective_rate,

@@ -67,11 +67,13 @@ jobs:
           #   têm teto "só promoção" em thresholds.py.
           # - `watchlist` (opt-in): Londres/Paris setembro/2026 (PR #67/#68).
           # - `disabled`: pool vazio.
-          # PR #81: cap de 12 consultas/ciclo. Com 96 entradas e rotação,
-          # cobre o pool inteiro em ~8 ciclos (≈2h). Read-only (só Offer
-          # Requests, nunca order/payment) e conservador p/ a quota Duffel.
+          # PR #87: cap de 14 consultas/ciclo. O pool foi p/ 112 entradas
+          # (4 trechos DOMÉSTICOS brasileiros + 24 internacionais, × 2
+          # cabines × 2 trip_types); com rotação, 14/ciclo cobre o pool
+          # inteiro em ~8 ciclos (≈2h). Read-only (só Offer Requests, nunca
+          # order/payment) e conservador p/ a quota Duffel.
           DUFFEL_ROUTE_MODE: "broad"
-          DUFFEL_WATCHLIST_MAX_REQUESTS_PER_CYCLE: "12"
+          DUFFEL_WATCHLIST_MAX_REQUESTS_PER_CYCLE: "14"
           # PR #80: a Olivia quer as ofertas EM TEMPO REAL (não resumo
           # diário). `grouped_push`: quando o ciclo (a cada 15 min) acha
           # ofertas Duffel confirmadas que batem o alvo, manda UMA mensagem

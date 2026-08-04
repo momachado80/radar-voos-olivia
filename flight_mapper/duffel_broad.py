@@ -62,10 +62,32 @@ BROAD_ROUTE_SPECS: tuple[tuple[str, str, str], ...] = (
     ("HKG", "Ásia", "Hong Kong"),
 )
 
+# Rotas DOMÉSTICAS brasileiras (PR #87), a pedido da Olivia: São Paulo
+# (Congonhas) ↔ Salvador e São Paulo (Congonhas) ↔ Brasília, nos DOIS
+# sentidos — one-way CGH→SSA e SSA→CGH são viagens diferentes, e mesmo o
+# round-trip muda conforme de onde ela parte.
+#
+# Diferente de `BROAD_ROUTE_SPECS` (origem GRU implícita), aqui a origem é
+# explícita: `(origem, destino, região, cidade_destino)`. Todos os 4 pares
+# têm teto business E economy (round-trip e one-way) em `thresholds.py` e
+# piso de sanidade doméstico em `sanity.py` — sem os dois, a promo nunca
+# viraria alerta.
+BROAD_DOMESTIC_SPECS: tuple[tuple[str, str, str, str], ...] = (
+    ("CGH", "SSA", "Brasil", "Salvador"),
+    ("SSA", "CGH", "Brasil", "São Paulo"),
+    ("CGH", "BSB", "Brasil", "Brasília"),
+    ("BSB", "CGH", "Brasil", "São Paulo"),
+)
+
 # Janela conservadora p/ a busca: ~90 dias à frente é uma janela típica de
 # oferta business; 10 noites é uma duração razoável p/ round-trip.
 BROAD_LOOKAHEAD_DAYS = 90
 BROAD_TRIP_NIGHTS = 10
+
+# Doméstico usa janela mais curta (PR #87): promo doméstica costuma abrir
+# com menos antecedência, e a viagem típica é bem mais curta que 10 noites.
+DOMESTIC_LOOKAHEAD_DAYS = 45
+DOMESTIC_TRIP_NIGHTS = 4
 
 
 def _broad_dates(today: date | None = None) -> tuple[str, str]:
@@ -77,17 +99,28 @@ def _broad_dates(today: date | None = None) -> tuple[str, str]:
     return out.strftime("%Y-%m-%d"), ret.strftime("%Y-%m-%d")
 
 
+def _domestic_dates(today: date | None = None) -> tuple[str, str]:
+    """Datas (ida, volta) p/ os trechos domésticos (PR #87). Janela mais
+    curta que a internacional. Função pura."""
+    t = today or date.today()
+    out = t + timedelta(days=DOMESTIC_LOOKAHEAD_DAYS)
+    ret = out + timedelta(days=DOMESTIC_TRIP_NIGHTS)
+    return out.strftime("%Y-%m-%d"), ret.strftime("%Y-%m-%d")
+
+
 def build_broad_candidate_pool(
     today: date | None = None,
 ) -> list[DuffelWatchEntry]:
-    """Pool broad: 8 rotas × {business, economy} × {one_way, round_trip}
-    com datas dinâmicas. Total = 32 entradas (8 × 2 × 2).
+    """Pool broad: (domésticas + internacionais) × {business, economy} ×
+    {one_way, round_trip}, com datas dinâmicas.
+    Total = (len(BROAD_DOMESTIC_SPECS) + len(BROAD_ROUTE_SPECS)) × 4.
 
     Ordem: para cada cabine (business primeiro), business+round_trip,
     business+one_way, etc., para cada rota — assim a rotação cobre cabines
     e trip_types ao longo dos ciclos, em vez de varrer 8 round_trip business
     seguidos. Londres/Paris ficam no meio (não primeiro), de propósito."""
     outbound, return_date = _broad_dates(today)
+    dom_outbound, dom_return = _domestic_dates(today)
     entries: list[DuffelWatchEntry] = []
     # Intercala (cabine, trip_type) p/ a rotação diversificar.
     cabin_trips = (
@@ -96,19 +129,29 @@ def build_broad_candidate_pool(
         ("economy", TripType.ROUND_TRIP),
         ("economy", TripType.ONE_WAY),
     )
+    # (origem, destino, região, datas) — domésticos PRIMEIRO (PR #87): são a
+    # prioridade declarada da Olivia, então a rotação os cobre já nos
+    # primeiros ciclos após o deploy.
+    specs: list[tuple[str, str, str, str, str]] = [
+        (org, dst, region, dom_outbound, dom_return)
+        for org, dst, region, _city in BROAD_DOMESTIC_SPECS
+    ] + [
+        ("GRU", dst, region, outbound, return_date)
+        for dst, region, _city in BROAD_ROUTE_SPECS
+    ]
     for cabin, trip in cabin_trips:
-        for dest, region, _city in BROAD_ROUTE_SPECS:
+        for origin, dest, region, out_date, ret_date in specs:
             route = Route(
-                origin="GRU", destination=dest, region=region,
+                origin=origin, destination=dest, region=region,
                 trip_type=trip, cabin=Cabin.BUSINESS,  # campo `cabin` da
                 # Route é só rotulagem da rota; a busca usa entry.cabin.
             )
             entries.append(
                 DuffelWatchEntry(
                     route=route,
-                    outbound_date=outbound,
+                    outbound_date=out_date,
                     return_date=(
-                        return_date if trip == TripType.ROUND_TRIP else ""
+                        ret_date if trip == TripType.ROUND_TRIP else ""
                     ),
                     cabin=cabin,
                 )
