@@ -68,6 +68,14 @@ ROUTE_THRESHOLDS: dict[str, dict[str, float]] = {
     "GRU-PVG-business": {"excellent_brl": 2300, "good_brl": 2800},
     "GRU-PEK-business": {"excellent_brl": 2300, "good_brl": 2800},
     "GRU-HKG-business": {"excellent_brl": 2300, "good_brl": 2800},
+    # PR #87: DOMÉSTICO Brasil (round-trip). Valores em USD como todo o
+    # resto do módulo — escalados p/ BRL em runtime. "Business" doméstico
+    # na prática é premium economy (LATAM Premium / GOL Conforto).
+    # Referência: promo executiva CGH↔SSA ~R$ 1.200-1.800 ida e volta.
+    "CGH-SSA-business": {"excellent_brl": 220, "good_brl": 330},
+    "SSA-CGH-business": {"excellent_brl": 220, "good_brl": 330},
+    "CGH-BSB-business": {"excellent_brl": 180, "good_brl": 270},
+    "BSB-CGH-business": {"excellent_brl": 180, "good_brl": 270},
 }
 
 
@@ -111,6 +119,11 @@ ONE_WAY_ROUTE_THRESHOLDS: dict[str, dict[str, float]] = {
     "GRU-PVG-one_way-business": {"excellent_brl": 1450, "good_brl": 1950},
     "GRU-PEK-one_way-business": {"excellent_brl": 1450, "good_brl": 1950},
     "GRU-HKG-one_way-business": {"excellent_brl": 1450, "good_brl": 1950},
+    # PR #87: DOMÉSTICO Brasil (somente ida) — ~55% do round-trip.
+    "CGH-SSA-one_way-business": {"excellent_brl": 120, "good_brl": 180},
+    "SSA-CGH-one_way-business": {"excellent_brl": 120, "good_brl": 180},
+    "CGH-BSB-one_way-business": {"excellent_brl": 100, "good_brl": 155},
+    "BSB-CGH-one_way-business": {"excellent_brl": 100, "good_brl": 155},
 }
 
 # Destinos one-way iniciais (ordem estável p/ testes/preview).
@@ -159,6 +172,14 @@ ECONOMY_ROUTE_THRESHOLDS: dict[str, dict[str, float]] = {
     "GRU-PVG-economy": {"excellent_brl": 700, "good_brl": 950},
     "GRU-PEK-economy": {"excellent_brl": 700, "good_brl": 950},
     "GRU-HKG-economy": {"excellent_brl": 720, "good_brl": 970},
+    # PR #87: DOMÉSTICO Brasil (round-trip econômica) — o caso principal da
+    # Olivia. Calibração "só promoção": CGH↔SSA alerta até ~R$ 690 (bom) e
+    # R$ 440 vira "excelente"; CGH↔BSB, mais curto, alerta até ~R$ 605.
+    # Tarifa de tabela (R$ 900-1.600) fica em silêncio.
+    "CGH-SSA-economy": {"excellent_brl": 80, "good_brl": 125},
+    "SSA-CGH-economy": {"excellent_brl": 80, "good_brl": 125},
+    "CGH-BSB-economy": {"excellent_brl": 70, "good_brl": 110},
+    "BSB-CGH-economy": {"excellent_brl": 70, "good_brl": 110},
 }
 
 ECONOMY_ONE_WAY_ROUTE_THRESHOLDS: dict[str, dict[str, float]] = {
@@ -187,6 +208,12 @@ ECONOMY_ONE_WAY_ROUTE_THRESHOLDS: dict[str, dict[str, float]] = {
     "GRU-PVG-one_way-economy": {"excellent_brl": 450, "good_brl": 620},
     "GRU-PEK-one_way-economy": {"excellent_brl": 450, "good_brl": 620},
     "GRU-HKG-one_way-economy": {"excellent_brl": 460, "good_brl": 630},
+    # PR #87: DOMÉSTICO Brasil (somente ida econômica) — ~55% do round-trip.
+    # CGH↔SSA alerta até ~R$ 396; CGH↔BSB até ~R$ 330.
+    "CGH-SSA-one_way-economy": {"excellent_brl": 45, "good_brl": 72},
+    "SSA-CGH-one_way-economy": {"excellent_brl": 45, "good_brl": 72},
+    "CGH-BSB-one_way-economy": {"excellent_brl": 38, "good_brl": 60},
+    "BSB-CGH-one_way-economy": {"excellent_brl": 38, "good_brl": 60},
 }
 
 

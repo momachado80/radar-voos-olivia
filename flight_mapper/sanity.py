@@ -19,7 +19,7 @@ Funções puras: sem rede, sem I/O, sem estado.
 from __future__ import annotations
 
 from .currency import CURRENCY_BRL
-from .regions import Cabin, Route, TripType
+from .regions import Cabin, Route, TripType, is_domestic_brazil
 
 # Pisos mínimos plausíveis em BRL por (trip_type, cabin) para voo
 # internacional de longa distância (todas as rotas monitoradas hoje são
@@ -36,9 +36,32 @@ SUSPICIOUS_FLOOR_BRL: dict[tuple[TripType, Cabin], float] = {
     (TripType.ROUND_TRIP, Cabin.ECONOMY): 1800.0,
 }
 
+# Pisos para trecho DOMÉSTICO brasileiro (PR #87). A malha doméstica opera
+# em outra ordem de grandeza: uma promo REAL CGH→BSB econômica somente ida
+# sai por ~R$ 210 — muito abaixo do piso internacional de R$ 1.000. Aplicar
+# o piso internacional a trecho doméstico bloquearia TODA promo legítima
+# como "preço suspeito", em silêncio (o alerta simplesmente nunca sairia).
+#
+# Calibração: abaixo da promo real mais agressiva (não gera falso-positivo)
+# e acima do absurdo — ex.: tarifa em USD rotulada como BRL, que é o bug
+# que este piso existe para pegar.
+DOMESTIC_SUSPICIOUS_FLOOR_BRL: dict[tuple[TripType, Cabin], float] = {
+    (TripType.ONE_WAY, Cabin.BUSINESS): 200.0,
+    (TripType.ROUND_TRIP, Cabin.BUSINESS): 350.0,
+    (TripType.ONE_WAY, Cabin.ECONOMY): 80.0,
+    (TripType.ROUND_TRIP, Cabin.ECONOMY): 150.0,
+}
 
-def _floor_for(quote) -> float | None:
-    return SUSPICIOUS_FLOOR_BRL.get((quote.trip_type, quote.cabin))
+
+def _floor_for(route: Route, quote) -> float | None:
+    """Piso plausível p/ (trip_type, cabin), sensível a doméstico ×
+    internacional (PR #87)."""
+    table = (
+        DOMESTIC_SUSPICIOUS_FLOOR_BRL
+        if is_domestic_brazil(route)
+        else SUSPICIOUS_FLOOR_BRL
+    )
+    return table.get((quote.trip_type, quote.cabin))
 
 
 def is_suspicious_price(
@@ -60,7 +83,7 @@ def is_suspicious_price(
         return False
     if amount_brl_estimated is None:
         return False
-    floor = _floor_for(quote)
+    floor = _floor_for(route, quote)
     if floor is None:
         return False
     return amount_brl_estimated < floor
@@ -74,9 +97,12 @@ def suspicious_reason(
         return None
     if getattr(quote, "suspicious", False):
         return "preço sinalizado como suspeito pelo provedor"
-    floor = _floor_for(quote)
+    floor = _floor_for(route, quote)
+    escopo = (
+        "doméstico" if is_domestic_brazil(route) else "internacional"
+    )
     return (
         f"preço R$ {amount_brl_estimated:.0f} abaixo do piso plausível "
         f"R$ {floor:.0f} para {quote.cabin.value} {quote.trip_type.value} "
-        f"internacional"
+        f"{escopo}"
     )

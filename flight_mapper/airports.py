@@ -50,6 +50,9 @@ AIRPORTS: dict[str, str] = {
     "HND": "Tóquio",
     "PVG": "Xangai",
     "PEK": "Pequim",
+    # PR #87: trechos domésticos brasileiros (CGH já mapeado acima).
+    "SSA": "Salvador",
+    "BSB": "Brasília",
 }
 
 
