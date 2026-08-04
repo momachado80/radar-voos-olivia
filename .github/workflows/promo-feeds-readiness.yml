@@ -1,0 +1,58 @@
+name: Promo feeds readiness
+
+# Manual apenas — workflow_dispatch only, nunca cron / push / PR.
+# Existe para RESPONDER, com dado real, a pergunta da Olivia: dá pra pegar
+# as promoções relâmpago das companhias (que não circulam por API) lendo os
+# feeds RSS dos sites brasileiros caça-promoção?
+#
+# Rodar aqui e não no sandbox porque o proxy do ambiente de dev bloqueia
+# esses domínios (403); o Actions tem internet aberta.
+#
+# Regras invioláveis:
+# - NENHUM secret (não envia Telegram, não usa token de provider).
+# - Não toca data/ (permissions: contents: read).
+# - Não toca o motor de produção (não roda monitor/detector/cycle).
+# - Read-only: só HTTP GET em feed público já publicado pelos sites.
+
+on:
+  workflow_dispatch:
+    inputs:
+      feed:
+        description: "URL de feed específico (vazio = lista padrão dos 3 sites)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promo-feeds-readiness
+  cancel-in-progress: false
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Ler feeds de promoção (read-only)
+        env:
+          # Input via env var p/ evitar shell injection.
+          RAW_FEED: ${{ inputs.feed }}
+        run: |
+          if [ -n "$RAW_FEED" ]; then
+            case "$RAW_FEED" in
+              https://*) ;;
+              *) echo "feed inválido (exige https://): $RAW_FEED" >&2; exit 2 ;;
+            esac
+            python -m flight_mapper promo-feed-readiness --feed "$RAW_FEED"
+          else
+            python -m flight_mapper promo-feed-readiness
+          fi
