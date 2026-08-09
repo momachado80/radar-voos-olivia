@@ -3395,6 +3395,7 @@
   "GRU-AMS-business::duffel::2026-11-07_2026-11-17": {
     "prices": [
       14659.86,
+      14659.86,
       14659.86
     ],
     "last_alert_at": null,
@@ -3411,7 +3412,7 @@
       "return_date": "2026-11-17",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-09T09:34:47.536944+00:00",
+      "detected_at": "2026-08-09T18:04:58.292686+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -16409,6 +16410,7 @@
   "GRU-CDG-business::duffel::2026-11-07_2026-11-17": {
     "prices": [
       15733.08,
+      15733.08,
       15733.08
     ],
     "last_alert_at": null,
@@ -16425,7 +16427,7 @@
       "return_date": "2026-11-17",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-09T09:34:34.484841+00:00",
+      "detected_at": "2026-08-09T18:04:46.325381+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -23046,6 +23048,7 @@
   "GRU-CUN-business::duffel::2026-11-07_2026-11-17": {
     "prices": [
       11986.86,
+      11986.86,
       11986.86
     ],
     "last_alert_at": null,
@@ -23062,7 +23065,7 @@
       "return_date": "2026-11-17",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-09T09:34:12.450908+00:00",
+      "detected_at": "2026-08-09T18:04:22.058093+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -32547,6 +32550,7 @@
   "GRU-FCO-business::duffel::2026-11-07_2026-11-17": {
     "prices": [
       13017.84,
+      13017.84,
       13017.84
     ],
     "last_alert_at": null,
@@ -32563,7 +32567,7 @@
       "return_date": "2026-11-17",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-09T09:34:43.053244+00:00",
+      "detected_at": "2026-08-09T18:04:55.300730+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -39054,6 +39058,7 @@
   "GRU-FRA-business::duffel::2026-11-07_2026-11-17": {
     "prices": [
       13114.92,
+      13114.92,
       13114.92
     ],
     "last_alert_at": null,
@@ -39070,7 +39075,7 @@
       "return_date": "2026-11-17",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-09T09:34:50.468264+00:00",
+      "detected_at": "2026-08-09T18:05:05.073896+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -58025,15 +58030,16 @@
   "GRU-JFK-business::duffel::2026-11-07_2026-11-17": {
     "prices": [
       13735.2,
-      17160.42
+      17160.42,
+      13735.2
     ],
     "last_alert_at": null,
     "last_alert_price": null,
     "last_quote": {
-      "price_brl": 17160.42,
-      "amount": 2860.07,
+      "price_brl": 13735.2,
+      "amount": 2289.2,
       "currency": "EUR",
-      "amount_brl_estimated": 17160.42,
+      "amount_brl_estimated": 13735.2,
       "fx_rate": 6.0,
       "origin": "GRU",
       "destination": "JFK",
@@ -58041,7 +58047,7 @@
       "return_date": "2026-11-17",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-09T09:34:06.034955+00:00",
+      "detected_at": "2026-08-09T18:04:12.653949+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -64770,6 +64776,7 @@
   "GRU-LHR-business::duffel::2026-11-07_2026-11-17": {
     "prices": [
       16958.4,
+      16022.16,
       16022.16
     ],
     "last_alert_at": null,
@@ -64786,7 +64793,7 @@
       "return_date": "2026-11-17",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-09T09:34:31.297522+00:00",
+      "detected_at": "2026-08-09T18:04:42.962025+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -74713,6 +74720,7 @@
   "GRU-LIS-business::duffel::2026-11-07_2026-11-17": {
     "prices": [
       11900.28,
+      11900.28,
       11900.28
     ],
     "last_alert_at": null,
@@ -74729,7 +74737,7 @@
       "return_date": "2026-11-17",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-09T09:34:40.102350+00:00",
+      "detected_at": "2026-08-09T18:04:52.340701+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -81352,6 +81360,7 @@
   "GRU-MAD-business::duffel::2026-11-07_2026-11-17": {
     "prices": [
       12334.38,
+      12334.38,
       12334.38
     ],
     "last_alert_at": null,
@@ -81368,7 +81377,7 @@
       "return_date": "2026-11-17",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-09T09:34:37.600773+00:00",
+      "detected_at": "2026-08-09T18:04:49.773519+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -89610,7 +89619,7 @@
       5528.46,
       5528.46,
       5528.46,
-      5528.46,
+      5529.0,
       5529.0,
       5529.0,
       5529.0,
@@ -89667,7 +89676,7 @@
       "return_date": null,
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-09T16:18:29.860440+00:00",
+      "detected_at": "2026-08-09T18:05:07.245502+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -100840,6 +100849,7 @@
   "GRU-ORD-business::duffel::2026-11-07_2026-11-17": {
     "prices": [
       12629.82,
+      12629.82,
       12629.82
     ],
     "last_alert_at": null,
@@ -100856,7 +100866,7 @@
       "return_date": "2026-11-17",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-09T09:34:09.245396+00:00",
+      "detected_at": "2026-08-09T18:04:17.452639+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -113408,6 +113418,7 @@
   "GRU-PTY-business::duffel::2026-11-07_2026-11-17": {
     "prices": [
       12512.34,
+      12512.34,
       12512.34
     ],
     "last_alert_at": null,
@@ -113424,7 +113435,7 @@
       "return_date": "2026-11-17",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-09T09:34:15.451412+00:00",
+      "detected_at": "2026-08-09T18:04:25.416724+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -129150,6 +129161,7 @@
   "GRU-SJO-business::duffel::2026-11-07_2026-11-17": {
     "prices": [
       7881.9,
+      7881.9,
       7881.9
     ],
     "last_alert_at": null,
@@ -129166,7 +129178,7 @@
       "return_date": "2026-11-17",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-09T09:34:18.833311+00:00",
+      "detected_at": "2026-08-09T18:04:28.801002+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -135422,6 +135434,7 @@
   "GRU-YUL-business::duffel::2026-11-07_2026-11-17": {
     "prices": [
       11808.66,
+      11808.66,
       11808.66
     ],
     "last_alert_at": null,
@@ -135438,7 +135451,7 @@
       "return_date": "2026-11-17",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-09T09:34:28.003449+00:00",
+      "detected_at": "2026-08-09T18:04:39.573841+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -141694,6 +141707,7 @@
   "GRU-YYZ-business::duffel::2026-11-07_2026-11-17": {
     "prices": [
       15781.38,
+      13889.7,
       13889.7
     ],
     "last_alert_at": null,
@@ -141710,7 +141724,7 @@
       "return_date": "2026-11-17",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-09T09:34:23.196363+00:00",
+      "detected_at": "2026-08-09T18:04:33.938207+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
