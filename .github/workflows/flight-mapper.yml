@@ -95,12 +95,31 @@ jobs:
 
       - name: Commit state
         run: |
-          if [[ -n "$(git status --porcelain data/)" ]]; then
-            git config user.name "radar-voos-olivia[bot]"
-            git config user.email "radar-voos-olivia@users.noreply.github.com"
-            git add data/
-            git commit -m "chore: update price history [skip ci]"
-            git push
-          else
+          # flight-mapper e flight-hot-scan rodam no MESMO cron ("*/15 * * * *"),
+          # ambos com contents: write e ambos commitando em main. O hot-scan
+          # leva ~22s e empurra primeiro; o mapper leva ~80s e encontra o main
+          # remoto já adiantado, levando "! [rejected] (fetch first)" — o ciclo
+          # perdia os dados que acabara de coletar (~28% dos runs).
+          # Solução já provada em produção no flight-hot-scan: rebase + retry.
+          if [[ -z "$(git status --porcelain data/)" ]]; then
             echo "No state changes to commit."
+            exit 0
           fi
+          git config user.name "radar-voos-olivia[bot]"
+          git config user.email "radar-voos-olivia@users.noreply.github.com"
+          git add data/
+          git commit -m "chore: update price history [skip ci]"
+          for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push; then
+              echo "Pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "Push attempt $attempt failed; sleeping $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
+          # Desistência NÃO derruba o job: sair com falha gera e-mail de
+          # "All jobs have failed" a cada ocorrência (10-15/dia hoje). A
+          # anotação ::warning:: mantém o incidente visível no run, sem
+          # inundar o e-mail. O ciclo seguinte recolhe o estado perdido.
+          echo "::warning::push do estado abandonado apos 3 tentativas; ciclo perdido"
+          exit 0
