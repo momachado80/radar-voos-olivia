@@ -1610,15 +1610,16 @@
   },
   "BSB-CGH-one_way-business::duffel::2026-10-07_": {
     "prices": [
-      2616.84
+      2616.84,
+      2633.28
     ],
     "last_alert_at": null,
     "last_alert_price": null,
     "last_quote": {
-      "price_brl": 2616.84,
-      "amount": 436.14,
+      "price_brl": 2633.28,
+      "amount": 438.88,
       "currency": "EUR",
-      "amount_brl_estimated": 2616.84,
+      "amount_brl_estimated": 2633.28,
       "fx_rate": 6.0,
       "origin": "BSB",
       "destination": "CGH",
@@ -1626,7 +1627,7 @@
       "return_date": "2026-10-07",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-23T06:38:10.365699+00:00",
+      "detected_at": "2026-08-23T10:19:24.638579+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -3807,15 +3808,16 @@
   },
   "CGH-BSB-one_way-business::duffel::2026-10-07_": {
     "prices": [
-      2767.26
+      2767.26,
+      2623.08
     ],
     "last_alert_at": null,
     "last_alert_price": null,
     "last_quote": {
-      "price_brl": 2767.26,
-      "amount": 461.21,
+      "price_brl": 2623.08,
+      "amount": 437.18,
       "currency": "EUR",
-      "amount_brl_estimated": 2767.26,
+      "amount_brl_estimated": 2623.08,
       "fx_rate": 6.0,
       "origin": "CGH",
       "destination": "BSB",
@@ -3823,7 +3825,7 @@
       "return_date": "2026-10-07",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-23T06:38:09.565179+00:00",
+      "detected_at": "2026-08-23T10:19:23.662862+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -6004,15 +6006,16 @@
   },
   "CGH-SSA-one_way-business::duffel::2026-10-07_": {
     "prices": [
-      4362.66
+      4362.66,
+      4249.56
     ],
     "last_alert_at": null,
     "last_alert_price": null,
     "last_quote": {
-      "price_brl": 4362.66,
-      "amount": 727.11,
+      "price_brl": 4249.56,
+      "amount": 708.26,
       "currency": "EUR",
-      "amount_brl_estimated": 4362.66,
+      "amount_brl_estimated": 4249.56,
       "fx_rate": 6.0,
       "origin": "CGH",
       "destination": "SSA",
@@ -6020,7 +6023,7 @@
       "return_date": "2026-10-07",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-23T06:38:08.000724+00:00",
+      "detected_at": "2026-08-23T10:19:21.882808+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -20722,6 +20725,7 @@
   },
   "GRU-BOG-one_way-business::duffel::2026-11-21_": {
     "prices": [
+      7179.36,
       7179.36
     ],
     "last_alert_at": null,
@@ -20738,7 +20742,7 @@
       "return_date": "2026-11-21",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-23T06:38:14.371707+00:00",
+      "detected_at": "2026-08-23T10:19:28.459889+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -42939,15 +42943,16 @@
   },
   "GRU-EZE-one_way-business::duffel::2026-11-21_": {
     "prices": [
-      5104.14
+      5104.14,
+      4955.94
     ],
     "last_alert_at": null,
     "last_alert_price": null,
     "last_quote": {
-      "price_brl": 5104.14,
-      "amount": 850.69,
+      "price_brl": 4955.94,
+      "amount": 825.99,
       "currency": "EUR",
-      "amount_brl_estimated": 5104.14,
+      "amount_brl_estimated": 4955.94,
       "fx_rate": 6.0,
       "origin": "GRU",
       "destination": "EZE",
@@ -42955,7 +42960,7 @@
       "return_date": "2026-11-21",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-23T06:38:11.189248+00:00",
+      "detected_at": "2026-08-23T10:19:25.431134+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -60970,6 +60975,7 @@
   },
   "GRU-HKG-business::duffel::2026-11-21_2026-12-01": {
     "prices": [
+      26416.92,
       26416.92
     ],
     "last_alert_at": null,
@@ -60986,7 +60992,7 @@
       "return_date": "2026-12-01",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-23T06:38:07.224287+00:00",
+      "detected_at": "2026-08-23T10:19:21.004625+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -68871,6 +68877,7 @@
   },
   "GRU-HND-business::duffel::2026-11-21_2026-12-01": {
     "prices": [
+      28287.78,
       28287.78
     ],
     "last_alert_at": null,
@@ -68887,7 +68894,7 @@
       "return_date": "2026-12-01",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-23T06:37:58.129409+00:00",
+      "detected_at": "2026-08-23T10:19:10.601880+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -95509,6 +95516,7 @@
   },
   "GRU-LIM-one_way-business::duffel::2026-11-21_": {
     "prices": [
+      8607.78,
       8607.78
     ],
     "last_alert_at": null,
@@ -95525,7 +95533,7 @@
       "return_date": "2026-11-21",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-23T06:38:15.833075+00:00",
+      "detected_at": "2026-08-23T10:19:29.880249+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -116117,7 +116125,7 @@
       5606.34,
       5606.34,
       5606.34,
-      5606.34,
+      5606.82,
       5606.82,
       5606.82,
       5606.82,
@@ -116142,7 +116150,7 @@
       "return_date": null,
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-23T09:59:12.211390+00:00",
+      "detected_at": "2026-08-23T10:19:32.780112+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -118244,6 +118252,7 @@
   },
   "GRU-MIA-one_way-business::duffel::2026-11-21_": {
     "prices": [
+      14993.4,
       14993.4
     ],
     "last_alert_at": null,
@@ -118260,7 +118269,7 @@
       "return_date": "2026-11-21",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-23T06:38:17.446274+00:00",
+      "detected_at": "2026-08-23T10:19:31.522248+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -122221,6 +122230,7 @@
   },
   "GRU-NRT-business::duffel::2026-11-21_2026-12-01": {
     "prices": [
+      28327.32,
       28327.32
     ],
     "last_alert_at": null,
@@ -122237,7 +122247,7 @@
       "return_date": "2026-12-01",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-23T06:37:54.727779+00:00",
+      "detected_at": "2026-08-23T10:19:06.339653+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -137999,6 +138009,7 @@
   },
   "GRU-PEK-business::duffel::2026-11-21_2026-12-01": {
     "prices": [
+      38280.42,
       38280.42
     ],
     "last_alert_at": null,
@@ -138015,7 +138026,7 @@
       "return_date": "2026-12-01",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-23T06:38:04.099438+00:00",
+      "detected_at": "2026-08-23T10:19:17.404750+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -153775,6 +153786,7 @@
   },
   "GRU-PVG-business::duffel::2026-11-21_2026-12-01": {
     "prices": [
+      31859.58,
       31859.58
     ],
     "last_alert_at": null,
@@ -153791,7 +153803,7 @@
       "return_date": "2026-12-01",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-23T06:38:01.546341+00:00",
+      "detected_at": "2026-08-23T10:19:14.280279+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -163715,6 +163727,7 @@
   },
   "GRU-SCL-one_way-business::duffel::2026-11-21_": {
     "prices": [
+      5449.86,
       5449.86
     ],
     "last_alert_at": null,
@@ -163731,7 +163744,7 @@
       "return_date": "2026-11-21",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-23T06:38:11.948355+00:00",
+      "detected_at": "2026-08-23T10:19:25.981964+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -188981,15 +188994,16 @@
   },
   "SSA-CGH-one_way-business::duffel::2026-10-07_": {
     "prices": [
-      4403.52
+      4403.52,
+      4266.6
     ],
     "last_alert_at": null,
     "last_alert_price": null,
     "last_quote": {
-      "price_brl": 4403.52,
-      "amount": 733.92,
+      "price_brl": 4266.6,
+      "amount": 711.1,
       "currency": "EUR",
-      "amount_brl_estimated": 4403.52,
+      "amount_brl_estimated": 4266.6,
       "fx_rate": 6.0,
       "origin": "SSA",
       "destination": "CGH",
@@ -188997,7 +189011,7 @@
       "return_date": "2026-10-07",
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-08-23T06:38:08.758579+00:00",
+      "detected_at": "2026-08-23T10:19:22.788085+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
