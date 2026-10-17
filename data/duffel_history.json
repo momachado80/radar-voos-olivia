@@ -12071,6 +12071,32 @@
       "provider_note": "duffel"
     }
   },
+  "CGH-BSB-one_way-economy::duffel::2026-12-01_": {
+    "prices": [
+      549.48
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 549.48,
+      "amount": 91.58,
+      "currency": "EUR",
+      "amount_brl_estimated": 549.48,
+      "fx_rate": 6.0,
+      "origin": "CGH",
+      "destination": "BSB",
+      "departure_date": "2026-12-01",
+      "return_date": "2026-12-01",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-10-17T13:11:53.914272+00:00",
+      "actionable_url": false,
+      "cabin": "economy",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
   "CGH-SSA-business::duffel::2026-09-18_2026-09-22": {
     "prices": [
       4259.4
@@ -101057,6 +101083,32 @@
       "provider_note": "duffel"
     }
   },
+  "GRU-HKG-economy::duffel::2027-01-15_2027-01-25": {
+    "prices": [
+      7482.12
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 7482.12,
+      "amount": 1247.02,
+      "currency": "EUR",
+      "amount_brl_estimated": 7482.12,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "HKG",
+      "departure_date": "2027-01-15",
+      "return_date": "2027-01-25",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-10-17T13:11:32.024830+00:00",
+      "actionable_url": false,
+      "cabin": "economy",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
   "GRU-HKG-one_way-business::duffel::2026-09-06_": {
     "prices": [
       50488.8
@@ -178814,7 +178866,6 @@
   },
   "GRU-MIA-one_way-business::duffel": {
     "prices": [
-      5574.78,
       5579.76,
       5573.88,
       5571.0,
@@ -178863,6 +178914,7 @@
       5613.36,
       5607.36,
       5606.58,
+      5606.58,
       5606.58
     ],
     "last_alert_at": "2026-05-30T05:10:40.923770+00:00",
@@ -178879,7 +178931,7 @@
       "return_date": null,
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-10-17T05:36:17.649558+00:00",
+      "detected_at": "2026-10-17T13:13:37.555707+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -237535,6 +237587,32 @@
       "provider_note": "duffel"
     }
   },
+  "GRU-PVG-economy::duffel::2027-01-15_2027-01-25": {
+    "prices": [
+      7739.94
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 7739.94,
+      "amount": 1289.99,
+      "currency": "EUR",
+      "amount_brl_estimated": 7739.94,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "PVG",
+      "departure_date": "2027-01-15",
+      "return_date": "2027-01-25",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-10-17T13:11:09.848314+00:00",
+      "actionable_url": false,
+      "cabin": "economy",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
   "GRU-PVG-one_way-business::duffel::2026-09-06_": {
     "prices": [
       51120.84
@@ -290265,6 +290343,32 @@
       "source": "duffel",
       "deep_link": null,
       "detected_at": "2026-10-16T09:30:27.790562+00:00",
+      "actionable_url": false,
+      "cabin": "economy",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
+  "SSA-CGH-one_way-economy::duffel::2026-12-01_": {
+    "prices": [
+      804.78
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 804.78,
+      "amount": 134.13,
+      "currency": "EUR",
+      "amount_brl_estimated": 804.78,
+      "fx_rate": 6.0,
+      "origin": "SSA",
+      "destination": "CGH",
+      "departure_date": "2026-12-01",
+      "return_date": "2026-12-01",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-10-17T13:11:53.007733+00:00",
       "actionable_url": false,
       "cabin": "economy",
       "cabin_confirmed": true,
