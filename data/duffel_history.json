@@ -205275,6 +205275,32 @@
       "provider_note": "duffel"
     }
   },
+  "GRU-ORD-one_way-business::duffel::2027-01-15_": {
+    "prices": [
+      23478.72
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 23478.72,
+      "amount": 3913.12,
+      "currency": "EUR",
+      "amount_brl_estimated": 23478.72,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "ORD",
+      "departure_date": "2027-01-15",
+      "return_date": "2027-01-15",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-10-17T01:05:28.691220+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
   "GRU-ORD-one_way-economy::duffel::2026-09-06_": {
     "prices": [
       3589.74
