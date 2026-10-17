@@ -24060,6 +24060,32 @@
       "provider_note": "duffel"
     }
   },
+  "GRU-AMS-economy::duffel::2027-01-15_2027-01-25": {
+    "prices": [
+      4115.4
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 4115.4,
+      "amount": 685.9,
+      "currency": "EUR",
+      "amount_brl_estimated": 4115.4,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "AMS",
+      "departure_date": "2027-01-15",
+      "return_date": "2027-01-25",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-10-17T09:42:52.424383+00:00",
+      "actionable_url": false,
+      "cabin": "economy",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
   "GRU-AMS-one_way-business::duffel::2026-09-03_": {
     "prices": [
       27287.64,
@@ -59900,6 +59926,32 @@
       "source": "duffel",
       "deep_link": null,
       "detected_at": "2026-10-16T05:00:16.778129+00:00",
+      "actionable_url": false,
+      "cabin": "economy",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
+  "GRU-CUN-economy::duffel::2027-01-15_2027-01-25": {
+    "prices": [
+      2881.26
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 2881.26,
+      "amount": 480.21,
+      "currency": "EUR",
+      "amount_brl_estimated": 2881.26,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "CUN",
+      "departure_date": "2027-01-15",
+      "return_date": "2027-01-25",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-10-17T09:40:03.820941+00:00",
       "actionable_url": false,
       "cabin": "economy",
       "cabin_confirmed": true,
@@ -255007,6 +255059,32 @@
       "source": "duffel",
       "deep_link": null,
       "detected_at": "2026-10-16T05:00:22.987082+00:00",
+      "actionable_url": false,
+      "cabin": "economy",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
+  "GRU-SJO-economy::duffel::2027-01-15_2027-01-25": {
+    "prices": [
+      2448.42
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 2448.42,
+      "amount": 408.07,
+      "currency": "EUR",
+      "amount_brl_estimated": 2448.42,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "SJO",
+      "departure_date": "2027-01-15",
+      "return_date": "2027-01-25",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-10-17T09:40:30.276140+00:00",
       "actionable_url": false,
       "cabin": "economy",
       "cabin_confirmed": true,
