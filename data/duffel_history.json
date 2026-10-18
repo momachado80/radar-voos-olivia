@@ -157977,6 +157977,32 @@
       "provider_note": "duffel"
     }
   },
+  "GRU-LIS-one_way-business::duffel::2027-01-16_": {
+    "prices": [
+      22438.44
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 22438.44,
+      "amount": 3739.74,
+      "currency": "EUR",
+      "amount_brl_estimated": 22438.44,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "LIS",
+      "departure_date": "2027-01-16",
+      "return_date": "2027-01-16",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-10-18T00:24:14.982331+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
   "GRU-LIS-one_way-economy::duffel::2026-09-03_": {
     "prices": [
       3381.48
@@ -170000,6 +170026,32 @@
       "source": "duffel",
       "deep_link": null,
       "detected_at": "2026-10-15T22:35:02.167652+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
+  "GRU-MAD-one_way-business::duffel::2027-01-16_": {
+    "prices": [
+      23750.4
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 23750.4,
+      "amount": 3958.4,
+      "currency": "EUR",
+      "amount_brl_estimated": 23750.4,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "MAD",
+      "departure_date": "2027-01-16",
+      "return_date": "2027-01-16",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-10-18T00:24:14.171740+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -205632,6 +205684,32 @@
       "source": "duffel",
       "deep_link": null,
       "detected_at": "2026-10-17T01:05:28.691220+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
+  "GRU-ORD-one_way-business::duffel::2027-01-16_": {
+    "prices": [
+      23508.18
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 23508.18,
+      "amount": 3918.03,
+      "currency": "EUR",
+      "amount_brl_estimated": 23508.18,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "ORD",
+      "departure_date": "2027-01-16",
+      "return_date": "2027-01-16",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-10-18T00:21:49.134472+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
