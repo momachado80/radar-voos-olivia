@@ -1,95 +1,5 @@
 {
   "entries": {
-    "duffel|CGH-BSB|economy|round_trip|2026-11-27|2026-12-01": {
-      "last_alert_at": "2026-10-13T03:44:32.692574+00:00",
-      "last_price_brl": 548.76,
-      "last_currency": "EUR"
-    },
-    "duffel|BSB-CGH|economy|round_trip|2026-11-27|2026-12-01": {
-      "last_alert_at": "2026-10-13T03:44:32.692574+00:00",
-      "last_price_brl": 555.84,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-BOG|economy|round_trip|2027-01-11|2027-01-21": {
-      "last_alert_at": "2026-10-13T03:44:32.692574+00:00",
-      "last_price_brl": 1926.66,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-MIA|economy|round_trip|2027-01-11|2027-01-21": {
-      "last_alert_at": "2026-10-13T03:44:32.692574+00:00",
-      "last_price_brl": 2861.16,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-JFK|economy|round_trip|2027-01-11|2027-01-21": {
-      "last_alert_at": "2026-10-13T11:07:29.828308+00:00",
-      "last_price_brl": 3245.22,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-ORD|economy|round_trip|2027-01-11|2027-01-21": {
-      "last_alert_at": "2026-10-13T11:07:29.828308+00:00",
-      "last_price_brl": 3652.44,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-CUN|economy|round_trip|2027-01-11|2027-01-21": {
-      "last_alert_at": "2026-10-13T11:07:29.828308+00:00",
-      "last_price_brl": 2925.6,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-PTY|economy|round_trip|2027-01-11|2027-01-21": {
-      "last_alert_at": "2026-10-13T11:07:29.828308+00:00",
-      "last_price_brl": 2233.44,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-SJO|economy|round_trip|2027-01-11|2027-01-21": {
-      "last_alert_at": "2026-10-13T11:07:29.828308+00:00",
-      "last_price_brl": 2410.62,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-YYZ|economy|round_trip|2027-01-11|2027-01-21": {
-      "last_alert_at": "2026-10-13T11:07:29.828308+00:00",
-      "last_price_brl": 3458.64,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-YUL|economy|round_trip|2027-01-11|2027-01-21": {
-      "last_alert_at": "2026-10-13T11:07:29.828308+00:00",
-      "last_price_brl": 3494.34,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-LHR|economy|round_trip|2027-01-11|2027-01-21": {
-      "last_alert_at": "2026-10-13T11:07:29.828308+00:00",
-      "last_price_brl": 3990.3,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-CDG|economy|round_trip|2027-01-11|2027-01-21": {
-      "last_alert_at": "2026-10-13T11:07:29.828308+00:00",
-      "last_price_brl": 4025.22,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-MAD|economy|round_trip|2027-01-11|2027-01-21": {
-      "last_alert_at": "2026-10-13T11:07:29.828308+00:00",
-      "last_price_brl": 3542.16,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-LIS|economy|round_trip|2027-01-11|2027-01-21": {
-      "last_alert_at": "2026-10-13T11:07:29.828308+00:00",
-      "last_price_brl": 3434.04,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-FCO|economy|round_trip|2027-01-11|2027-01-21": {
-      "last_alert_at": "2026-10-13T11:07:29.828308+00:00",
-      "last_price_brl": 4041.36,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-AMS|economy|round_trip|2027-01-11|2027-01-21": {
-      "last_alert_at": "2026-10-13T11:07:29.828308+00:00",
-      "last_price_brl": 4230.0,
-      "last_currency": "EUR"
-    },
-    "duffel|GRU-FRA|economy|round_trip|2027-01-11|2027-01-21": {
-      "last_alert_at": "2026-10-13T11:07:29.828308+00:00",
-      "last_price_brl": 4153.32,
-      "last_currency": "EUR"
-    },
     "duffel|CGH-BSB|economy|round_trip|2026-11-28|2026-12-02": {
       "last_alert_at": "2026-10-14T20:40:26.061365+00:00",
       "last_price_brl": 534.12,
@@ -388,6 +298,11 @@
     "duffel|GRU-AMS|economy|round_trip|2027-01-17|2027-01-27": {
       "last_alert_at": "2026-10-19T06:08:24.523118+00:00",
       "last_price_brl": 4207.86,
+      "last_currency": "EUR"
+    },
+    "duffel|GRU-SCL|business|round_trip|2027-01-18|2027-01-28": {
+      "last_alert_at": "2026-10-20T11:28:52.187195+00:00",
+      "last_price_brl": 4333.92,
       "last_currency": "EUR"
     }
   }
