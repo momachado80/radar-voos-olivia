@@ -5983,6 +5983,32 @@
       "provider_note": "duffel"
     }
   },
+  "BSB-CGH-one_way-business::duffel::2027-01-07_": {
+    "prices": [
+      2722.5
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 2722.5,
+      "amount": 453.75,
+      "currency": "EUR",
+      "amount_brl_estimated": 2722.5,
+      "fx_rate": 6.0,
+      "origin": "BSB",
+      "destination": "CGH",
+      "departure_date": "2027-01-07",
+      "return_date": "2027-01-07",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-11-23T09:45:12.783476+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
   "BSB-CGH-one_way-economy::duffel::2026-09-18_": {
     "prices": [
       564.6
@@ -13962,6 +13988,32 @@
       "source": "duffel",
       "deep_link": null,
       "detected_at": "2026-11-21T07:01:01.307416+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
+  "CGH-BSB-one_way-business::duffel::2027-01-07_": {
+    "prices": [
+      2682.54
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 2682.54,
+      "amount": 447.09,
+      "currency": "EUR",
+      "amount_brl_estimated": 2682.54,
+      "fx_rate": 6.0,
+      "origin": "CGH",
+      "destination": "BSB",
+      "departure_date": "2027-01-07",
+      "return_date": "2027-01-07",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-11-23T09:45:12.020989+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -22000,6 +22052,32 @@
       "source": "duffel",
       "deep_link": null,
       "detected_at": "2026-11-21T07:00:59.572835+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
+  "CGH-SSA-one_way-business::duffel::2027-01-07_": {
+    "prices": [
+      4613.7
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 4613.7,
+      "amount": 768.95,
+      "currency": "EUR",
+      "amount_brl_estimated": 4613.7,
+      "fx_rate": 6.0,
+      "origin": "CGH",
+      "destination": "SSA",
+      "departure_date": "2027-01-07",
+      "return_date": "2027-01-07",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-11-23T09:45:10.100406+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -48295,6 +48373,32 @@
       "source": "duffel",
       "deep_link": null,
       "detected_at": "2026-11-21T07:01:06.144897+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
+  "GRU-BOG-one_way-business::duffel::2027-02-21_": {
+    "prices": [
+      10252.08
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 10252.08,
+      "amount": 1708.68,
+      "currency": "EUR",
+      "amount_brl_estimated": 10252.08,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "BOG",
+      "departure_date": "2027-02-21",
+      "return_date": "2027-02-21",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-11-23T09:45:16.238985+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -86339,6 +86443,32 @@
       "provider_note": "duffel"
     }
   },
+  "GRU-EZE-one_way-business::duffel::2027-02-21_": {
+    "prices": [
+      5042.76
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 5042.76,
+      "amount": 840.46,
+      "currency": "EUR",
+      "amount_brl_estimated": 5042.76,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "EZE",
+      "departure_date": "2027-02-21",
+      "return_date": "2027-02-21",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-11-23T09:45:13.466138+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
   "GRU-FCO-business::duffel::2026-09-02_2026-09-12": {
     "prices": [
       13525.14
@@ -117231,6 +117361,32 @@
       "provider_note": "duffel"
     }
   },
+  "GRU-HKG-business::duffel::2027-02-21_2027-03-03": {
+    "prices": [
+      34943.4
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 34943.4,
+      "amount": 5823.9,
+      "currency": "EUR",
+      "amount_brl_estimated": 34943.4,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "HKG",
+      "departure_date": "2027-02-21",
+      "return_date": "2027-03-03",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-11-23T09:45:09.184982+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
   "GRU-HKG-economy::duffel::2026-09-06_2026-09-16": {
     "prices": [
       6670.2
@@ -130888,6 +131044,32 @@
       "source": "duffel",
       "deep_link": null,
       "detected_at": "2026-11-21T07:00:53.368388+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
+  "GRU-HND-business::duffel::2027-02-21_2027-03-03": {
+    "prices": [
+      29521.38
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 29521.38,
+      "amount": 4920.23,
+      "currency": "EUR",
+      "amount_brl_estimated": 29521.38,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "HND",
+      "departure_date": "2027-02-21",
+      "return_date": "2027-03-03",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-11-23T09:45:05.023229+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -176183,6 +176365,32 @@
       "provider_note": "duffel"
     }
   },
+  "GRU-LIM-one_way-business::duffel::2027-02-21_": {
+    "prices": [
+      10136.58
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 10136.58,
+      "amount": 1689.43,
+      "currency": "EUR",
+      "amount_brl_estimated": 10136.58,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "LIM",
+      "departure_date": "2027-02-21",
+      "return_date": "2027-02-21",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-11-23T09:45:17.497491+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
   "GRU-LIS-business::duffel::2026-09-02_2026-09-12": {
     "prices": [
       13234.02
@@ -211184,7 +211392,6 @@
   },
   "GRU-MIA-one_way-business::duffel": {
     "prices": [
-      6817.8,
       6815.76,
       6816.9,
       6856.92,
@@ -211233,15 +211440,16 @@
       7102.74,
       7102.74,
       7102.74,
-      7097.76
+      7097.76,
+      7090.98
     ],
     "last_alert_at": "2026-05-30T05:10:40.923770+00:00",
     "last_alert_price": 5777.58,
     "last_quote": {
-      "price_brl": 7097.76,
-      "amount": 1182.96,
+      "price_brl": 7090.98,
+      "amount": 1181.83,
       "currency": "EUR",
-      "amount_brl_estimated": 7097.76,
+      "amount_brl_estimated": 7090.98,
       "fx_rate": 6.0,
       "origin": "GRU",
       "destination": "MIA",
@@ -211249,7 +211457,7 @@
       "return_date": null,
       "source": "duffel",
       "deep_link": null,
-      "detected_at": "2026-11-23T01:41:51.640504+00:00",
+      "detected_at": "2026-11-23T09:45:20.492609+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -214783,6 +214991,32 @@
       "source": "duffel",
       "deep_link": null,
       "detected_at": "2026-11-21T07:01:09.040512+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
+  "GRU-MIA-one_way-business::duffel::2027-02-21_": {
+    "prices": [
+      18470.7
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 18470.7,
+      "amount": 3078.45,
+      "currency": "EUR",
+      "amount_brl_estimated": 18470.7,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "MIA",
+      "departure_date": "2027-02-21",
+      "return_date": "2027-02-21",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-11-23T09:45:19.111075+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -221614,6 +221848,32 @@
       "source": "duffel",
       "deep_link": null,
       "detected_at": "2026-11-21T07:00:50.426233+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
+  "GRU-NRT-business::duffel::2027-02-21_2027-03-03": {
+    "prices": [
+      35937.42
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 35937.42,
+      "amount": 5989.57,
+      "currency": "EUR",
+      "amount_brl_estimated": 35937.42,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "NRT",
+      "departure_date": "2027-02-21",
+      "return_date": "2027-03-03",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-11-23T09:45:02.242974+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -249002,6 +249262,32 @@
       "provider_note": "duffel"
     }
   },
+  "GRU-PEK-business::duffel::2027-02-21_2027-03-03": {
+    "prices": [
+      50469.3
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 50469.3,
+      "amount": 8411.55,
+      "currency": "EUR",
+      "amount_brl_estimated": 50469.3,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "PEK",
+      "departure_date": "2027-02-21",
+      "return_date": "2027-03-03",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-11-23T09:45:08.352646+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
   "GRU-PEK-economy::duffel::2026-09-06_2026-09-16": {
     "prices": [
       7321.86
@@ -276303,6 +276589,32 @@
       "provider_note": "duffel"
     }
   },
+  "GRU-PVG-business::duffel::2027-02-21_2027-03-03": {
+    "prices": [
+      35866.44
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 35866.44,
+      "amount": 5977.74,
+      "currency": "EUR",
+      "amount_brl_estimated": 35866.44,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "PVG",
+      "departure_date": "2027-02-21",
+      "return_date": "2027-03-03",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-11-23T09:45:06.851347+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
   "GRU-PVG-economy::duffel::2026-09-06_2026-09-16": {
     "prices": [
       7696.8
@@ -293414,6 +293726,32 @@
       "source": "duffel",
       "deep_link": null,
       "detected_at": "2026-11-21T07:01:04.258780+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
+  "GRU-SCL-one_way-business::duffel::2027-02-21_": {
+    "prices": [
+      4747.74
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 4747.74,
+      "amount": 791.29,
+      "currency": "EUR",
+      "amount_brl_estimated": 4747.74,
+      "fx_rate": 6.0,
+      "origin": "GRU",
+      "destination": "SCL",
+      "departure_date": "2027-02-21",
+      "return_date": "2027-02-21",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-11-23T09:45:14.256331+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
@@ -340211,6 +340549,32 @@
       "source": "duffel",
       "deep_link": null,
       "detected_at": "2026-11-21T07:01:00.538614+00:00",
+      "actionable_url": false,
+      "cabin": "business",
+      "cabin_confirmed": true,
+      "trip_type": "round_trip",
+      "provider_note": "duffel"
+    }
+  },
+  "SSA-CGH-one_way-business::duffel::2027-01-07_": {
+    "prices": [
+      4355.58
+    ],
+    "last_alert_at": null,
+    "last_alert_price": null,
+    "last_quote": {
+      "price_brl": 4355.58,
+      "amount": 725.93,
+      "currency": "EUR",
+      "amount_brl_estimated": 4355.58,
+      "fx_rate": 6.0,
+      "origin": "SSA",
+      "destination": "CGH",
+      "departure_date": "2027-01-07",
+      "return_date": "2027-01-07",
+      "source": "duffel",
+      "deep_link": null,
+      "detected_at": "2026-11-23T09:45:11.057420+00:00",
       "actionable_url": false,
       "cabin": "business",
       "cabin_confirmed": true,
